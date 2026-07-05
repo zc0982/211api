@@ -82,4 +82,13 @@ jobs:
              docker compose ps &&
              server_port=\$(grep -E '^SERVER_PORT=' .env | tail -n 1 | cut -d= -f2- | tr -d '\"' || true) &&
              server_port=\${server_port:-8080} &&
-             curl -fsS \"http://127.0.0.1:\${server_port}/health\""
+             for attempt in \$(seq 1 60); do
+               if curl -fsS \"http://127.0.0.1:\${server_port}/health\"; then
+                 exit 0
+               fi
+               echo \"Waiting for health check... attempt \${attempt}/60\"
+               sleep 5
+             done
+             docker compose ps
+             docker compose logs --tail=120 sub2api
+             exit 1"
