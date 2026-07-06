@@ -110,6 +110,9 @@ func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact
 
 func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuthTransformOptions) codexTransformResult {
 	result := codexTransformResult{}
+	if normalizeCodexTopLevelInputList(reqBody) {
+		result.Modified = true
+	}
 	// 工具续链需求会影响存储策略与 input 过滤逻辑。
 	needsToolContinuation := NeedsToolContinuation(reqBody)
 
@@ -231,7 +234,7 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	// 续链场景保留 item_reference 与 id，避免 call_id 上下文丢失。
-	if input, ok := reqBody["input"].([]any); ok {
+	normalizeInputList := func(input []any) {
 		if normalizedInput, modified := normalizeCodexToolRoleMessages(input); modified {
 			input = normalizedInput
 			result.Modified = true
@@ -246,7 +249,22 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		})
 		reqBody["input"] = input
 		result.Modified = true
-	} else if inputStr, ok := reqBody["input"].(string); ok {
+	}
+	if input, ok := reqBody["input"].([]any); ok {
+		normalizeInputList(input)
+	}
+
+	return result
+}
+
+func normalizeCodexTopLevelInputList(reqBody map[string]any) bool {
+	if reqBody == nil {
+		return false
+	}
+	if _, ok := reqBody["input"].([]any); ok {
+		return false
+	}
+	if inputStr, ok := reqBody["input"].(string); ok {
 		// ChatGPT codex endpoint requires input to be a list, not a string.
 		// Convert string input to the expected message array format.
 		trimmed := strings.TrimSpace(inputStr)
@@ -261,10 +279,19 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		} else {
 			reqBody["input"] = []any{}
 		}
-		result.Modified = true
+		return true
 	}
-
-	return result
+	if inputMap, ok := reqBody["input"].(map[string]any); ok {
+		// Some OpenAI-compatible clients send a single input item object. The
+		// input-dependent passes below require the top-level input to be a list.
+		reqBody["input"] = []any{inputMap}
+		return true
+	}
+	if inputRaw, ok := reqBody["input"]; !ok || inputRaw == nil {
+		reqBody["input"] = []any{}
+		return true
+	}
+	return false
 }
 
 func normalizeCodexToolChoice(reqBody map[string]any) bool {
