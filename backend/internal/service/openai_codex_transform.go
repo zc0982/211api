@@ -152,6 +152,7 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	// Strip parameters unsupported by ChatGPT internal Codex endpoint.
+	// Keep this rule in sync with normalizeOpenAIPassthroughOAuthBody's byte path.
 	for _, key := range openAICodexOAuthUnsupportedFields {
 		if _, ok := reqBody[key]; ok {
 			delete(reqBody, key)

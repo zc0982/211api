@@ -478,7 +478,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StripsUnsupportedGenerationContro
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
 
-	originalBody := []byte(`{"model":"gpt-5.4-mini","stream":false,"input":[{"type":"message","role":"user","content":"hello"}],"max_output_tokens":128,"max_completion_tokens":256,"temperature":0.2,"top_p":0.8,"frequency_penalty":0,"presence_penalty":0}`)
+	originalBody := withOpenAICodexOAuthUnsupportedFields(t, []byte(`{"model":"gpt-5.4-mini","stream":false,"input":[{"type":"message","role":"user","content":"hello"}]}`))
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -509,14 +509,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StripsUnsupportedGenerationContro
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
-	for _, field := range []string{
-		"max_output_tokens",
-		"max_completion_tokens",
-		"temperature",
-		"top_p",
-		"frequency_penalty",
-		"presence_penalty",
-	} {
+	for _, field := range openAICodexOAuthUnsupportedFields {
 		require.False(t, gjson.GetBytes(upstream.lastBody, field).Exists(), "%s should be stripped", field)
 	}
 	require.Equal(t, "gpt-5.4-mini", gjson.GetBytes(upstream.lastBody, "model").String())
