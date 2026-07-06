@@ -7112,6 +7112,46 @@ func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 		changed = true
 	}
 
+	input := gjson.GetBytes(normalized, "input")
+	switch {
+	case !input.Exists() || input.Type == gjson.Null:
+		next, err := sjson.SetBytes(normalized, "input", []any{})
+		if err != nil {
+			return body, false, fmt.Errorf("normalize passthrough body input=[]: %w", err)
+		}
+		normalized = next
+		changed = true
+	case input.Type == gjson.String:
+		trimmed := strings.TrimSpace(input.String())
+		replacement := []any{}
+		if trimmed != "" {
+			replacement = []any{
+				map[string]any{
+					"type":    "message",
+					"role":    "user",
+					"content": input.String(),
+				},
+			}
+		}
+		next, err := sjson.SetBytes(normalized, "input", replacement)
+		if err != nil {
+			return body, false, fmt.Errorf("normalize passthrough body string input: %w", err)
+		}
+		normalized = next
+		changed = true
+	case input.Type == gjson.JSON && input.IsObject():
+		var item any
+		if err := json.Unmarshal([]byte(input.Raw), &item); err != nil {
+			return body, false, fmt.Errorf("normalize passthrough body object input: %w", err)
+		}
+		next, err := sjson.SetBytes(normalized, "input", []any{item})
+		if err != nil {
+			return body, false, fmt.Errorf("normalize passthrough body object input list: %w", err)
+		}
+		normalized = next
+		changed = true
+	}
+
 	if compact {
 		if store := gjson.GetBytes(normalized, "store"); store.Exists() {
 			next, err := sjson.DeleteBytes(normalized, "store")

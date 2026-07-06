@@ -231,7 +231,7 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	// 续链场景保留 item_reference 与 id，避免 call_id 上下文丢失。
-	if input, ok := reqBody["input"].([]any); ok {
+	normalizeInputList := func(input []any) {
 		if normalizedInput, modified := normalizeCodexToolRoleMessages(input); modified {
 			input = normalizedInput
 			result.Modified = true
@@ -246,6 +246,9 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		})
 		reqBody["input"] = input
 		result.Modified = true
+	}
+	if input, ok := reqBody["input"].([]any); ok {
+		normalizeInputList(input)
 	} else if inputStr, ok := reqBody["input"].(string); ok {
 		// ChatGPT codex endpoint requires input to be a list, not a string.
 		// Convert string input to the expected message array format.
@@ -261,6 +264,13 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		} else {
 			reqBody["input"] = []any{}
 		}
+		result.Modified = true
+	} else if inputMap, ok := reqBody["input"].(map[string]any); ok {
+		// Some OpenAI-compatible clients send a single input item object. The
+		// ChatGPT Codex endpoint still requires the top-level input to be a list.
+		normalizeInputList([]any{inputMap})
+	} else if inputRaw, ok := reqBody["input"]; !ok || inputRaw == nil {
+		reqBody["input"] = []any{}
 		result.Modified = true
 	}
 

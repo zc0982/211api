@@ -420,6 +420,56 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamKeepsToolNameAndBodyNormali
 	require.NotContains(t, body, "\"name\":\"edit\"")
 }
 
+func TestOpenAIGatewayService_OAuthPassthrough_StringInputConvertedToArray(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
+	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
+
+	originalBody := []byte(`{"model":"gpt-5.4-mini","stream":false,"store":true,"input":"hello"}`)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid"}},
+		Body:       io.NopCloser(strings.NewReader("data: [DONE]\n\n")),
+	}
+	upstream := &httpUpstreamRecorder{resp: resp}
+
+	svc := &OpenAIGatewayService{
+		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
+		httpUpstream: upstream,
+	}
+
+	account := &Account{
+		ID:             123,
+		Name:           "acc",
+		Platform:       PlatformOpenAI,
+		Type:           AccountTypeOAuth,
+		Concurrency:    1,
+		Credentials:    map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
+		Extra:          map[string]any{"openai_passthrough": true},
+		Status:         StatusActive,
+		Schedulable:    true,
+		RateMultiplier: f64p(1),
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	input := gjson.GetBytes(upstream.lastBody, "input")
+	require.True(t, input.IsArray(), "OAuth passthrough must send ChatGPT internal input as a list")
+	require.Equal(t, int64(1), input.Get("#").Int())
+	require.Equal(t, "message", gjson.GetBytes(upstream.lastBody, "input.0.type").String())
+	require.Equal(t, "user", gjson.GetBytes(upstream.lastBody, "input.0.role").String())
+	require.Equal(t, "hello", gjson.GetBytes(upstream.lastBody, "input.0.content").String())
+	require.Equal(t, "gpt-5.4-mini", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, false, gjson.GetBytes(upstream.lastBody, "store").Bool())
+	require.Equal(t, true, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+}
+
 func TestOpenAIGatewayService_OAuthPassthrough_CompactUsesJSONAndKeepsNonStreaming(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -616,6 +666,53 @@ func TestOpenAIGatewayService_OAuthPassthrough_DisabledUsesLegacyTransform(t *te
 	require.NotEqual(t, inputBody, upstream.lastBody)
 	require.Contains(t, string(upstream.lastBody), `"store":false`)
 	require.Contains(t, string(upstream.lastBody), `"stream":true`)
+}
+
+func TestOpenAIGatewayService_OAuthLegacy_StringInputConvertedToArray(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
+	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
+
+	inputBody := []byte(`{"model":"gpt-5.4-mini","stream":false,"store":true,"input":"hello"}`)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid"}},
+		Body:       io.NopCloser(strings.NewReader("data: [DONE]\n\n")),
+	}
+	upstream := &httpUpstreamRecorder{resp: resp}
+
+	svc := &OpenAIGatewayService{
+		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
+		httpUpstream: upstream,
+	}
+
+	account := &Account{
+		ID:             123,
+		Name:           "acc",
+		Platform:       PlatformOpenAI,
+		Type:           AccountTypeOAuth,
+		Concurrency:    1,
+		Credentials:    map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
+		Extra:          map[string]any{"openai_passthrough": false},
+		Status:         StatusActive,
+		Schedulable:    true,
+		RateMultiplier: f64p(1),
+	}
+
+	_, err := svc.Forward(context.Background(), c, account, inputBody)
+	require.NoError(t, err)
+
+	input := gjson.GetBytes(upstream.lastBody, "input")
+	require.True(t, input.IsArray(), "OAuth ChatGPT internal /responses requires input to be a list")
+	require.Equal(t, int64(1), input.Get("#").Int())
+	require.Equal(t, "message", gjson.GetBytes(upstream.lastBody, "input.0.type").String())
+	require.Equal(t, "user", gjson.GetBytes(upstream.lastBody, "input.0.role").String())
+	require.Equal(t, "hello", gjson.GetBytes(upstream.lastBody, "input.0.content").String())
+	require.Equal(t, "gpt-5.4-mini", gjson.GetBytes(upstream.lastBody, "model").String())
 }
 
 func TestOpenAIGatewayService_OAuthLegacy_UpstreamRequestIgnoresClientCancel(t *testing.T) {
