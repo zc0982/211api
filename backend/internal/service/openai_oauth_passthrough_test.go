@@ -470,6 +470,54 @@ func TestOpenAIGatewayService_OAuthPassthrough_StringInputConvertedToArray(t *te
 	require.Equal(t, true, gjson.GetBytes(upstream.lastBody, "stream").Bool())
 }
 
+func TestOpenAIGatewayService_OAuthPassthrough_StripsUnsupportedGenerationControls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
+	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
+
+	originalBody := withOpenAICodexOAuthUnsupportedFields(t, []byte(`{"model":"gpt-5.4-mini","stream":false,"input":[{"type":"message","role":"user","content":"hello"}]}`))
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid"}},
+		Body:       io.NopCloser(strings.NewReader("data: [DONE]\n\n")),
+	}
+	upstream := &httpUpstreamRecorder{resp: resp}
+
+	svc := &OpenAIGatewayService{
+		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
+		httpUpstream: upstream,
+	}
+
+	account := &Account{
+		ID:             123,
+		Name:           "acc",
+		Platform:       PlatformOpenAI,
+		Type:           AccountTypeOAuth,
+		Concurrency:    1,
+		Credentials:    map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
+		Extra:          map[string]any{"openai_passthrough": true},
+		Status:         StatusActive,
+		Schedulable:    true,
+		RateMultiplier: f64p(1),
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+	for _, field := range openAICodexOAuthUnsupportedFields {
+		require.False(t, gjson.GetBytes(upstream.lastBody, field).Exists(), "%s should be stripped", field)
+	}
+	require.Equal(t, "gpt-5.4-mini", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "input").IsArray())
+	require.Equal(t, false, gjson.GetBytes(upstream.lastBody, "store").Bool())
+	require.Equal(t, true, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+}
+
 func TestOpenAIGatewayService_OAuthPassthrough_CompactUsesJSONAndKeepsNonStreaming(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

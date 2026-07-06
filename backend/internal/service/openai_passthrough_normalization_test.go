@@ -5,7 +5,36 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
+
+func withOpenAICodexOAuthUnsupportedFields(t *testing.T, body []byte) []byte {
+	t.Helper()
+
+	values := map[string]any{
+		"max_output_tokens":      128,
+		"max_completion_tokens":  256,
+		"temperature":            0.2,
+		"top_p":                  0.8,
+		"frequency_penalty":      0,
+		"presence_penalty":       0,
+		"user":                   "user_123",
+		"metadata":               map[string]any{"user_id": "user_123"},
+		"prompt_cache_retention": "24h",
+		"safety_identifier":      "sid",
+		"stream_options":         map[string]any{"include_usage": true},
+	}
+
+	next := body
+	for _, field := range openAICodexOAuthUnsupportedFields {
+		value, ok := values[field]
+		require.True(t, ok, "test fixture must provide a value for %s", field)
+		var err error
+		next, err = sjson.SetBytes(next, field, value)
+		require.NoError(t, err)
+	}
+	return next
+}
 
 func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"hello","user":"user_123","metadata":{"user_id":"user_123"},"prompt_cache_retention":"24h","safety_identifier":"sid","stream_options":{"include_usage":true}}`)
@@ -16,6 +45,20 @@ func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T
 	for _, field := range openAIChatGPTInternalUnsupportedFields {
 		require.False(t, gjson.GetBytes(normalized, field).Exists(), "%s should be stripped", field)
 	}
+	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
+	require.False(t, gjson.GetBytes(normalized, "store").Bool())
+}
+
+func TestNormalizeOpenAIPassthroughOAuthBody_RemovesCodexUnsupportedGenerationControls(t *testing.T) {
+	body := withOpenAICodexOAuthUnsupportedFields(t, []byte(`{"model":"gpt-5.4-mini","input":[{"type":"message","role":"user","content":"hello"}]}`))
+
+	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	for _, field := range openAICodexOAuthUnsupportedFields {
+		require.False(t, gjson.GetBytes(normalized, field).Exists(), "%s should be stripped", field)
+	}
+	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
 	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
 	require.False(t, gjson.GetBytes(normalized, "store").Bool())
 }
