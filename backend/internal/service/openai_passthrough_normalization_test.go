@@ -20,6 +20,27 @@ func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T
 	require.False(t, gjson.GetBytes(normalized, "store").Bool())
 }
 
+func TestNormalizeOpenAIPassthroughOAuthBody_RemovesCodexUnsupportedGenerationControls(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.4-mini","input":[{"type":"message","role":"user","content":"hello"}],"max_output_tokens":128,"max_completion_tokens":256,"temperature":0.2,"top_p":0.8,"frequency_penalty":0,"presence_penalty":0}`)
+
+	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	for _, field := range []string{
+		"max_output_tokens",
+		"max_completion_tokens",
+		"temperature",
+		"top_p",
+		"frequency_penalty",
+		"presence_penalty",
+	} {
+		require.False(t, gjson.GetBytes(normalized, field).Exists(), "%s should be stripped", field)
+	}
+	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
+	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
+	require.False(t, gjson.GetBytes(normalized, "store").Bool())
+}
+
 func TestNormalizeOpenAIPassthroughOAuthBody_CompactRemovesUnsupportedUser(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"hello","user":"user_123","metadata":{"user_id":"user_123"},"stream":true,"store":true}`)
 
