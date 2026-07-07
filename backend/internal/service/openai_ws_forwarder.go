@@ -2085,10 +2085,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if s.responseHeaderFilter != nil {
 			responseheaders.WriteFilteredHeaders(c.Writer.Header(), http.Header{}, s.responseHeaderFilter)
 		}
-		c.Header("Content-Type", "text/event-stream")
-		c.Header("Cache-Control", "no-cache")
-		c.Header("Connection", "keep-alive")
-		c.Header("X-Accel-Buffering", "no")
+		setEventStreamResponseHeaders(c.Writer.Header())
 		f, ok := c.Writer.(http.Flusher)
 		if !ok {
 			lease.MarkBroken()

@@ -115,10 +115,7 @@ func (h *UserMsgQueueHelper) waitForLockWithPing(
 
 		case <-pingCh:
 			if !*streamStarted {
-				c.Header("Content-Type", "text/event-stream")
-				c.Header("Cache-Control", "no-cache")
-				c.Header("Connection", "keep-alive")
-				c.Header("X-Accel-Buffering", "no")
+				setEventStreamResponseHeaders(c.Writer.Header())
 				*streamStarted = true
 			}
 			if _, err := fmt.Fprint(c.Writer, string(h.pingFormat)); err != nil {
@@ -220,10 +217,7 @@ func (h *UserMsgQueueHelper) ThrottleWithPing(
 		case <-pingCh:
 			// SSE ping 逻辑（与 waitForLockWithPing 一致）
 			if !*streamStarted {
-				c.Header("Content-Type", "text/event-stream")
-				c.Header("Cache-Control", "no-cache")
-				c.Header("Connection", "keep-alive")
-				c.Header("X-Accel-Buffering", "no")
+				setEventStreamResponseHeaders(c.Writer.Header())
 				*streamStarted = true
 			}
 			if _, err := fmt.Fprint(c.Writer, string(h.pingFormat)); err != nil {
