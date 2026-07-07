@@ -1966,10 +1966,7 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 }
 
 func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, resp *http.Response, startTime time.Time, originalModel string) (*geminiStreamResult, error) {
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setEventStreamResponseHeaders(c.Writer.Header())
 	c.Status(http.StatusOK)
 
 	flusher, ok := c.Writer.(http.Flusher)
@@ -2553,9 +2550,7 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 	}
 
 	c.Status(resp.StatusCode)
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setEventStreamResponseHeaders(c.Writer.Header())
 
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {

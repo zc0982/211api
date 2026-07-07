@@ -1181,8 +1181,10 @@ func TestOpenAIStreamingTimeout(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "stream data interval timeout") {
 		t.Fatalf("expected stream timeout error, got %v", err)
 	}
-	if !strings.Contains(rec.Body.String(), "\"type\":\"error\"") || !strings.Contains(rec.Body.String(), "stream_timeout") {
-		t.Fatalf("expected OpenAI-compatible error SSE event, got %q", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "event: response.failed") ||
+		!strings.Contains(rec.Body.String(), `"type":"response.failed"`) ||
+		!strings.Contains(rec.Body.String(), "stream_timeout") {
+		t.Fatalf("expected Responses terminal failure SSE event, got %q", rec.Body.String())
 	}
 }
 
@@ -1514,11 +1516,8 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 
 	go func() {
 		defer func() { _ = pw.Close() }()
-		_, _ = pw.Write([]byte("data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n"))
-		for i := 0; i < 6; i++ {
-			time.Sleep(250 * time.Millisecond)
-			_, _ = pw.Write([]byte("data: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_1\"}}\n\n"))
-		}
+		_, _ = pw.Write([]byte("data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\"},\"output_index\":0}\n\n"))
+		time.Sleep(2100 * time.Millisecond)
 		_, _ = pw.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n"))
 	}()
 
@@ -1528,6 +1527,50 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), ":\n\n")
 	require.Contains(t, rec.Body.String(), "response.completed")
+}
+
+func TestOpenAIStreamingSkipsKeepaliveBeforeClientOutputToPreserveFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamDataIntervalTimeout: 0,
+			StreamKeepaliveInterval:   1,
+			MaxLineSize:               defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       pr,
+		Header:     http.Header{"X-Request-Id": []string{"rid-keepalive-failover"}},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
+		done <- err
+	}()
+
+	_, _ = pw.Write([]byte(`data: {"type":"response.created","response":{"id":"resp_keepalive_failover"}}` + "\n\n"))
+	time.Sleep(1100 * time.Millisecond)
+	_, _ = pw.Write([]byte(`data: {"type":"response.failed","response":{"id":"resp_keepalive_failover","error":{"code":"server_error","message":"temporary upstream error"}}}` + "\n\n"))
+	_ = pw.Close()
+
+	select {
+	case err := <-done:
+		var failoverErr *UpstreamFailoverError
+		require.ErrorAs(t, err, &failoverErr)
+		require.False(t, c.Writer.Written(), "preamble keepalive must not commit the response before failover is decided")
+		require.Empty(t, rec.Body.String())
+	case <-time.After(3 * time.Second):
+		t.Fatal("stream did not finish")
+	}
 }
 
 func TestOpenAIStreamingNormalizesTerminalOutputFromDeltas(t *testing.T) {
@@ -1757,6 +1800,93 @@ func TestOpenAIStreamingPassthroughMissingTerminalEventReturnsIncompleteError(t 
 	}
 }
 
+func TestOpenAIStreamingPassthroughSendsKeepaliveAfterClientOutputStarted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamKeepaliveInterval: 1,
+			MaxLineSize:             defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       pr,
+		Header:     http.Header{},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "model", "model")
+		done <- err
+	}()
+
+	_, _ = pw.Write([]byte(`data: {"type":"response.output_item.added","item":{"type":"message"},"output_index":0}` + "\n\n"))
+	time.Sleep(2100 * time.Millisecond)
+	_, _ = pw.Write([]byte(`data: {"type":"response.completed","response":{"id":"resp_keepalive","usage":{"input_tokens":1,"output_tokens":1}}}` + "\n\n"))
+	_, _ = pw.Write([]byte("data: [DONE]\n\n"))
+	_ = pw.Close()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("stream did not finish")
+	}
+
+	require.Contains(t, rec.Body.String(), ":\n\n", "passthrough streams must keep downstream proxies alive after client output starts")
+	require.Contains(t, rec.Body.String(), "response.completed")
+}
+
+func TestOpenAIStreamingPassthroughSkipsKeepaliveBeforeClientOutputToPreserveFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamKeepaliveInterval: 1,
+			MaxLineSize:             defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       pr,
+		Header:     http.Header{},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "model", "model")
+		done <- err
+	}()
+
+	_, _ = pw.Write([]byte(`data: {"type":"response.created","response":{"id":"resp_keepalive_failover"}}` + "\n\n"))
+	time.Sleep(1100 * time.Millisecond)
+	_, _ = pw.Write([]byte(`data: {"type":"response.failed","response":{"id":"resp_keepalive_failover","error":{"code":"server_error","message":"temporary upstream error"}}}` + "\n\n"))
+	_ = pw.Close()
+
+	select {
+	case err := <-done:
+		var failoverErr *UpstreamFailoverError
+		require.ErrorAs(t, err, &failoverErr)
+		require.False(t, c.Writer.Written(), "preamble keepalive must not commit the response before failover is decided")
+		require.Empty(t, rec.Body.String())
+	case <-time.After(3 * time.Second):
+		t.Fatal("stream did not finish")
+	}
+}
+
 func TestOpenAIStreamingPassthroughResponseFailedBeforeOutputReturnsFailover(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -1945,8 +2075,10 @@ func TestOpenAIStreamingTooLong(t *testing.T) {
 	if !errors.Is(err, bufio.ErrTooLong) {
 		t.Fatalf("expected ErrTooLong, got %v", err)
 	}
-	if !strings.Contains(rec.Body.String(), "\"type\":\"error\"") || !strings.Contains(rec.Body.String(), "response_too_large") {
-		t.Fatalf("expected OpenAI-compatible error SSE event, got %q", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "event: response.failed") ||
+		!strings.Contains(rec.Body.String(), `"type":"response.failed"`) ||
+		!strings.Contains(rec.Body.String(), "response_too_large") {
+		t.Fatalf("expected Responses terminal failure SSE event, got %q", rec.Body.String())
 	}
 }
 
@@ -2050,11 +2182,14 @@ func TestOpenAIStreamingHeadersOverride(t *testing.T) {
 		t.Fatalf("handleStreamingResponse error: %v", err)
 	}
 
-	if rec.Header().Get("Cache-Control") != "no-cache" {
+	if rec.Header().Get("Cache-Control") != "no-cache, no-transform" {
 		t.Fatalf("expected Cache-Control override, got %q", rec.Header().Get("Cache-Control"))
 	}
 	if rec.Header().Get("Content-Type") != "text/event-stream" {
 		t.Fatalf("expected Content-Type override, got %q", rec.Header().Get("Content-Type"))
+	}
+	if rec.Header().Get("Content-Encoding") != "" {
+		t.Fatalf("expected unencoded streaming response, got Content-Encoding %q", rec.Header().Get("Content-Encoding"))
 	}
 	if rec.Header().Get("X-Request-Id") != "req-123" {
 		t.Fatalf("expected X-Request-Id passthrough, got %q", rec.Header().Get("X-Request-Id"))
