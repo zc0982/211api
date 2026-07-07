@@ -4024,7 +4024,7 @@ func buildOpenAIResponsesFailedSSE(responseID, model, code, message string) stri
 	if message == "" {
 		message = "Upstream request failed"
 	}
-	payload, err := json.Marshal(openAIResponsesFailedStreamEvent{
+	payload, _ := json.Marshal(openAIResponsesFailedStreamEvent{
 		Type: "response.failed",
 		Response: openAIResponsesFailedStreamResponse{
 			ID:     responseID,
@@ -4038,9 +4038,6 @@ func buildOpenAIResponsesFailedSSE(responseID, model, code, message string) stri
 			},
 		},
 	})
-	if err != nil {
-		payload = []byte(`{"type":"response.failed","response":{"id":` + strconv.Quote(responseID) + `,"object":"response","status":"failed","output":[],"error":{"code":` + strconv.Quote(code) + `,"message":` + strconv.Quote(message) + `}}}`)
-	}
 	return "event: response.failed\ndata: " + string(payload) + "\n\n"
 }
 
@@ -4393,7 +4390,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				return resultWithUsage(), streamFailoverErr
 			}
 		}
-		if result, err, done := handleScanErr(scanner.Err()); done {
+		if result, err, handled := handleScanErr(scanner.Err()); handled {
 			return result, err
 		}
 		return finalizeStream()
@@ -4404,12 +4401,12 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		err  error
 	}
 	events := make(chan scanEvent, 16)
-	done := make(chan struct{})
+	stopScan := make(chan struct{})
 	sendEvent := func(ev scanEvent) bool {
 		select {
 		case events <- ev:
 			return true
-		case <-done:
+		case <-stopScan:
 			return false
 		}
 	}
@@ -4425,7 +4422,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			_ = sendEvent(scanEvent{err: err})
 		}
 	}(scanBuf)
-	defer close(done)
+	defer close(stopScan)
 
 	keepaliveTicker := time.NewTicker(keepaliveInterval)
 	defer keepaliveTicker.Stop()
@@ -4436,7 +4433,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if !ok {
 				return finalizeStream()
 			}
-			if result, err, done := handleScanErr(ev.err); done {
+			if result, err, handled := handleScanErr(ev.err); handled {
 				return result, err
 			}
 			processSSELine(ev.line)
@@ -4448,7 +4445,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if clientDisconnected || time.Since(lastDownstreamWriteAt) < keepaliveInterval {
 				continue
 			}
-			if !clientOutputStarted && len(pendingLines) > 0 && !writePendingLines() {
+			if !clientOutputStarted {
 				continue
 			}
 			if _, err := fmt.Fprint(w, ":\n\n"); err != nil {
@@ -5425,7 +5422,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				return resultWithUsage(), streamFailoverErr
 			}
 		}
-		if result, err, done := handleScanErr(scanner.Err()); done {
+		if result, err, handled := handleScanErr(scanner.Err()); handled {
 			return result, err
 		}
 		return finalizeStream()
@@ -5437,12 +5434,12 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	}
 	// 独立 goroutine 读取上游，避免读取阻塞影响 keepalive/超时处理
 	events := make(chan scanEvent, 16)
-	done := make(chan struct{})
+	stopScan := make(chan struct{})
 	sendEvent := func(ev scanEvent) bool {
 		select {
 		case events <- ev:
 			return true
-		case <-done:
+		case <-stopScan:
 			return false
 		}
 	}
@@ -5461,7 +5458,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			_ = sendEvent(scanEvent{err: err})
 		}
 	}(scanBuf)
-	defer close(done)
+	defer close(stopScan)
 
 	for {
 		select {
@@ -5469,7 +5466,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if !ok {
 				return finalizeStream()
 			}
-			if result, err, done := handleScanErr(ev.err); done {
+			if result, err, handled := handleScanErr(ev.err); handled {
 				return result, err
 			}
 			processSSELine(ev.line, len(events) == 0)
@@ -5495,6 +5492,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 		case <-keepaliveCh:
 			if clientDisconnected {
+				continue
+			}
+			if !clientOutputStarted {
 				continue
 			}
 			if time.Since(lastDownstreamWriteAt) < keepaliveInterval {

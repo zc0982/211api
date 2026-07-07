@@ -1516,11 +1516,8 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 
 	go func() {
 		defer func() { _ = pw.Close() }()
-		_, _ = pw.Write([]byte("data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n"))
-		for i := 0; i < 6; i++ {
-			time.Sleep(250 * time.Millisecond)
-			_, _ = pw.Write([]byte("data: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_1\"}}\n\n"))
-		}
+		_, _ = pw.Write([]byte("data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\"},\"output_index\":0}\n\n"))
+		time.Sleep(2100 * time.Millisecond)
 		_, _ = pw.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n"))
 	}()
 
@@ -1530,6 +1527,50 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), ":\n\n")
 	require.Contains(t, rec.Body.String(), "response.completed")
+}
+
+func TestOpenAIStreamingSkipsKeepaliveBeforeClientOutputToPreserveFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamDataIntervalTimeout: 0,
+			StreamKeepaliveInterval:   1,
+			MaxLineSize:               defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       pr,
+		Header:     http.Header{"X-Request-Id": []string{"rid-keepalive-failover"}},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
+		done <- err
+	}()
+
+	_, _ = pw.Write([]byte(`data: {"type":"response.created","response":{"id":"resp_keepalive_failover"}}` + "\n\n"))
+	time.Sleep(1100 * time.Millisecond)
+	_, _ = pw.Write([]byte(`data: {"type":"response.failed","response":{"id":"resp_keepalive_failover","error":{"code":"server_error","message":"temporary upstream error"}}}` + "\n\n"))
+	_ = pw.Close()
+
+	select {
+	case err := <-done:
+		var failoverErr *UpstreamFailoverError
+		require.ErrorAs(t, err, &failoverErr)
+		require.False(t, c.Writer.Written(), "preamble keepalive must not commit the response before failover is decided")
+		require.Empty(t, rec.Body.String())
+	case <-time.After(3 * time.Second):
+		t.Fatal("stream did not finish")
+	}
 }
 
 func TestOpenAIStreamingNormalizesTerminalOutputFromDeltas(t *testing.T) {
@@ -1759,7 +1800,7 @@ func TestOpenAIStreamingPassthroughMissingTerminalEventReturnsIncompleteError(t 
 	}
 }
 
-func TestOpenAIStreamingPassthroughSendsKeepaliveWhileWaitingForOutput(t *testing.T) {
+func TestOpenAIStreamingPassthroughSendsKeepaliveAfterClientOutputStarted(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
@@ -1786,7 +1827,8 @@ func TestOpenAIStreamingPassthroughSendsKeepaliveWhileWaitingForOutput(t *testin
 		done <- err
 	}()
 
-	time.Sleep(1100 * time.Millisecond)
+	_, _ = pw.Write([]byte(`data: {"type":"response.output_item.added","item":{"type":"message"},"output_index":0}` + "\n\n"))
+	time.Sleep(2100 * time.Millisecond)
 	_, _ = pw.Write([]byte(`data: {"type":"response.completed","response":{"id":"resp_keepalive","usage":{"input_tokens":1,"output_tokens":1}}}` + "\n\n"))
 	_, _ = pw.Write([]byte("data: [DONE]\n\n"))
 	_ = pw.Close()
@@ -1798,8 +1840,51 @@ func TestOpenAIStreamingPassthroughSendsKeepaliveWhileWaitingForOutput(t *testin
 		t.Fatal("stream did not finish")
 	}
 
-	require.Contains(t, rec.Body.String(), ":\n\n", "passthrough streams must keep downstream proxies alive while upstream is silent")
+	require.Contains(t, rec.Body.String(), ":\n\n", "passthrough streams must keep downstream proxies alive after client output starts")
 	require.Contains(t, rec.Body.String(), "response.completed")
+}
+
+func TestOpenAIStreamingPassthroughSkipsKeepaliveBeforeClientOutputToPreserveFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamKeepaliveInterval: 1,
+			MaxLineSize:             defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       pr,
+		Header:     http.Header{},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "model", "model")
+		done <- err
+	}()
+
+	_, _ = pw.Write([]byte(`data: {"type":"response.created","response":{"id":"resp_keepalive_failover"}}` + "\n\n"))
+	time.Sleep(1100 * time.Millisecond)
+	_, _ = pw.Write([]byte(`data: {"type":"response.failed","response":{"id":"resp_keepalive_failover","error":{"code":"server_error","message":"temporary upstream error"}}}` + "\n\n"))
+	_ = pw.Close()
+
+	select {
+	case err := <-done:
+		var failoverErr *UpstreamFailoverError
+		require.ErrorAs(t, err, &failoverErr)
+		require.False(t, c.Writer.Written(), "preamble keepalive must not commit the response before failover is decided")
+		require.Empty(t, rec.Body.String())
+	case <-time.After(3 * time.Second):
+		t.Fatal("stream did not finish")
+	}
 }
 
 func TestOpenAIStreamingPassthroughResponseFailedBeforeOutputReturnsFailover(t *testing.T) {
