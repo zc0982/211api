@@ -557,7 +557,7 @@ function getRingOffset(ring: RingItem): number {
   return CIRCUMFERENCE - (Math.min(ring.pct, 100) / 100) * CIRCUMFERENCE
 }
 
-function requestRingFrame(callback: FrameRequestCallback): number {
+function requestRingFrame(callback: (time: number) => void): number {
   if (typeof requestAnimationFrame === 'function') {
     return requestAnimationFrame(callback)
   }
