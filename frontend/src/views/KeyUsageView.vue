@@ -423,6 +423,7 @@ import { useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
+import { sanitizeUrl } from '@/utils/url'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
@@ -430,8 +431,8 @@ const appStore = useAppStore()
 // ==================== Site Settings (same as HomeView) ====================
 
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
-const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
-const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
+const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
 // ==================== Theme (same as HomeView) ====================
@@ -458,6 +459,10 @@ const showDatePicker = ref(false)
 const resultData = ref<any>(null)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
+let ringStartFrame: number | null = null
+let ringTickFrame: number | null = null
+let ringDelayTimer: ReturnType<typeof setTimeout> | null = null
+let ringAnimationDisposed = false
 
 // ==================== Date Range State ====================
 
@@ -552,13 +557,49 @@ function getRingOffset(ring: RingItem): number {
   return CIRCUMFERENCE - (Math.min(ring.pct, 100) / 100) * CIRCUMFERENCE
 }
 
+function requestRingFrame(callback: (time: number) => void): number {
+  if (typeof requestAnimationFrame === 'function') {
+    return requestAnimationFrame(callback)
+  }
+  return window.setTimeout(() => callback(performance.now()), 16)
+}
+
+function cancelRingFrame(frameId: number) {
+  if (typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(frameId)
+    return
+  }
+  window.clearTimeout(frameId)
+}
+
+function cleanupRingAnimation() {
+  if (ringStartFrame !== null) {
+    cancelRingFrame(ringStartFrame)
+    ringStartFrame = null
+  }
+  if (ringTickFrame !== null) {
+    cancelRingFrame(ringTickFrame)
+    ringTickFrame = null
+  }
+  if (ringDelayTimer !== null) {
+    clearTimeout(ringDelayTimer)
+    ringDelayTimer = null
+  }
+}
+
 function triggerRingAnimation(items: RingItem[]) {
+  cleanupRingAnimation()
   ringAnimated.value = false
   displayPcts.value = items.map(() => 0)
 
   nextTick(() => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
+    if (ringAnimationDisposed) return
+    ringStartFrame = requestRingFrame(() => {
+      ringStartFrame = null
+      if (ringAnimationDisposed) return
+      ringDelayTimer = setTimeout(() => {
+        ringDelayTimer = null
+        if (ringAnimationDisposed) return
         ringAnimated.value = true
 
         // Animate percentage numbers
@@ -571,9 +612,13 @@ function triggerRingAnimation(items: RingItem[]) {
           const p = Math.min(elapsed / duration, 1)
           const ease = 1 - Math.pow(1 - p, 3)
           displayPcts.value = targets.map(target => Math.round(ease * target))
-          if (p < 1) requestAnimationFrame(tick)
+          if (p < 1) {
+            ringTickFrame = requestRingFrame(tick)
+          } else {
+            ringTickFrame = null
+          }
         }
-        requestAnimationFrame(tick)
+        ringTickFrame = requestRingFrame(tick)
       }, 50)
     })
   })
@@ -926,6 +971,7 @@ function formatResetTime(resetAt: string | null | undefined): string {
 }
 
 onMounted(() => {
+  ringAnimationDisposed = false
   initTheme()
   if (!appStore.publicSettingsLoaded) {
     appStore.fetchPublicSettings()
@@ -935,6 +981,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
+  ringAnimationDisposed = true
+  cleanupRingAnimation()
 })
 </script>
 
