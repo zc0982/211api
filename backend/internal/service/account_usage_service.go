@@ -144,11 +144,10 @@ type WindowStats struct {
 
 // UsageProgress 使用量进度
 type UsageProgress struct {
-	Utilization      float64      `json:"utilization"`              // 使用率百分比 (0-100+，100表示100%)
-	ResetsAt         *time.Time   `json:"resets_at"`                // 重置时间
-	RemainingSeconds int          `json:"remaining_seconds"`        // 距重置剩余秒数
-	WindowMinutes    int          `json:"window_minutes,omitempty"` // 上游返回的真实窗口长度
-	WindowStats      *WindowStats `json:"window_stats,omitempty"`   // 窗口期统计（从窗口开始到当前的使用量）
+	Utilization      float64      `json:"utilization"`            // 使用率百分比 (0-100+，100表示100%)
+	ResetsAt         *time.Time   `json:"resets_at"`              // 重置时间
+	RemainingSeconds int          `json:"remaining_seconds"`      // 距重置剩余秒数
+	WindowStats      *WindowStats `json:"window_stats,omitempty"` // 窗口期统计（从窗口开始到当前的使用量）
 	UsedRequests     int64        `json:"used_requests,omitempty"`
 	LimitRequests    int64        `json:"limit_requests,omitempty"`
 }
@@ -605,22 +604,18 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 		return usage, nil
 	}
 
-	if !codexWindowExplicitlyUnavailable(account.Extra, "5h") {
-		if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.FiveHour, 5*time.Hour, now)); err == nil {
-			if usage.FiveHour == nil {
-				usage.FiveHour = &UsageProgress{Utilization: 0}
-			}
-			usage.FiveHour.WindowStats = windowStatsFromAccountStats(stats)
+	if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.FiveHour, 5*time.Hour, now)); err == nil {
+		if usage.FiveHour == nil {
+			usage.FiveHour = &UsageProgress{Utilization: 0}
 		}
+		usage.FiveHour.WindowStats = windowStatsFromAccountStats(stats)
 	}
 
-	if !codexWindowExplicitlyUnavailable(account.Extra, "7d") {
-		if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.SevenDay, 7*24*time.Hour, now)); err == nil {
-			if usage.SevenDay == nil {
-				usage.SevenDay = &UsageProgress{Utilization: 0}
-			}
-			usage.SevenDay.WindowStats = windowStatsFromAccountStats(stats)
+	if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.SevenDay, 7*24*time.Hour, now)); err == nil {
+		if usage.SevenDay == nil {
+			usage.SevenDay = &UsageProgress{Utilization: 0}
 		}
+		usage.SevenDay.WindowStats = windowStatsFromAccountStats(stats)
 	}
 
 	return usage, nil
@@ -798,8 +793,12 @@ func applyExtraToUsage(usage *UsageInfo, extra map[string]any, now time.Time) {
 	if usage == nil {
 		return
 	}
-	usage.FiveHour = buildCodexUsageProgressFromExtra(extra, "5h", now)
-	usage.SevenDay = buildCodexUsageProgressFromExtra(extra, "7d", now)
+	if progress := buildCodexUsageProgressFromExtra(extra, "5h", now); progress != nil {
+		usage.FiveHour = progress
+	}
+	if progress := buildCodexUsageProgressFromExtra(extra, "7d", now); progress != nil {
+		usage.SevenDay = progress
+	}
 }
 
 func (s *AccountUsageService) getGeminiUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
@@ -1189,7 +1188,6 @@ func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now t
 		usedPercentKey string
 		resetAfterKey  string
 		resetAtKey     string
-		windowMinsKey  string
 	)
 
 	switch window {
@@ -1197,12 +1195,10 @@ func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now t
 		usedPercentKey = "codex_5h_used_percent"
 		resetAfterKey = "codex_5h_reset_after_seconds"
 		resetAtKey = "codex_5h_reset_at"
-		windowMinsKey = "codex_5h_window_minutes"
 	case "7d":
 		usedPercentKey = "codex_7d_used_percent"
 		resetAfterKey = "codex_7d_reset_after_seconds"
 		resetAtKey = "codex_7d_reset_at"
-		windowMinsKey = "codex_7d_window_minutes"
 	default:
 		return nil
 	}
@@ -1212,18 +1208,7 @@ func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now t
 		return nil
 	}
 
-	windowMinutes := 0
-	if _, ok := extra[windowMinsKey]; ok {
-		windowMinutes = parseExtraInt(extra[windowMinsKey])
-		if windowMinutes <= 0 {
-			return nil
-		}
-	}
-
-	progress := &UsageProgress{
-		Utilization:   parseExtraFloat64(usedRaw),
-		WindowMinutes: windowMinutes,
-	}
+	progress := &UsageProgress{Utilization: parseExtraFloat64(usedRaw)}
 	if resetAtRaw, ok := extra[resetAtKey]; ok {
 		if resetAt, err := parseTime(fmt.Sprint(resetAtRaw)); err == nil {
 			progress.ResetsAt = &resetAt
@@ -1258,21 +1243,11 @@ func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now t
 	return progress
 }
 
-func codexWindowExplicitlyUnavailable(extra map[string]any, window string) bool {
-	key := "codex_" + window + "_window_minutes"
-	raw, ok := extra[key]
-	return ok && parseExtraInt(raw) <= 0
-}
-
 func codexWindowStatsStart(progress *UsageProgress, fallbackWindow time.Duration, now time.Time) time.Time {
-	window := fallbackWindow
-	if progress != nil && progress.WindowMinutes > 0 {
-		window = time.Duration(progress.WindowMinutes) * time.Minute
-	}
 	if progress != nil && progress.ResetsAt != nil && now.Before(*progress.ResetsAt) {
-		return progress.ResetsAt.Add(-window)
+		return progress.ResetsAt.Add(-fallbackWindow)
 	}
-	return now.Add(-window)
+	return now.Add(-fallbackWindow)
 }
 
 func (s *AccountUsageService) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error) {
