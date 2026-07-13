@@ -2,15 +2,28 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 )
 
 type accountUsageCodexProbeRepo struct {
 	stubOpenAIAccountRepo
 	updateExtraCh chan map[string]any
 	rateLimitCh   chan time.Time
+}
+
+type accountUsageWindowStatsRepo struct {
+	UsageLogRepository
+	calls int
+}
+
+func (r *accountUsageWindowStatsRepo) GetAccountWindowStats(_ context.Context, _ int64, _ time.Time) (*usagestats.AccountStats, error) {
+	r.calls++
+	return &usagestats.AccountStats{}, nil
 }
 
 func (r *accountUsageCodexProbeRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
@@ -255,4 +268,108 @@ func TestBuildCodexUsageProgressFromExtra_ZerosExpiredWindow(t *testing.T) {
 			t.Fatalf("expected Utilization=0 for expired 7d window, got %v", progress.Utilization)
 		}
 	})
+}
+
+func TestBuildCodexUsageProgressFromExtra_UsesActualWindowLength(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 7, 12, 13, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+
+	t.Run("zero minute placeholder is unavailable", func(t *testing.T) {
+		progress := buildCodexUsageProgressFromExtra(map[string]any{
+			"codex_5h_used_percent":   0,
+			"codex_5h_window_minutes": 0,
+			"codex_5h_reset_at":       now.Format(time.RFC3339),
+		}, "5h", now)
+		if progress != nil {
+			t.Fatalf("expected zero-minute placeholder to be ignored, got %#v", progress)
+		}
+	})
+
+	t.Run("30 day window controls stats start", func(t *testing.T) {
+		resetAt := time.Date(2026, 8, 11, 9, 5, 0, 0, now.Location())
+		progress := buildCodexUsageProgressFromExtra(map[string]any{
+			"codex_7d_used_percent":   88,
+			"codex_7d_window_minutes": 43_800,
+			"codex_7d_reset_at":       resetAt.Format(time.RFC3339),
+		}, "7d", now)
+		if progress == nil {
+			t.Fatal("expected 30-day progress")
+		}
+		encoded, err := json.Marshal(progress)
+		if err != nil {
+			t.Fatalf("marshal progress: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(encoded, &payload); err != nil {
+			t.Fatalf("unmarshal progress: %v", err)
+		}
+		if got := payload["window_minutes"]; got != float64(43_800) {
+			t.Fatalf("window_minutes = %v, want 43800", got)
+		}
+
+		wantStart := resetAt.Add(-43_800 * time.Minute)
+		if got := codexWindowStatsStart(progress, 7*24*time.Hour, now); !got.Equal(wantStart) {
+			t.Fatalf("stats start = %v, want %v", got, wantStart)
+		}
+	})
+}
+
+func TestAccountUsageService_GetOpenAIUsage_SkipsExplicitlyUnavailableWindow(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountUsageWindowStatsRepo{}
+	svc := &AccountUsageService{usageLogRepo: repo}
+	account := &Account{
+		ID:       3438,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			"codex_5h_used_percent":   0,
+			"codex_5h_window_minutes": 0,
+			"codex_7d_used_percent":   88,
+			"codex_7d_window_minutes": 43_800,
+			"codex_7d_reset_at":       time.Now().Add(30 * 24 * time.Hour).Format(time.RFC3339),
+			"codex_usage_updated_at":  time.Now().Format(time.RFC3339),
+		},
+	}
+
+	usage, err := svc.getOpenAIUsage(context.Background(), account, false)
+	if err != nil {
+		t.Fatalf("getOpenAIUsage() error = %v", err)
+	}
+	if usage.FiveHour != nil {
+		t.Fatalf("expected unavailable 5h placeholder to stay hidden, got %#v", usage.FiveHour)
+	}
+	if usage.SevenDay == nil || usage.SevenDay.WindowStats == nil {
+		t.Fatalf("expected actual 30-day window stats, got %#v", usage.SevenDay)
+	}
+	if got := repo.calls; got != 1 {
+		t.Fatalf("GetAccountWindowStats calls = %d, want 1", got)
+	}
+}
+
+func TestApplyExtraToUsage_ClearsWindowThatBecomesUnavailable(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 13, 8, 0, 0, 0, time.UTC)
+	usage := &UsageInfo{
+		FiveHour: &UsageProgress{Utilization: 35},
+		SevenDay: &UsageProgress{Utilization: 64},
+	}
+	extra := map[string]any{
+		"codex_5h_used_percent":   0,
+		"codex_5h_window_minutes": 0,
+		"codex_7d_used_percent":   88,
+		"codex_7d_window_minutes": 43_800,
+		"codex_7d_reset_at":       now.Add(30 * 24 * time.Hour).Format(time.RFC3339),
+	}
+
+	applyExtraToUsage(usage, extra, now)
+
+	if usage.FiveHour != nil {
+		t.Fatalf("expected stale 5h progress to be cleared, got %#v", usage.FiveHour)
+	}
+	if usage.SevenDay == nil || usage.SevenDay.WindowMinutes != 43_800 {
+		t.Fatalf("expected refreshed 30-day progress, got %#v", usage.SevenDay)
+	}
 }
