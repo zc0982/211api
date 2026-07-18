@@ -88,6 +88,7 @@ gitea_load_platform_env() {
     GITEA_DB_PASSWORD_FILE
     GITEA_SECRET_KEY_FILE
     GITEA_INTERNAL_TOKEN_FILE
+    GITEA_BACKUP_API_CONFIG
     BACKUP_AGE_RECIPIENT
   )
   local -a all_keys=(

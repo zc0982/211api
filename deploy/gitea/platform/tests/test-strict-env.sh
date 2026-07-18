@@ -43,6 +43,12 @@ EOF
 gitea_load_platform_env "$tmp/platform.env"
 [[ "$GITEA_DB_PASSWORD_FILE" == /etc/gitea/db-password ]]
 
+grep -v '^GITEA_BACKUP_API_CONFIG=' "$tmp/platform.env" >"$tmp/missing-api.env"
+if gitea_load_platform_env "$tmp/missing-api.env" 2>/dev/null; then
+  printf 'platform env accepted a missing backup API config\n' >&2
+  exit 1
+fi
+
 platform_sentinel="$tmp/platform-env-executed"
 printf 'GITEA_DB_PASSWORD_FILE=$(touch %s)\n' "$platform_sentinel" >"$tmp/malicious.env"
 cat >>"$tmp/malicious.env" <<'EOF'

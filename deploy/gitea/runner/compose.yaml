@@ -1,0 +1,160 @@
+name: gitea-runner
+
+x-local-logging: &local-logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  docker:
+    image: ${DIND_IMAGE:?DIND_IMAGE is required}
+    user: "1000:1000"
+    privileged: true
+    restart: unless-stopped
+    environment:
+      HOME: /home/rootless
+      XDG_RUNTIME_DIR: /run/user/1000
+      DOCKER_HOST: unix:///run/user/1000/docker.sock
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - dockerd
+      - --host=unix:///run/user/1000/docker.sock
+      - --group=root
+    volumes:
+      - docker_data:/home/rootless/.local/share/docker
+      - runner_runtime:/run/user/1000
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - docker --host=unix:///run/user/1000/docker.sock info >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    stop_grace_period: 1m
+    mem_limit: 3g
+    cpus: 3.0
+    pids_limit: 2048
+    networks:
+      - runner
+    logging: *local-logging
+
+  runner:
+    image: ${RUNNER_IMAGE:?RUNNER_IMAGE is required}
+    user: "1000:1000"
+    restart: unless-stopped
+    depends_on:
+      docker:
+        condition: service_healthy
+    environment:
+      HOME: /data
+      TZ: UTC
+      CONFIG_FILE: /etc/gitea-runner/config.yaml
+      RUNNER_STATE_FILE: /data/.runner
+      GITEA_INSTANCE_URL: https://git.211api.com
+      GITEA_RUNNER_NAME: netcup-amd64-1
+      GITEA_RUNNER_REGISTRATION_TOKEN_FILE: /run/user/1000/runner-registration-token
+      GITEA_RUNNER_LABELS: linux-amd64:docker://${NODE_CI_IMAGE:?NODE_CI_IMAGE is required},go-1.26.5:docker://${GO_CI_IMAGE:?GO_CI_IMAGE is required},node-20.20.2:docker://${NODE_CI_IMAGE:?NODE_CI_IMAGE is required},docker-29.6.1:docker://${DOCKER_CLI_IMAGE:?DOCKER_CLI_IMAGE is required}
+      DOCKER_HOST: unix:///run/user/1000/docker.sock
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        state=/data/.runner
+        token=/run/user/1000/runner-registration-token
+        socket=/run/user/1000/docker.sock
+        state_is_safe() {
+          [ -f "$$state" ] &&
+            [ ! -L "$$state" ] &&
+            [ -s "$$state" ] &&
+            [ "$$(stat -c '%u:%g' "$$state")" = 1000:1000 ]
+        }
+        token_is_safe() {
+          [ -f "$$token" ] &&
+            [ ! -L "$$token" ] &&
+            [ -s "$$token" ] &&
+            [ -r "$$token" ] &&
+            [ "$$(stat -c '%u:%g' "$$token")" = 1000:1000 ] &&
+            [ "$$(stat -c '%a' "$$token")" = 400 ]
+        }
+        state_present=0
+        if [ -e "$$state" ] || [ -L "$$state" ]; then
+          if ! state_is_safe; then
+            echo "runner registration state exists but is unsafe" >&2
+            exit 1
+          fi
+          state_present=1
+        fi
+        if [ "$$state_present" = 0 ]; then
+          if ! token_is_safe; then
+            echo "runner registration state is absent and staged token is missing or unsafe" >&2
+            exit 1
+          fi
+        elif [ -e "$$token" ] || [ -L "$$token" ]; then
+          if ! token_is_safe; then
+            echo "residual staged runner token is unsafe" >&2
+            exit 1
+          fi
+        fi
+        attempt=0
+        while [ "$$attempt" -lt 60 ]; do
+          if [ -S "$$socket" ] && [ -r "$$socket" ] && [ -w "$$socket" ]; then
+            owner=$$(stat -c '%u:%g' "$$socket")
+            mode=$$(stat -c '%a' "$$socket")
+            # The locked RootlessKit path may add a harmless socket sticky bit,
+            # reported by BusyBox stat as 1660; neither accepted mode has other access.
+            if [ "$$owner" = 1000:1000 ] && { [ "$$mode" = 660 ] || [ "$$mode" = 1660 ]; }; then
+              exec /sbin/tini -- run.sh
+            fi
+          fi
+          attempt=$$((attempt + 1))
+          sleep 1
+        done
+        echo "rootless Docker Unix socket unavailable or unsafe after 60 seconds" >&2
+        exit 1
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=1770
+    configs:
+      - source: runner_config
+        target: /etc/gitea-runner/config.yaml
+    volumes:
+      - runner_data:/data
+      - runner_runtime:/run/user/1000
+    stop_grace_period: 5m
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 256
+    privileged: false
+    networks:
+      - runner
+    logging: *local-logging
+
+configs:
+  runner_config:
+    file: ./config.yaml
+
+volumes:
+  runner_data:
+    name: gitea-runner-data
+  docker_data:
+    name: gitea-runner-docker-data
+  runner_runtime:
+    name: gitea-runner-runtime
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: uid=1000,gid=1000,mode=0700,nosuid,nodev
+
+networks:
+  runner:
+    name: gitea-runner-network
+    driver: bridge
+    enable_ipv6: false

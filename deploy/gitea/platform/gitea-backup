@@ -6,7 +6,6 @@ readonly PLATFORM_ROOT=/opt/gitea/platform
 readonly RUNNER_ROOT=/opt/gitea/runner
 readonly IMAGE_LOCK=/opt/gitea/images.lock.env
 readonly PLATFORM_ENV=/etc/gitea/platform.env
-readonly RUNNER_ENV=/etc/gitea/runner.env
 readonly PLATFORM_COMPOSE_FILE=/opt/gitea/platform/compose.yaml
 readonly RUNNER_COMPOSE_FILE=/opt/gitea/runner/compose.yaml
 readonly BACKUP_ROOT=/opt/gitea/backups
@@ -45,7 +44,6 @@ BACKUP_ID=
 BACKUP_STARTED_AT=
 WAL_START=
 WAL_END=
-API_CONFIG_AVAILABLE=0
 
 log() {
   printf '%s\n' "$*"
@@ -110,7 +108,6 @@ platform_compose() {
 runner_compose() {
   docker compose \
     --env-file "$IMAGE_LOCK" \
-    --env-file "$RUNNER_ENV" \
     -f "$RUNNER_COMPOSE_FILE" \
     "$@"
 }
@@ -406,18 +403,13 @@ active_action_count() {
 }
 
 wait_for_actions_idle() {
-  local state active attempt
-  state="$(runner_state)"
-  if [[ -f "${GITEA_BACKUP_API_CONFIG:-}" ]]; then
-    require_root_file "$GITEA_BACKUP_API_CONFIG"
-    validate_api_config "$GITEA_BACKUP_API_CONFIG"
-    API_CONFIG_AVAILABLE=1
-  elif [[ "$BACKUP_MODE" == bootstrap && "$state" != running ]]; then
-    API_CONFIG_AVAILABLE=0
-    return 0
-  else
+  local active attempt
+  [[ -n "${GITEA_BACKUP_API_CONFIG:-}" ]] || {
     die "backup API curl config is required" api-config
-  fi
+    return 1
+  }
+  require_root_file "$GITEA_BACKUP_API_CONFIG" || return 1
+  validate_api_config "$GITEA_BACKUP_API_CONFIG" || return 1
 
   for attempt in 1 2; do
     active="$(active_action_count)" || die "Actions API check failed" actions-api
@@ -449,10 +441,6 @@ cleanup_stale_partials() {
 produce_paginated_array() {
   local endpoint=$1
   local page=1 body length first=1 separator
-  if ((API_CONFIG_AVAILABLE == 0)); then
-    printf '[]\n'
-    return
-  fi
   printf '['
   while ((page <= 1000)); do
     [[ "$endpoint" == *\?* ]] && separator='&' || separator='?'
@@ -534,9 +522,6 @@ produce_host_config() {
 }
 
 produce_refs() {
-  if ((API_CONFIG_AVAILABLE == 0)); then
-    return 0
-  fi
   docker run --rm --read-only --network none --user 1000:1000 \
     --entrypoint /bin/sh \
     -v gitea-platform-gitea-data:/var/lib/gitea:ro \
@@ -627,12 +612,7 @@ build_host_file_list() {
   if [[ -e "$RUNNER_ROOT" ]]; then
     paths+=("$RUNNER_ROOT")
   fi
-  if [[ -e "$RUNNER_ENV" ]]; then
-    paths+=("$RUNNER_ENV")
-  fi
-  if ((API_CONFIG_AVAILABLE)); then
-    paths+=("$GITEA_BACKUP_API_CONFIG")
-  fi
+  paths+=("$GITEA_BACKUP_API_CONFIG")
   for path in "${paths[@]}"; do
     [[ "$path" == /* && -e "$path" && ! -L "$path" ]] ||
       die "unsafe or missing host backup path: $path" host-path
@@ -650,10 +630,8 @@ stop_runner_dispatch() {
     RUNNER_WAS_RUNNING=1
     runner_compose stop -t 30 runner
   fi
-  if ((API_CONFIG_AVAILABLE)); then
-    [[ "$(active_action_count)" == 0 ]] ||
-      die "an Action started while runner dispatch was stopping" actions-race
-  fi
+  [[ "$(active_action_count)" == 0 ]] ||
+    die "an Action started while runner dispatch was stopping" actions-race
 }
 
 quiesce_platform() {
@@ -665,7 +643,6 @@ quiesce_platform() {
 
 verify_api_snapshots_unchanged() {
   local name producer validator expected actual count
-  ((API_CONFIG_AVAILABLE)) || return 0
   while read -r name producer validator; do
     count="$(jq -s --arg name "$name" '[.[] | select(.name == $name)] | length' "$COMPONENT_RECORDS")"
     [[ "$count" == 1 ]] || die "snapshot component record is missing or duplicated" snapshot-record
@@ -779,7 +756,6 @@ preflight() {
   [[ -f "$IMAGE_LOCK" && -f "$PLATFORM_COMPOSE_FILE" && -x "$RETENTION_PROGRAM" ]]
   state="$(runner_state)"
   if [[ "$state" != absent ]]; then
-    require_root_file "$RUNNER_ENV"
     require_root_nonsecret_file "$RUNNER_COMPOSE_FILE"
   fi
   platform_compose config --quiet

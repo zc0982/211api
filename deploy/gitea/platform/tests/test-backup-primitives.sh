@@ -140,6 +140,13 @@ if validate_api_config "$api_config" 2>/dev/null; then
   printf 'multi-line API curl config was accepted\n' >&2
   exit 1
 fi
+
+BACKUP_MODE=bootstrap
+GITEA_BACKUP_API_CONFIG=
+if wait_for_actions_idle 2>/dev/null; then
+  printf 'bootstrap backup accepted a missing API curl config\n' >&2
+  exit 1
+fi
 validate_webhook_url 'https://notify.example.invalid/fixed-path'
 if validate_webhook_url 'https://notify.example.invalid/has a space' 2>/dev/null; then
   printf 'unsafe webhook URL was accepted\n' >&2

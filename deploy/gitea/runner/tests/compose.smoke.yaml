@@ -1,0 +1,13 @@
+name: ${GITEA_RUNNER_SMOKE_PROJECT:?GITEA_RUNNER_SMOKE_PROJECT is required}
+
+volumes:
+  runner_data:
+    name: ${GITEA_RUNNER_SMOKE_DATA_VOLUME:?GITEA_RUNNER_SMOKE_DATA_VOLUME is required}
+  docker_data:
+    name: ${GITEA_RUNNER_SMOKE_DOCKER_DATA_VOLUME:?GITEA_RUNNER_SMOKE_DOCKER_DATA_VOLUME is required}
+  runner_runtime:
+    name: ${GITEA_RUNNER_SMOKE_RUNTIME_VOLUME:?GITEA_RUNNER_SMOKE_RUNTIME_VOLUME is required}
+
+networks:
+  runner:
+    name: ${GITEA_RUNNER_SMOKE_NETWORK:?GITEA_RUNNER_SMOKE_NETWORK is required}
