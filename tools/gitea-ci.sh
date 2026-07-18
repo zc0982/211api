@@ -39,10 +39,18 @@ run_backend_unit() {
   make -C backend test-unit
 }
 
-run_backend_integration() {
+run_backend_integration() (
+  local docker_shim_dir
   assert_go_version
+  if ! command -v docker >/dev/null 2>&1; then
+    command -v curl >/dev/null 2>&1
+    docker_shim_dir="$(mktemp -d)"
+    trap 'rm -rf -- "$docker_shim_dir"' EXIT
+    ln -s "$REPO_ROOT/tools/gitea-docker-probe.sh" "$docker_shim_dir/docker"
+    export PATH="$docker_shim_dir:$PATH"
+  fi
   make -C backend test-integration
-}
+)
 
 run_frontend() {
   assert_node_version

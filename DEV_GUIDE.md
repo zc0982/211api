@@ -7,7 +7,7 @@
 | 项目 | 说明 |
 |------|------|
 | **上游仓库** | Wei-Shaw/sub2api |
-| **Fork 仓库** | bayma888/sub2api-bmai |
+| **主仓库** | `git.211api.com/211api/211api`（私有 Gitea） |
 | **技术栈** | Go 后端 (Ent ORM + Gin) + Vue3 前端 (pnpm) |
 | **数据库** | PostgreSQL 16 + Redis |
 | **包管理** | 后端: go modules, 前端: **pnpm**（不是 npm） |
@@ -34,42 +34,43 @@
 ### 开发工具
 
 ```bash
-# golangci-lint v2.7
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7
+# golangci-lint v2.9.0
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0
 
-# pnpm (前端包管理)
-npm install -g pnpm
+# pnpm 9.15.9（前端包管理）
+corepack enable
+corepack prepare pnpm@9.15.9 --activate
 ```
 
 ## 三、CI/CD 流水线
 
-### GitHub Actions Workflows
+### Gitea Actions Workflows
 
 | Workflow | 触发条件 | 检查内容 |
 |----------|----------|----------|
-| **backend-ci.yml** | push, pull_request | 单元测试 + 集成测试 + golangci-lint v2.7 |
-| **security-scan.yml** | push, pull_request, 每周一 | govulncheck + gosec + pnpm audit |
-| **release.yml** | tag `v*` | 构建发布（PR 不触发） |
+| **ci.yml** | push、仓库内部 pull request | 单元测试、集成测试、前端检查、golangci-lint、Shell 语法 |
+| **security.yml** | push、仓库内部 pull request、每周一 03:00 UTC | govulncheck + pnpm audit |
+| **deploy.yml** | 受保护 `main` push | 重跑全部检查、发布不可变 SHA 镜像、部署 Gateway |
+| **release.yml** | 新建 `release/v*` 请求分支、受保护 `v*` tag | 创建不可变 tag、按既有 digest 发布镜像和 Gitea Release |
 
 ### CI 要求
 
-- Go 版本必须是 **1.25.7**
+- Go 版本必须是 **1.26.5**
+- golangci-lint 必须是 **2.9.0**，pnpm 必须是 **9.15.9**
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
+- GitHub 不再承载本 fork 的 CI/CD；`upstream` 仍用于拉取公开上游更新
 
 ### 本地测试命令
 
 ```bash
-# 后端单元测试
-cd backend && go test -tags=unit ./...
-
-# 后端集成测试
-cd backend && go test -tags=integration ./...
-
-# 代码质量检查
-cd backend && golangci-lint run ./...
-
-# 前端依赖安装（必须用 pnpm）
-cd frontend && pnpm install
+# 与 Gitea Actions 完全一致的分派命令
+./tools/gitea-ci.sh backend-unit
+./tools/gitea-ci.sh backend-integration
+./tools/gitea-ci.sh frontend
+./tools/gitea-ci.sh lint
+./tools/gitea-ci.sh security-backend
+./tools/gitea-ci.sh security-frontend
+./tools/gitea-ci.sh shell-syntax
 ```
 
 ## 四、常见坑点 & 解决方案
@@ -236,9 +237,12 @@ git add ent/       # 生成的文件也要提交
 
 提交 PR 前务必本地验证：
 
-- [ ] `go test -tags=unit ./...` 通过
-- [ ] `go test -tags=integration ./...` 通过
-- [ ] `golangci-lint run ./...` 无新增问题
+- [ ] `./tools/gitea-ci.sh backend-unit` 通过
+- [ ] `./tools/gitea-ci.sh backend-integration` 通过
+- [ ] `./tools/gitea-ci.sh frontend` 通过
+- [ ] `./tools/gitea-ci.sh lint` 无新增问题
+- [ ] `./tools/gitea-ci.sh security-backend` 与 `security-frontend` 通过
+- [ ] `./tools/gitea-ci.sh shell-syntax` 通过
 - [ ] `pnpm-lock.yaml` 已同步（如果改了 package.json）
 - [ ] 所有 test stub 补全新接口方法（如果改了 interface）
 - [ ] Ent 生成的代码已提交（如果改了 schema）
@@ -266,9 +270,10 @@ psql -U sub2api -h 127.0.0.1 -d sub2api -f migration.sql
 ```bash
 # 同步上游
 git fetch upstream
-git checkout main
+git checkout -b sync/upstream-YYYYMMDD main
 git merge upstream/main
-git push origin main
+git push origin HEAD
+# 然后在 Gitea 创建内部 pull request；受保护 main 禁止直接 push
 
 # 创建功能分支
 git checkout -b feature/xxx
@@ -313,7 +318,7 @@ golangci-lint run ./...
 ## 六、项目结构速览
 
 ```
-sub2api-bmai/
+211api/
 ├── backend/
 │   ├── cmd/server/          # 主程序入口
 │   ├── ent/                 # Ent ORM 生成代码
