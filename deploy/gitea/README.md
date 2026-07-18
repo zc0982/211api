@@ -27,7 +27,7 @@ as `/opt/gitea/images.lock.env`, and create these host-owned paths:
 | `/etc/gitea/secret-key` | `root:root 0600` | Gitea secret key |
 | `/etc/gitea/internal-token` | `root:root 0600` | Gitea internal token |
 | `/etc/gitea/backup-api.curl` | `root:root 0600` | curl config for the backup reader token |
-| `/etc/gitea/backup-notify-url` | `root:root 0600` | external HTTPS failure webhook URL |
+| `/etc/gitea/backup-notify-url` | `root:root 0600` | opaque Pipedream HTTPS endpoint for backup failures |
 | `/etc/gitea/runner-registration-token` | `root:root 0600` | short-lived Runner registration-token source |
 | `/etc/gitea/bootstrap.env` | `root:root 0600` | data-only bootstrap human identity |
 | `/etc/gitea/admin-api.curl` | `root:root 0600` | bootstrap administrator API token directive |
@@ -165,11 +165,10 @@ umask 077
 sudo sh -c 'umask 077; openssl rand -hex 32 > /etc/gitea/internal-token'
 ```
 
-```bash
-umask 077
-sudo install -o root -g root -m 0600 /dev/null /etc/gitea/backup-notify-url
-sudoedit /etc/gitea/backup-notify-url
-```
+Do not create or edit `/etc/gitea/backup-notify-url` until the Pipedream
+workflow has passed the masked tests under **Pipedream to Telegram adapter**.
+Install the endpoint from the operator machine over SSH stdin; never put it in
+Git, chat, a screenshot, shell history, or a command argument.
 
 The `age` private identity stays in operator custody and must never be stored on
 Netcup. Put only its public `age1…` recipient in `platform.env`. Record the
@@ -738,6 +737,93 @@ and `fdatasync`ed before every production mutation and at completion. Crossing
 kept. A failed audit append/sync stops before the next mutation.
 
 ## Backups and notification
+
+### Pipedream to Telegram adapter
+
+This path is only for Gitea platform backup failures. Legacy GitHub/DockerHub
+release and deployment Telegram notifications remain retired. CI, security
+scan, release, deployment, Gateway, and business-application events must not
+call this adapter.
+
+In the same Pipedream project that owns the project secrets
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`:
+
+1. Open workflow `gitea-backup-failure-to-telegram`.
+2. Configure `HTTP / Webhook` -> `New Requests`, with Authorization `None`.
+3. Add `Run custom code`, select Node.js, and paste the complete contents of
+   `pipedream/gitea-backup-to-telegram.mjs` without modification.
+4. Deploy the workflow. Do not log `process.env`, the endpoint, or either
+   project secret.
+
+The committed file is the canonical source for the Pipedream editor cell. Its
+offline regression uses no real credentials or network:
+
+```bash
+node --check deploy/gitea/pipedream/gitea-backup-to-telegram.mjs
+node --test deploy/gitea/pipedream/gitea-backup-to-telegram.test.mjs
+```
+
+On the operator machine, read the deployed endpoint without adding it to shell
+history, validate the expected Pipedream host, and exercise the quiet preflight:
+
+```bash
+umask 077
+read -rsp 'Pipedream Webhook URL: ' WEBHOOK_URL; echo
+case "$WEBHOOK_URL" in
+  https://*.m.pipedream.net) ;;
+  *) printf 'unexpected Pipedream URL\n' >&2; unset WEBHOOK_URL; exit 1 ;;
+esac
+status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --connect-timeout 5 --max-time 15 \
+  --header 'Content-Type: application/json' \
+  --data-binary '{"schema":"gitea-backup-notification.v1","event":"preflight","status":"ok"}' \
+  "$WEBHOOK_URL")"
+[[ "$status" == 200 ]]
+```
+
+The exact preflight returns 200 without a Telegram message. An invalid schema
+must return 400 without a Telegram call:
+
+```bash
+status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --connect-timeout 5 --max-time 15 \
+  --header 'Content-Type: application/json' \
+  --data-binary '{"schema":"invalid.v1","event":"preflight","status":"ok"}' \
+  "$WEBHOOK_URL")"
+[[ "$status" == 400 ]]
+```
+
+Send one explicit end-to-end test and require HTTP 200:
+
+```bash
+failed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+payload="$(jq -cn --arg failed_at "$failed_at" \
+  '{schema:"gitea-backup-notification.v1",event:"backup-failed",status:"failed",failed_at:$failed_at,code:"notification-test",unit:"gitea-backup.service"}')"
+status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --connect-timeout 5 --max-time 15 \
+  --header 'Content-Type: application/json' \
+  --data-binary "$payload" "$WEBHOOK_URL")"
+unset payload failed_at
+[[ "$status" == 200 ]]
+```
+
+The dedicated private group must receive one message headed
+`🧪 Gitea 备份告警测试` with the UTC time, `notification-test`, and
+`gitea-backup.service`, and no URL, token, or log text. Only then install the
+endpoint on Netcup via stdin and clear the local variable:
+
+```bash
+printf '%s\n' "$WEBHOOK_URL" | \
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 \
+    -i ~/.ssh/211api_root_37_221_194_27_4422 -p 4422 \
+    root@37.221.194.27 \
+    'umask 077; install -o root -g root -m 0600 /dev/stdin /etc/gitea/backup-notify-url'
+unset WEBHOOK_URL
+```
+
+Netcup stores only that endpoint. The bot token and chat ID remain solely in
+Pipedream. If the endpoint may have leaked, deploy a replacement endpoint,
+install and prove the replacement, then disable the old workflow endpoint.
 
 The backup script refuses concurrent execution, checks NTP, TLS validity,
 health, webhook delivery, active Actions, and disk headroom, then quiesces the
