@@ -5,7 +5,7 @@
   ],
   "impactStatement": "docs/aegis/work/2026-07-18-gitea-cicd-migration/impact-statement-draft.json",
   "compatPlan": "应用内在线更新继续读取 Wei-Shaw/sub2api GitHub Releases；不形成 fork CI/CD 双 owner",
-  "retirementPlan": "feature branch 已退休 GitHub workflow/GoReleaser 代码 owner 与旧 secret 名；外部 GitHub owner 尚未修改，仍受 Task 12/13 门禁约束",
+  "retirementPlan": "feature branch 已删除 GitHub workflow/GoReleaser 代码 owner，且旧 CI secret 名在活跃目录零命中；旧 GitHub 仓库仍未修改、未禁用，外部 owner 切换继续受 Task 12/13 门禁约束",
   "evidenceBundle": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-design-self-review.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-gateway-host-inspection.json",
@@ -17,6 +17,7 @@
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task9-netcup-preflight.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-user-design-decisions.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-written-design-approval.json"
   ]

@@ -1,7 +1,7 @@
 # Gitea CI/CD Migration Design
 
 Date: `2026-07-18`
-Status: `approved written design; implementation feasibility clarification recorded`
+Status: `approved base design; Telegram backup-notification amendment pending written review`
 ArchitectureReviewRequired: `yes`
 
 ## 1. Outcome
@@ -26,7 +26,8 @@ and the retired GitHub workflows can no longer deploy.
 | Production host | Gateway Los Angeles `157.254.234.244` |
 | Runner | Same Netcup host, separate rootless DinD stack |
 | Release output | AMD64 image, protected `v*` tag, Gitea Release |
-| Retired output | DockerHub, Telegram, ARM64, macOS/Windows binaries |
+| Retired release output | DockerHub, legacy Telegram release/deploy notifications, ARM64, macOS/Windows binaries |
+| Backup failure notification | Netcup fixed JSON webhook -> Pipedream -> dedicated Telegram bot and private group |
 | Upstream updater | Continue reading `Wei-Shaw/sub2api` GitHub Releases |
 | Old GitHub repository | Retained; Actions disabled; repository not deleted |
 
@@ -54,6 +55,10 @@ and the retired GitHub workflows can no longer deploy.
 - [Gitea Actions secrets](https://docs.gitea.com/1.26/usage/actions/secrets)
 - [Gitea token permissions](https://docs.gitea.com/1.26/usage/actions/token-permissions)
 - [Gitea container registry](https://docs.gitea.com/usage/packages/container)
+- [Pipedream HTTP triggers](https://pipedream.com/docs/workflows/building-workflows/triggers)
+- [Pipedream project secrets](https://pipedream.com/docs/workflows/environment-variables)
+- [Pipedream Node.js workflow steps](https://pipedream.com/docs/workflows/building-workflows/code/nodejs)
+- [Telegram Bot API `sendMessage`](https://core.telegram.org/bots/api#sendmessage)
 
 ### 3.3 Host evidence
 
@@ -73,8 +78,9 @@ and the retired GitHub workflows can no longer deploy.
 - Acceptance evidence: defined in section 14.
 - Implementation-only inputs: Cloudflare DNS authorization, generated Gitea
   administrator credentials, generated least-privilege PATs, an operator-held
-  backup-encryption recipient, and a backup-failure notification destination.
-  These inputs must never be written to the repository.
+  backup-encryption recipient, and the operator-held Pipedream webhook URL.
+  The notification destination is approved, but its URL and all credentials
+  must never be written to the repository.
 - Decision: `ready`.
 
 ## 5. Architecture
@@ -346,7 +352,7 @@ itself; the resulting tag event enters the publication lane below.
   `main`, `latest`, or a version tag.
 - Create a Gitea Release with the tag message and Registry image reference.
 - Do not build archives, cross-platform binaries, ARM64 images, DockerHub
-  manifests, DockerHub descriptions, or Telegram messages.
+  manifests, DockerHub descriptions, or legacy Telegram release messages.
 - Verification uses the exact annotated private prerelease tag
   `v0.1.160-gitea-smoke.1`, which is currently unused. It creates a Gitea
   prerelease and version image but must not update `latest`. The smoke tag,
@@ -378,6 +384,15 @@ itself; the resulting tag event enters the publication lane below.
   it has no package, release, write, or administration permission.
 - `DEPLOY_SSH_KEY`: dedicated deployment key.
 - `DEPLOY_KNOWN_HOSTS`: pinned Gateway host key material.
+- Pipedream project secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` belong
+  only to the dedicated backup-notification workflow. They are never stored on
+  Netcup, Gateway, Gitea, or in this repository, and workflow code must not log
+  either value.
+- Netcup stores only the Pipedream HTTPS endpoint in
+  `/etc/gitea/backup-notify-url`, owned by `root:root` with mode `0600`. The
+  endpoint URL is a bearer-like secret: it is not committed, printed, copied to
+  evidence, or included in shell history. Gateway stores no notification
+  credential or endpoint.
 - Gateway host, port, user, and path are fixed audited constants in the deploy
   script, not mutable repository variables or secret payloads.
 - The full production `.env` is not stored in Gitea and is not copied on
@@ -485,6 +500,51 @@ database restore.
   and must enter a user-selected external notification path; journal-only silent
   failure is not accepted. Local-restore targets are RPO 24 hours and RTO two
   hours.
+
+#### 10.1.1 Backup failure notification contract
+
+The approved path is deliberately narrower than the retired release notifier:
+
+```text
+Netcup gitea-backup-notify
+  -> fixed nonsecret JSON over HTTPS
+  -> Pipedream HTTP workflow
+  -> Telegram Bot API sendMessage
+  -> dedicated private operations group
+```
+
+- The path carries only Gitea platform backup failures. It is not a CI,
+  security-scan, release, deployment, Gateway, or general observability channel.
+- Netcup emits one of two exact payload shapes. The readiness probe is
+  `{schema:"gitea-backup-notification.v1",event:"preflight",status:"ok"}`.
+  A failure contains exactly `schema`, `event`, `status`, `failed_at`, `code`,
+  and `unit`; `event` is `backup-failed`, `status` is `failed`, `failed_at` is
+  UTC `YYYY-MM-DDTHH:MM:SSZ`, `code` matches `^[a-z0-9-]{1,48}$`, and `unit`
+  matches `^[0-9A-Za-z_.@-]{1,128}$`. No log text, command output, URL, token,
+  host credential, backup content, or business data enters the payload.
+- Pipedream accepts only HTTPS-triggered JSON `POST` requests matching one of
+  those shapes. Unknown fields, wrong methods, malformed values, and unknown
+  schema versions return HTTP 400 and do not call Telegram.
+- A valid `preflight` returns HTTP 200 without sending a Telegram message, so
+  daily readiness checks remain quiet. A one-time synthetic failure with code
+  `notification-test` is rendered as an explicit test alert and proves the full
+  path before the timer is enabled.
+- A valid failure is rendered as bounded plain text containing only the event
+  class, UTC failure time, failure code, and systemd unit. The bot performs no
+  inbound-message processing, is a normal non-admin member of the dedicated
+  private group, and is not reused by another business workflow.
+- Pipedream returns success to Netcup only when Telegram returns HTTP 2xx and a
+  JSON body with `ok: true`. Telegram timeout, non-2xx, malformed JSON, or
+  `ok != true` returns a generic non-2xx response without exposing credentials.
+  Netcup therefore retains its persistent failure marker for operator recovery.
+- The HTTP trigger has no separate authorization header because the reviewed
+  Netcup sender contract stores and sends only one HTTPS URL. The opaque
+  endpoint URL is therefore the bearer credential. Suspected exposure requires
+  endpoint rotation and replacement of the root-only Netcup file before the old
+  endpoint is disabled.
+- Pipedream may retain execution metadata, so the request is intentionally
+  limited to nonsecret bounded fields. Neither Pipedream nor Telegram becomes a
+  delivery owner or a backup store.
 
 ### 10.2 Production deployment
 
@@ -596,8 +656,9 @@ follow-up and is not represented as already solved.
     deployed `main` commit. Verify that the SSH-only service account creates the
     annotated tag, then verify the Gitea prerelease and version image and prove
     that `latest` was not changed.
-12. Confirm that no GitHub workflow, GHCR, DockerHub, or Telegram path remains
-    an active delivery owner.
+12. Confirm that no GitHub workflow, GHCR, DockerHub, or legacy Telegram
+    release/deploy path remains an active delivery owner. The isolated backup
+    failure notifier is evidence-only and cannot publish or deploy.
 
 There is no period in which both GitHub and Gitea are allowed to deploy.
 
@@ -607,7 +668,11 @@ There is no period in which both GitHub and Gitea are allowed to deploy.
 
 - Delete `.github/workflows/*.yml` from the canonical Gitea branch.
 - Retire GHCR image naming and credentials.
-- Retire DockerHub and Telegram release steps and credentials.
+- Retire DockerHub and legacy Telegram release/deploy steps and credentials.
+- Do not reuse any retired Telegram bot, token, chat, code path, or workflow for
+  the new backup notifier. Pipedream plus the dedicated bot is the single owner
+  of the bounded notification adapter; Gitea workflows and Gateway have no
+  Telegram credential.
 - Retire GitHub-only CLA automation, which is inactive for this fork.
 - Retire macOS CI and multi-architecture release jobs.
 - Remove the CI dependency on `PROD_ENV_B64`.
@@ -694,6 +759,16 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
   retrieval without modifying live data.
 - The backup timer, persistent failure marker, notification path, owner, RPO/RTO,
   retention, and quarterly drill are configured and evidenced.
+- The Pipedream endpoint returns 400 without calling Telegram for an invalid
+  method, schema, field set, timestamp, code, or unit; returns 200 silently for
+  the exact preflight payload; sends one explicit `notification-test` message to
+  the dedicated private group; and returns non-2xx when the Telegram API does
+  not prove `ok: true`.
+- Presence-only evidence proves `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are
+  Pipedream project secrets, the bot is a non-admin member of the dedicated
+  private group, and neither secret exists in the repository, Netcup, Gitea, or
+  Gateway. Netcup contains only the root-owned mode-`0600` Pipedream endpoint;
+  evidence never records its value.
 - A validated Gateway pre-deploy backup and previous commit/image/digest are
   recorded; age recipient/rotation and an isolated PostgreSQL restore drill are
   evidenced; failed backup validation demonstrably blocks deployment.
@@ -708,18 +783,23 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - Replacing the application updater's public GitHub release source.
 - Deleting or automatically mirroring the old GitHub repository.
 - Preserving GitHub workflow syntax or GitHub-only behavior for its own sake.
+- Using Telegram for CI, security-scan, release, deployment, Gateway, or general
+  application notifications.
 
 ## 16. Architecture Integrity and Minimality
 
 - Invariant: one canonical delivery owner, with production runtime ownership
   remaining separate.
 - Canonical owners: Gitea for delivery; Gateway for runtime; GitHub for public
-  upstream releases.
+  upstream releases; Pipedream for the bounded backup-notification adapter.
 - Responsibility overlap removed: GitHub workflows and GHCR stop carrying
   delivery behavior before Gitea deployment activates.
 - New surfaces with creation proof: Gitea platform, Gitea PostgreSQL, Caddy,
   isolated act_runner, and rootless DinD are the minimum services needed for
-  private self-hosted Git plus TLS, persistence, and CI execution.
+  private self-hosted Git plus TLS, persistence, and CI execution. The dedicated
+  Pipedream workflow, bot, and private group are the minimum isolated surfaces
+  needed to deliver backup failures without placing a Telegram credential on
+  Netcup or reactivating retired release notification logic.
 - Rejected additions: Kubernetes, a second runner host, GitHub push mirror,
   application release-provider abstraction, and CI-held production
   environment payload.
@@ -737,6 +817,8 @@ Candidate durable decision:
 - Gateway remains the canonical 211API production runtime owner.
 - GitHub remains only the public upstream release source.
 - Rootless DinD is the runner isolation contract.
+- Pipedream is the only Telegram adapter, scoped to Gitea backup failures; all
+  legacy release/deploy Telegram paths remain retired.
 
 The ADR, if backfilled after implementation evidence exists, must record the
 alternatives considered: single Compose stack, native systemd services, and a
@@ -750,6 +832,6 @@ verification evidence, cutover checkpoints, rollback boundaries, and the
 specific point at which GitHub Actions are disabled.
 
 Cloudflare authorization, generated administrator credentials, runner
-registration tokens, Registry PATs, and deployment keys are implementation
-inputs. Their absence may block execution, but none may be fabricated,
-committed, or printed.
+registration tokens, Registry PATs, deployment keys, and the Pipedream webhook
+URL are implementation inputs. Their absence may block execution, but none may
+be fabricated, committed, or printed.
