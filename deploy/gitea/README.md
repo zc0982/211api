@@ -131,9 +131,9 @@ After Gitea has a stable `/opt/gitea/platform/log/gitea.log`, validate the
 checked-in filter against a TEST-NET synthetic line before enabling its jail:
 
 ```bash
-printf '%s\n' \
+sudo fail2ban-regex \
   '2026-07-18 00:00:00 [W] Failed authentication attempt from 192.0.2.1:4242' \
-  | sudo fail2ban-regex - /opt/gitea/host/fail2ban/filter.d/gitea-auth.conf
+  /opt/gitea/host/fail2ban/filter.d/gitea-auth.conf
 sudo /opt/gitea/host/install-netcup-host-controls --enable-gitea
 sudo fail2ban-client -t
 sudo systemctl restart fail2ban.service
