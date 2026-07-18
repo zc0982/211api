@@ -1,11 +1,12 @@
 {
   "schemaVersion": "aegis.schema.v0",
   "baselineRefs": [
-    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
+    "docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md"
   ],
   "impactStatement": "docs/aegis/work/2026-07-18-gitea-cicd-migration/impact-statement-draft.json",
   "compatPlan": "应用内在线更新继续读取 Wei-Shaw/sub2api GitHub Releases；不形成 fork CI/CD 双 owner",
-  "retirementPlan": "feature branch 已删除 GitHub workflow/GoReleaser 代码 owner，且旧 CI secret 名在活跃目录零命中；旧 GitHub 仓库仍未修改、未禁用，外部 owner 切换继续受 Task 12/13 门禁约束",
+  "retirementPlan": "Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner",
   "evidenceBundle": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-design-self-review.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-gateway-host-inspection.json",
@@ -13,6 +14,7 @@
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-implementation-plan-review.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-independent-design-review.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-netcup-host-inspection.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-pipedream-telegram-adapter-local.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-repo-ci-audit.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json",

@@ -23,6 +23,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-implementation-plan-review.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-independent-design-review.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-netcup-host-inspection.json
+- docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-pipedream-telegram-adapter-local.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-repo-ci-audit.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json
@@ -33,7 +34,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 
 ## Drift Check
 
-- Scope status: Task 8 仅验证仓库、一次性本地容器和本地派生镜像；未改 Netcup、Gateway、Gitea、DNS、Registry、GitHub 或 211API 业务运行时
-- Compatibility status: Gateway 仍是唯一生产 owner，Wei-Shaw/sub2api updater/download 边界保持非空，业务 PostgreSQL/Redis/配置/入口均未变
-- Retirement status: feature branch 已删除 GitHub workflow/GoReleaser 代码 owner，且旧 CI secret 名在活跃目录零命中；旧 GitHub 仓库仍未修改、未禁用，外部 owner 切换继续受 Task 12/13 门禁约束
-- Advisory decision: continue
+- Scope status: Repository adapter, tests, and operator documentation are complete; no external workflow or host state was changed by these commits
+- Compatibility status: Existing sender payloads remain unchanged; Gateway remains production owner; endpoint/token/chat remain outside Git
+- Retirement status: Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner
+- Advisory decision: pause-for-user

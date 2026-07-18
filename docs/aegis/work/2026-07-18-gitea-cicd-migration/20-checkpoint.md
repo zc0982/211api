@@ -230,3 +230,47 @@
 - Retirement status: no GitHub, Registry, DNS, Gitea, Runner, or Gateway cutover owner was disabled or activated; Task 13 remains a separate explicit approval gate
 - New risk signals: Task 9 cannot truthfully complete until the external HTTPS failure webhook is supplied; Task 10 also remains gated on Cloudflare and bootstrap identities
 - Advisory decision: stop fail-closed at the declared input boundary
+
+## Checkpoint Update
+
+- Current todo: Deploy the reviewed Pipedream adapter and close Task 9 notification preflight
+- Active slice: Operator Pipedream paste/deploy and live endpoint validation
+- Completed todos:
+- Versioned and locally verified the Pipedream Telegram backup adapter: Node syntax pass, 8/8 mocked branch tests pass, secret-value scans empty
+- Evidence refs:
+- pipedream-telegram-adapter-local
+- docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md
+- Blocked on: Operator must paste and deploy the committed adapter in the existing Pipedream workflow; endpoint remains operator-held and must not be sent to chat
+- Next step: Commit the adapter slice, then provide exact Pipedream paste/deploy and masked live-test instructions
+
+## DriftCheckDraft
+
+- Scope status: The slice added only the approved versioned Pipedream adapter and offline tests; no host, Pipedream, Telegram, Gitea, Runner, DNS, or Gateway state changed
+- Compatibility status: Existing Netcup payloads and sender are unchanged; Gateway remains the sole production runtime and the endpoint/token/chat remain outside Git
+- Retirement status: Legacy release/deploy Telegram paths remain retired; the new file is the sole bounded backup-failure adapter and no fallback was added
+- New risk signals:
+- Live Pipedream deployment, Telegram receipt, endpoint installation, and Netcup preflight are still unverified external steps
+- Advisory decision: continue
+
+## Checkpoint Update
+
+- Current todo: Deploy exact committed Pipedream adapter and validate the live notification path
+- Active slice: Operator Pipedream paste/deploy and live endpoint validation
+- Completed todos:
+- Adapter committed as af5b0cb6f; 8/8 tests passed locally and in digest-locked Node 20.20.2
+- Operator workflow, masked test, endpoint install, rotation, and retirement instructions committed as 7fb5d8842
+- Evidence refs:
+- pipedream-telegram-adapter-local
+- af5b0cb6f
+- 7fb5d8842
+- Blocked on: Operator must paste and deploy af5b0cb6f adapter in Pipedream and run masked live tests; endpoint must remain outside chat
+- Next step: Give the operator the exact paste/deploy sequence, then wait for preflight, invalid-schema, and synthetic Telegram confirmation before installing the endpoint on Netcup
+
+## DriftCheckDraft
+
+- Scope status: Repository adapter, tests, and operator documentation are complete; no external workflow or host state was changed by these commits
+- Compatibility status: Existing sender payloads remain unchanged; Gateway remains production owner; endpoint/token/chat remain outside Git
+- Retirement status: Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner
+- New risk signals:
+- Operator Pipedream deployment and live Telegram receipt are required before Netcup endpoint installation
+- Advisory decision: pause-for-user

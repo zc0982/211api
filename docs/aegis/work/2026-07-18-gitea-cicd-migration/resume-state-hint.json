@@ -2,30 +2,17 @@
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
   "lastCheckpointRef": "docs/aegis/work/2026-07-18-gitea-cicd-migration/todo-checkpoint-draft.json",
-  "resumeInstruction": "Resume in /home/lym/dev/projects/211api-gitea-cicd at Task 9. Tasks 1-7 are complete in commits 2359acad8, eea546041, c65b78cbd, 86f5abbc1, 908aa74c5, and a9ab06b61; Task 8's complete repository-only gate passed and its documentation is the next commit. Prepare Netcup fail-closed, and still stop at Task 13 for fresh cutover authorization.",
+  "resumeInstruction": "Resume at Pipedream Task 4; do not repeat repository implementation and do not print/read the endpoint",
   "knownPartialWork": [
-    "Design approved by the user",
-    "Implementation plan written and independently reviewed",
-    "Execution option A selected",
-    "Task 1 worktree, input inventory, host checks, baseline tests, and approved cache cleanup completed",
-    "Task 2 exact locks and dispatcher committed as 2359acad8",
-    "Task 3 Gitea workflow owner and old workflow retirement committed as eea546041",
-    "Task 4 private platform, backup/restore, systemd, runbook, and local fault tests committed as c65b78cbd",
-    "Task 5 isolated rootless DinD Runner, strict token lifecycle, backup compatibility repairs, and runtime smoke committed as 86f5abbc1",
-    "Task 6 exact Gitea repository controls, least-privilege PAT automation, protection verification, immutable v-tag hook, and backup coverage committed as 908aa74c5",
-    "Task 7 Gateway digest deployment enforcement, encrypted backup, one-time migration approval, audit/retention, direct baseline, and isolated restore committed as a9ab06b61",
-    "Task 8 all locked dispatcher paths, 15 shell tests, two Compose contracts, AMD64 build, retirement, compatibility, secret, and diff gates passed locally",
-    "No push or external-state mutation has started"
+    "Adapter committed as af5b0cb6f; 8/8 tests passed locally and in digest-locked Node 20.20.2",
+    "Operator workflow, masked test, endpoint install, rotation, and retirement instructions committed as 7fb5d8842"
   ],
   "mustReadBeforeContinuing": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/10-intent.md",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/20-checkpoint.md",
-    "docs/aegis/work/2026-07-18-gitea-cicd-migration/todo-checkpoint-draft.json",
-    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
-    "docs/aegis/plans/2026-07-18-gitea-cicd-migration.md"
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/todo-checkpoint-draft.json"
   ],
   "unsafeToAssume": [
-    "Do not fabricate Cloudflare authorization, Gitea credentials, backup age recipient, failure-notification destination, or any production secret.",
-    "Implementation authorization does not authorize Task 14 cutover; Task 13 requires a fresh explicit user approval."
+    "Repository tests do not prove the live Pipedream workflow or Telegram group delivery"
   ]
 }

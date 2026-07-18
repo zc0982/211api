@@ -3,33 +3,14 @@
   "taskId": "2026-07-18-gitea-cicd-migration",
   "taskIntentRef": "docs/aegis/work/2026-07-18-gitea-cicd-migration/task-intent-draft.json",
   "baselineRefs": [
-    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
+    "docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md"
   ],
-  "scopeStatus": "Task 8 仅验证仓库、一次性本地容器和本地派生镜像；未改 Netcup、Gateway、Gitea、DNS、Registry、GitHub 或 211API 业务运行时",
-  "compatStatus": "Gateway 仍是唯一生产 owner，Wei-Shaw/sub2api updater/download 边界保持非空，业务 PostgreSQL/Redis/配置/入口均未变",
-  "retirementStatus": "feature branch 已删除 GitHub workflow/GoReleaser 代码 owner，且旧 CI secret 名在活跃目录零命中；旧 GitHub 仓库仍未修改、未禁用，外部 owner 切换继续受 Task 12/13 门禁约束",
+  "scopeStatus": "Repository adapter, tests, and operator documentation are complete; no external workflow or host state was changed by these commits",
+  "compatStatus": "Existing sender payloads remain unchanged; Gateway remains production owner; endpoint/token/chat remain outside Git",
+  "retirementStatus": "Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner",
   "newRiskSignals": [
-    "异地备份目标尚未提供，明确为非阻塞残余风险",
-    "Netcup 当前 NTPSynchronized=no；不阻塞仓库 Tasks 2-8，但 Task 9 必须修复并验证后才能启动 DNS/TLS/Gitea",
-    "Gitea 1.26 的真实 event context、job token、Registry 和 Release 语义尚未在目标实例烟测；Task 11 保持 fail-closed 验证门禁",
-    "锁定 Go CI 镜像缺少 docker CLI；已用只允许 Unix socket info/image inspect 的窄 probe 修复并通过真实 Testcontainers 集成测试",
-    "Task 4 原计划写 exactly four 但只列出三个长期服务；Compose 官方规范又证明 file secret 无法 remap 给 UID1000，因此补明第四个无网络 one-shot secret-init，长期组件仍仅 postgres/gitea/caddy",
-    "Task 5 锁定 docker:29.6.1-dind-rootless 的 entrypoint 证明：首参数以 - 开头会自动注入 tcp://0.0.0.0:2375；实现改为显式 dockerd + 单一 Unix --host，同时保留 rootless/RootlessKit 路径",
-    "Task 5 Runner 强制 UID1000 与 root:0600 注册令牌同样受 Compose file-secret 不可 remap 限制；改为无网络非特权 one-off 工具短暂 stage 到 runtime tmpfs，注册状态生成后立即删除",
-    "Task 5 真实 rootless smoke 证明默认 DinD socket group 会映射为宿主相关 subordinate GID（本机 102374）；显式 --group=root 后外部 socket 固定为 1000:1000，Runner 可 fail-closed 校验",
-    "Task 5 发现 /opt/gitea/runner 会整体进入 host-manifest 备份，因此短期注册令牌源移至 /etc/gitea/runner-registration-token，并要求首次注册后、正常备份前服务端轮换且删除源文件",
-    "Task 5 删除已失去职责的 /etc/gitea/runner.env；生产 project/volume/network 名称在 Compose 固定以保持 backup/restore 单一 owner，随机名只存在于 smoke override",
-    "独立 Task 5 运维复核发现 bootstrap backup 曾允许缺失 API config、但 restore drill 无条件需要该文件；按原计划语义删除该 fallback，bootstrap 只放宽 Runner 缺席、不放宽 API/网络门禁",
-    "Task 6 locked Gitea 1.26.4 probe 证明 granular team 的 aggregate permission 为 none，units_map 才是精确权限事实；验证器据此 fail-closed 检查 units_map",
-    "Task 6 locked Gitea 1.26.4 拒绝 GITEA_ 前缀的用户 secret，因此 release workflow 与 bootstrap owner 使用 RELEASE_RECORD_TOKEN；内建 job secret GITEA_TOKEN 保持不变",
-    "Task 6 管理 API PAT 限定 write:admin,write:organization,write:repository 并记录 30 天轮换；服务 PAT 逐个精确 scope 和 90 天轮换，真实实例权限与撤销仍由 Tasks 9-11 验证",
-    "Task 6 disposable Gitea probe/container/volume 和 Python __pycache__ 的清理授权传输被拒绝；这些本地非提交资源已隔离且未进入任何提交，未经新的明确授权不重试清理",
-    "Task 7 为满足 Task 12 真实预切换备份补充 deploy --record-baseline 直接人类分支；仍只有三个管理子命令，forced SSH grammar 明确拒绝该分支，且它不改 .env、Registry、Compose 或容器",
-    "Task 7 pull/start/health 在 .env 原子切换后失败会保留旧成功 state，并通过 state_env_consistent=false/intervention_required=true 阻断盲重试；恢复仍需独立人工授权，不声称自动回滚",
-    "Task 7 review 发现并修复 /run 重启漂移、logrotate 锁窗口、gid 漂移、旧 age recipient 被误用新备份、过期 lease 永久保留、approval replay/path/hash、env 临时秘密残留和测试矩阵缺口",
-    "Task 8 七个 dispatcher 路径、15 个 shell 测试、两套 Compose effective contract、AMD64 build、退役/兼容/secret/diff 门均通过；这只是仓库与本地容器证据，不提升为生产 runtime 证据",
-    "Task 8 首次 build 在已解析全部锁定 base manifest 后遇到 Alpine index 瞬时 I/O 错误；完全相同且不推送的重试通过，未改源码、锁或增加镜像源 fallback",
-    "Task 8 明确保留未授权清理的 .pnpm-store、两处 __pycache__ 和本地验证镜像；它们均未进入实现提交，清理授权不从迁移授权中推断"
+    "Operator Pipedream deployment and live Telegram receipt are required before Netcup endpoint installation"
   ],
-  "decision": "continue"
+  "decision": "pause-for-user"
 }

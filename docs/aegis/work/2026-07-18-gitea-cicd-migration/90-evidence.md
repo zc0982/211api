@@ -168,3 +168,11 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Diagnostic evidence: Debian Fail2ban's Type=simple service exposed a real active-before-socket race. The checked-in bounded readiness owner passed on attempt two after a real restart. Docker restart returned while its wanted guard briefly activated, so the final check joined the queued unit without issuing a second Docker restart.
 - Residual boundary: Task 9 is not complete. `BACKUP_FAILURE_WEBHOOK_URL` is absent, so backup-notify-url remains fail-closed. Gitea/Runner/DNS/TLS/bootstrap remain untouched.
 - Audit detail: `evidence-bundle-draft-task9-netcup-preflight.json` records package versions, time/uidmap bounds, path modes, manifest hashes, presence-only secret shape, Runner render, firewall ordering, replay proof, preserved services, diagnostics, and exact residual gates without secret values.
+
+## EvidenceBundleDraft
+
+- Artifact key: pipedream-telegram-adapter-local
+- Type: local adapter verification
+- Source: commit `af5b0cb6f`; `deploy/gitea/pipedream/gitea-backup-to-telegram.mjs` and `.test.mjs`
+- Summary: Versioned the copy-pasteable Pipedream Node adapter. `node --check` passed; `node --test` passed 8/8 both locally and in the digest-locked Node 20.20.2 image, covering silent preflight, invalid method/content/schema/field/timestamp/code/unit, success rendering, configuration failure, and Telegram HTTP, `ok:false`, malformed JSON, and network failures. Actual endpoint, chat ID, and bot token were absent.
+- Verifier: Primary agent fresh local Node 24.14.1 plus digest-locked Node 20.20.2 tests, diff, and secret-pattern checks on 2026-07-19
