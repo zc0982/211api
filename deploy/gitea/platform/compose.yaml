@@ -101,6 +101,7 @@ services:
       GITEA__service__DISABLE_REGULAR_ORG_CREATION: "true"
       GITEA__repository__DEFAULT_PRIVATE: private
       GITEA__actions__ENABLED: "true"
+      GITEA__api__MAX_RESPONSE_ITEMS: "50"
       GITEA__security__INSTALL_LOCK: "true"
       GITEA__security__DISABLE_GIT_HOOKS: "true"
       GITEA__security__SECRET_KEY__FILE: /run/gitea-secrets/gitea_secret_key

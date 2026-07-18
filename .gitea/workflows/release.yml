@@ -162,7 +162,7 @@ jobs:
         env:
           EVENT_REF: ${{ gitea.ref }}
           REGISTRY_RELEASE_TOKEN: ${{ secrets.REGISTRY_RELEASE_TOKEN }}
-          GITEA_RELEASE_TOKEN: ${{ secrets.GITEA_RELEASE_TOKEN }}
+          RELEASE_RECORD_TOKEN: ${{ secrets.RELEASE_RECORD_TOKEN }}
         run: |
           set -euo pipefail
           set +x
@@ -180,7 +180,7 @@ jobs:
             exit 0
           fi
           : "${REGISTRY_RELEASE_TOKEN:?missing REGISTRY_RELEASE_TOKEN}"
-          : "${GITEA_RELEASE_TOKEN:?missing GITEA_RELEASE_TOKEN}"
+          : "${RELEASE_RECORD_TOKEN:?missing RELEASE_RECORD_TOKEN}"
 
           tag="${EVENT_REF#refs/tags/}"
           [[ "$tag" =~ $tag_pattern ]]
@@ -206,10 +206,10 @@ jobs:
           mkdir -m 0700 "$DOCKER_CONFIG"
 
           release_api_config="$work_dir/release-api.curl"
-          printf 'header = "Authorization: token %s"\n' "$GITEA_RELEASE_TOKEN" \
+          printf 'header = "Authorization: token %s"\n' "$RELEASE_RECORD_TOKEN" \
             >"$release_api_config"
           chmod 0600 "$release_api_config"
-          unset GITEA_RELEASE_TOKEN
+          unset RELEASE_RECORD_TOKEN
 
           printf '%s' "$REGISTRY_RELEASE_TOKEN" |
             docker login git.211api.com --username svc-release-package --password-stdin

@@ -4,6 +4,7 @@ set -euo pipefail
 
 readonly PLATFORM_ROOT=/opt/gitea/platform
 readonly RUNNER_ROOT=/opt/gitea/runner
+readonly ADMIN_ROOT=/opt/gitea/admin
 readonly IMAGE_LOCK=/opt/gitea/images.lock.env
 readonly PLATFORM_ENV=/etc/gitea/platform.env
 readonly PLATFORM_COMPOSE_FILE=/opt/gitea/platform/compose.yaml
@@ -521,6 +522,42 @@ produce_host_config() {
   tar -C / --create --file=- --verbatim-files-from --files-from="$HOST_FILE_LIST"
 }
 
+validate_optional_admin_backup_path() {
+  local path=$1 entry metadata
+  case "$path" in
+    "$ADMIN_ROOT")
+      [[ -d "$path" && ! -L "$path" ]] || return 1
+      [[ "$(stat -c '%u:%g %a' "$path")" == '0:0 755' ]] || return 1
+      while IFS= read -r -d '' entry; do
+        [[ ! -L "$entry" ]] || return 1
+        if [[ -d "$entry" ]]; then
+          metadata=$(stat -c '%u:%g %a' "$entry")
+          [[ "$metadata" == '0:0 755' ]] || return 1
+        elif [[ -f "$entry" ]]; then
+          metadata=$(stat -c '%u:%g %a' "$entry")
+          [[ "$metadata" == '0:0 644' || "$metadata" == '0:0 755' ]] || return 1
+        else
+          return 1
+        fi
+      done < <(find "$path" -xdev -mindepth 1 -print0)
+      ;;
+    /etc/gitea/bootstrap-credentials|/etc/gitea/tokens|/etc/gitea/token-metadata)
+      [[ -d "$path" && ! -L "$path" ]] || return 1
+      [[ "$(stat -c '%u:%g %a' "$path")" == '0:0 700' ]] || return 1
+      while IFS= read -r -d '' entry; do
+        [[ -f "$entry" && ! -L "$entry" ]] || return 1
+        [[ "$(stat -c '%u:%g %a' "$entry")" == '0:0 600' ]] || return 1
+      done < <(find "$path" -xdev -mindepth 1 -maxdepth 1 -print0)
+      [[ -z "$(find "$path" -xdev -mindepth 2 -print -quit)" ]] || return 1
+      ;;
+    /etc/gitea/bootstrap.env|/etc/gitea/admin-api.curl|/etc/gitea/admin-api.metadata.json|/etc/gitea/release-tag-ssh-only.json|/etc/gitea/required-status-contexts)
+      [[ -f "$path" && ! -L "$path" ]] || return 1
+      [[ "$(stat -c '%u:%g %a' "$path")" == '0:0 600' ]] || return 1
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 produce_refs() {
   docker run --rm --read-only --network none --user 1000:1000 \
     --entrypoint /bin/sh \
@@ -612,6 +649,25 @@ build_host_file_list() {
   if [[ -e "$RUNNER_ROOT" ]]; then
     paths+=("$RUNNER_ROOT")
   fi
+  local -a optional_admin_paths=(
+    "$ADMIN_ROOT"
+    /etc/gitea/bootstrap.env
+    /etc/gitea/admin-api.curl
+    /etc/gitea/admin-api.metadata.json
+    /etc/gitea/bootstrap-credentials
+    /etc/gitea/tokens
+    /etc/gitea/token-metadata
+    /etc/gitea/release-tag-ssh-only.json
+    /etc/gitea/required-status-contexts
+  )
+  for path in "${optional_admin_paths[@]}"; do
+    [[ ! -L "$path" ]] || die "unsafe admin backup symlink: $path" host-path
+    if [[ -e "$path" ]]; then
+      validate_optional_admin_backup_path "$path" ||
+        die "unsafe admin backup owner, mode, or entry: $path" host-path
+      paths+=("$path")
+    fi
+  done
   paths+=("$GITEA_BACKUP_API_CONFIG")
   for path in "${paths[@]}"; do
     [[ "$path" == /* && -e "$path" && ! -L "$path" ]] ||

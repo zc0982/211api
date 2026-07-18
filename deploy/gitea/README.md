@@ -8,6 +8,13 @@ All image references come from `images.lock.env`. Never run these Compose files
 through an implicit `.env` file, and never copy the production application
 `.env` to Netcup or Gitea.
 
+For a new host, the operational order is: start and validate the platform;
+complete **Repository bootstrap and controls** through `--base`; install and
+register the isolated Runner; run a validated bootstrap backup; then execute
+the later live gates before activating `main`. The headings below are grouped
+by implementation owner, so follow this order rather than reading them as one
+linear command transcript.
+
 ## Platform host layout
 
 Install the tracked platform files below `/opt/gitea/platform`, the image lock
@@ -22,6 +29,12 @@ as `/opt/gitea/images.lock.env`, and create these host-owned paths:
 | `/etc/gitea/backup-api.curl` | `root:root 0600` | curl config for the backup reader token |
 | `/etc/gitea/backup-notify-url` | `root:root 0600` | external HTTPS failure webhook URL |
 | `/etc/gitea/runner-registration-token` | `root:root 0600` | short-lived Runner registration-token source |
+| `/etc/gitea/bootstrap.env` | `root:root 0600` | data-only bootstrap human identity |
+| `/etc/gitea/admin-api.curl` | `root:root 0600` | bootstrap administrator API token directive |
+| `/etc/gitea/admin-api.metadata.json` | `root:root 0600` | administrator token scopes and 30-day rotation gate |
+| `/etc/gitea/bootstrap-credentials` | `root:root 0700` | one-time passwords; only release-tag survives to its SSH gate |
+| `/etc/gitea/tokens` | `root:root 0700` | split service PAT values, one file per authority |
+| `/etc/gitea/token-metadata` | `root:root 0700` | non-value PAT ID/scope/rotation/revocation records |
 | `/opt/gitea/platform/log` | numeric `1000:1000 0750` | bounded Gitea authentication logs |
 | `/opt/gitea/backups` | `root:root 0700` | local encrypted backup sets |
 
@@ -123,6 +136,10 @@ one-shot boundary: it stages the root-only source files as UID/GID 1000 mode
 0400 in a named volume, which Gitea mounts read-only.
 
 ## Isolated Runner
+
+On a new host, complete **Repository bootstrap and controls** below through its
+`--base` verification before generating a repository-scoped Runner token; the
+section order follows implementation-task ownership, not first-install order.
 
 The Runner project has exactly two long-running services. `docker` is the only
 privileged service and runs the locked rootless DinD image as numeric
@@ -282,6 +299,155 @@ source outside `/opt/gitea/runner` prevents the host-manifest backup from
 capturing it during the short registration window. Subsequent Runner restarts
 use the persistent registration state and require no staged token.
 
+## Repository bootstrap and controls
+
+Install the reviewed administration directory at its canonical path. The
+installer deliberately refuses to run from a checkout or another location.
+
+```bash
+sudo install -d -o root -g root -m 0755 /opt/gitea/admin
+sudo cp -a /path/to/reviewed/deploy/gitea/admin/. /opt/gitea/admin/
+sudo chown -R root:root /opt/gitea/admin
+sudo find /opt/gitea/admin -type d -exec chmod 0755 {} +
+sudo find /opt/gitea/admin -type f -exec chmod 0644 {} +
+sudo chmod 0755 \
+  /opt/gitea/admin/bootstrap-gitea \
+  /opt/gitea/admin/configure-repository \
+  /opt/gitea/admin/immutable-hook-installer \
+  /opt/gitea/admin/immutable-v-tags \
+  /opt/gitea/admin/install-immutable-tag-hook \
+  /opt/gitea/admin/verify-repository
+```
+
+Create the data-only bootstrap input with exactly these two assignments. The
+username is the initial human administrator and the first member of both human
+control teams.
+
+```text
+BOOTSTRAP_ADMIN_USERNAME=reviewed-human-login
+BOOTSTRAP_ADMIN_EMAIL=reviewed-human-address@example.com
+```
+
+```bash
+sudo install -o root -g root -m 0600 /dev/null /etc/gitea/bootstrap.env
+sudoedit /etc/gitea/bootstrap.env
+sudo /opt/gitea/admin/bootstrap-gitea
+```
+
+The first run creates the human administrator with a random, must-change
+password under `/etc/gitea/bootstrap-credentials`, creates the root-only admin
+API curl config, and then stops at the manual 2FA gate. Log in over the reviewed
+HTTPS origin, change the password, enable 2FA, and rerun the same command. The
+control PAT is limited to `write:admin`, `write:organization`, and
+`write:repository`; it deliberately has no package, notification, issue, or
+user scope. Because a PAT is not protected by the interactive 2FA challenge,
+its root-only metadata enforces a 30-day rotation deadline. At expiry, revoke
+`bootstrap-admin-automation` from the administrator's Applications page,
+remove its curl config and metadata, and rerun bootstrap to issue the reviewed
+replacement. The second phase refuses any OpenAPI or CLI mismatch before API
+mutations, paginates every exact-set inspection against the platform-fixed
+50-item response cap, and then creates the private organization/repository and
+these exact granular teams:
+
+| Team | Members | Repository units |
+| --- | --- | --- |
+| `maintainers` | bootstrap human | `repo.code:write`, `repo.pulls:write` |
+| `release-maintainers` | bootstrap human | `repo.code:write` |
+| `package-publishers` | `svc-build`, `svc-release-package` | `repo.packages:write` |
+| `package-readers` | `svc-backup-read`, `svc-deploy-read` | `repo.packages:read` |
+
+Gitea's `bot` user type cannot hold the one-time password required by
+`POST /users/{username}/tokens`. The six technical identities are therefore
+restricted individual accounts with fixed service names, no administrator
+rights, random one-time passwords, and the granular team/collaborator access
+above. Their PAT scopes remain the second and independent permission boundary.
+
+The bootstrap writes each PAT once and never prints it. It records the server
+token ID, exact scopes, creation time, null server expiry, 90-day rotation due
+date, and revocation procedure without the value. Every one-time service
+password is deleted after its token(s) pass positive and negative permission
+probes. `svc-release-tag` is the exception: it gets no PAT, and its password is
+retained only until Task 11 proves the pinned SSH key and then records
+`/etc/gitea/release-tag-ssh-only.json` before discarding the password.
+Revocation uses the root-only administrator API to assign a fresh random
+one-time service password, Basic-authenticates the exact recorded token ID to
+`DELETE /users/{username}/tokens/{id}`, immediately discards that password, and
+then removes or rotates the dependent Actions/host secret; the metadata record
+stores this sequence per token.
+
+| Token file | Account | Exact scope | Destination |
+| --- | --- | --- | --- |
+| `registry-build.token` | `svc-build` | `write:package` | `REGISTRY_BUILD_TOKEN` Actions secret |
+| `backup-reader.token` | `svc-backup-read` | `read:user,read:repository,read:package` | backup curl config |
+| `registry-release.token` | `svc-release-package` | `write:package` | `REGISTRY_RELEASE_TOKEN` Actions secret |
+| `release-record.token` | `svc-release-record` | `write:repository` | `RELEASE_RECORD_TOKEN` Actions secret |
+| `deploy-head.token` | `svc-deploy-read` | `read:repository` | Gateway deploy owner only |
+| `deploy-registry.token` | `svc-deploy-read` | `read:package` | Gateway Docker credential only |
+
+`GITEA_TOKEN` is Gitea's per-job built-in identity. Never create a static
+Actions secret with that name: the release request lane relies on its actor and
+team binding. Gitea also rejects user secret names beginning with reserved
+`GITEA_`, which is why the Release API PAT is named `RELEASE_RECORD_TOKEN`.
+Gateway's two read tokens never enter Actions.
+
+After bootstrap, install the pre-main repository controls and split Actions
+PATs. The command creates rules only when absent and fails on field drift; it
+never deletes or silently replaces a rule.
+
+```bash
+sudo /opt/gitea/admin/configure-repository --base
+```
+
+Regenerate Gitea's managed receive hooks before installing the platform-owned
+delegate. `security.DISABLE_GIT_HOOKS=true` remains enabled: the immutable hook
+is installed beside Gitea's own executable `hooks/update.d/gitea` through the
+fixed named data volume, not through user-created Git hooks.
+
+```bash
+sudo docker compose \
+  --env-file /opt/gitea/images.lock.env \
+  --env-file /etc/gitea/platform.env \
+  -f /opt/gitea/platform/compose.yaml \
+  exec -T --user 1000:1000 gitea gitea admin regenerate hooks
+sudo /opt/gitea/admin/install-immutable-tag-hook --install
+sudo /opt/gitea/admin/verify-repository --base
+```
+
+Run regeneration, installation, and verification again after every restore or
+Gitea upgrade. The installer requires the exact bare path
+`/var/lib/gitea/git/repositories/211api/211api.git`, numeric owner 1000:1000,
+the Gitea-managed delegate, and matching recorded SHA-256. A symlink, wrong
+owner, missing managed hook, partial state, or checksum drift is a hard stop.
+
+Do not activate `main` protection from guessed check names. Task 11 must first
+produce a root-owned mode-0600 evidence file containing exactly:
+
+```text
+ci / required
+security / required
+```
+
+Then activate and verify against the real tested commit SHA:
+
+```bash
+sudo /opt/gitea/admin/configure-repository \
+  --activate-main /etc/gitea/required-status-contexts
+sudo /opt/gitea/admin/verify-repository --full \
+  /etc/gitea/required-status-contexts "$PROVED_COMMIT_SHA"
+```
+
+The full verifier also requires the later SSH secrets, both actual commit
+statuses, the SSH-only release-tag evidence, no push mirror, exact teams and
+members, token negative permissions, disabled registration, and the immutable
+hook checksum. It makes no repository mutation.
+
+Once present, `/opt/gitea/admin`, the bootstrap input, split token files,
+non-value metadata, and later SSH-only/status-context evidence are included in
+the existing age-encrypted host configuration component. The root-only hook
+checksum record lives at `/var/lib/gitea/.platform/immutable-v-tags.sha256`
+inside the backed-up Gitea data volume. The short-lived Runner registration
+token remains deliberately excluded.
+
 ## Backups and notification
 
 The backup script refuses concurrent execution, checks NTP, TLS validity,
@@ -381,6 +547,8 @@ deploy/gitea/platform/tests/test-systemd-units.sh
 deploy/gitea/runner/tests/test-runner-config.sh
 deploy/gitea/runner/tests/test-registration-token-lifecycle.sh
 deploy/gitea/runner/tests/smoke-rootless-dind.sh
+deploy/gitea/tests/test-admin-primitives.sh
+deploy/gitea/tests/test-immutable-tag-hook.sh
 ```
 
 The DinD smoke uses unique project, network, and volume names, proves rootless

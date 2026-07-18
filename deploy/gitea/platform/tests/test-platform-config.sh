@@ -38,6 +38,7 @@ jq -e '
   and (.services."secret-init".network_mode == "none")
   and (.services."secret-init".read_only == true)
   and (.services.gitea.user == "1000:1000")
+  and (.services.gitea.environment.GITEA__api__MAX_RESPONSE_ITEMS == "50")
 ' "$tmp/rendered.json" >/dev/null
 
 jq -r '

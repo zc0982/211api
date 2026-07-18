@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+readonly EXPECTED_ADMIN_DIR=/opt/gitea/admin
+readonly IMAGE_LOCK=/opt/gitea/images.lock.env
+readonly DATA_VOLUME=gitea-platform-gitea-data
+
+die() {
+  printf 'install-immutable-tag-hook: %s\n' "$*" >&2
+  exit 1
+}
+
+case ${1:-} in
+  --install)
+    [[ $# -eq 1 ]] || die 'usage: install-immutable-tag-hook --install|--verify'
+    engine_mode=--production-install
+    ;;
+  --verify)
+    [[ $# -eq 1 ]] || die 'usage: install-immutable-tag-hook --install|--verify'
+    engine_mode=--production-verify
+    ;;
+  *) die 'usage: install-immutable-tag-hook --install|--verify' ;;
+esac
+
+[[ ${EUID:-$(id -u)} -eq 0 ]] || die 'must run as root'
+for command in docker awk stat readlink dirname; do
+  command -v "$command" >/dev/null 2>&1 || die "required command unavailable: $command"
+done
+
+admin_dir=$(readlink -f -- "$(dirname "${BASH_SOURCE[0]}")")
+[[ "$admin_dir" == "$EXPECTED_ADMIN_DIR" ]] ||
+  die "must run the reviewed installation from $EXPECTED_ADMIN_DIR"
+for file in immutable-v-tags immutable-hook-installer; do
+  path="$EXPECTED_ADMIN_DIR/$file"
+  [[ -f "$path" && ! -L "$path" ]] || die "unsafe reviewed source: $path"
+  [[ $(stat -c '%u:%g %a' -- "$path") == '0:0 755' ]] ||
+    die "reviewed source owner or mode drifted: $path"
+done
+[[ -f "$IMAGE_LOCK" && ! -L "$IMAGE_LOCK" ]] || die 'image lock is missing or unsafe'
+[[ $(stat -c '%u:%g %a' -- "$IMAGE_LOCK") == '0:0 644' ]] ||
+  die 'image lock owner or mode drifted'
+
+mapfile -t alpine_lines < <(awk -F= '$1 == "APP_ALPINE_IMAGE" { print $2 }' "$IMAGE_LOCK")
+[[ ${#alpine_lines[@]} -eq 1 ]] || die 'image lock must contain one APP_ALPINE_IMAGE'
+alpine_image=${alpine_lines[0]}
+[[ "$alpine_image" =~ ^[a-z0-9][a-z0-9._/:-]+@sha256:[0-9a-f]{64}$ ]] ||
+  die 'APP_ALPINE_IMAGE is not digest locked'
+
+docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1 ||
+  die "required Gitea data volume is unavailable: $DATA_VOLUME"
+docker run --rm --pull=never \
+  --network none \
+  --read-only \
+  --user 0:0 \
+  --cap-drop ALL \
+  --cap-add CHOWN \
+  --cap-add DAC_OVERRIDE \
+  --security-opt no-new-privileges:true \
+  --mount "type=volume,src=$DATA_VOLUME,dst=/var/lib/gitea" \
+  --mount "type=bind,src=$EXPECTED_ADMIN_DIR,dst=/source,readonly" \
+  "$alpine_image" \
+  /source/immutable-hook-installer "$engine_mode"
