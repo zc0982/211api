@@ -34,3 +34,4 @@ Entries are workspace records, not authoritative runtime decisions.
 | 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json | 2026-07-18-gitea-cicd-migration evidence task2-3-repository-ci |
 | 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json | 2026-07-18-gitea-cicd-migration evidence task8-repository-gate |
 | 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task9-netcup-preflight.json | 2026-07-18-gitea-cicd-migration evidence task9-netcup-preflight |
+| 2026-07-19 | plan | docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md | Pipedream Telegram backup notification implementation plan |

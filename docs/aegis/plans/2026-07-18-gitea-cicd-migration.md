@@ -162,8 +162,10 @@ generated:
   points to `Wei-Shaw/sub2api`; private fork delivery must not replace it.
 - Preserve Gateway data, `.env` values, Compose services, loopback binding,
   Caddy/cloudflared ingress, and current business database.
-- Do not add GitHub mirror, DockerHub, Telegram, ARM64, macOS, Windows, or
-  binary-release compatibility paths.
+- Do not add GitHub mirror, DockerHub, legacy Telegram release/deploy, ARM64,
+  macOS, Windows, or binary-release compatibility paths. The only Telegram
+  exception is the approved Pipedream adapter scoped to Gitea platform backup
+  failures in `2026-07-19-pipedream-telegram-backup-notification.md`.
 
 ## Change Necessity
 
@@ -241,9 +243,11 @@ generated:
 - New canonical owner: `.gitea/workflows` plus Gitea Registry/Release.
 - Preserved behavior: Linux CI, security scan, main deployment, protected
   version release, public upstream update lookup.
-- Retired behavior: GitHub Actions, CLA bot, GHCR, DockerHub, Telegram,
-  GoReleaser archives/manifests, macOS/Windows/ARM64 release lanes,
-  `PROD_ENV_B64`.
+- Retired behavior: GitHub Actions, CLA bot, GHCR, DockerHub, legacy Telegram
+  release/deploy notifications, GoReleaser archives/manifests,
+  macOS/Windows/ARM64 release lanes, `PROD_ENV_B64`.
+- Bounded new behavior: Pipedream alone translates fixed Gitea backup-failure
+  JSON to the dedicated Telegram group; it is not a CI/CD fallback.
 - Compatibility exception: public `Wei-Shaw/sub2api` updater/install paths only.
 - Persistent-state risk: no existing repository, tag, release, backup, or
   production data is deleted. Retention may remove only newly generated,
@@ -703,6 +707,8 @@ no 211API service is added to Netcup.
 5. Implement `gitea-backup-notify` to read the failure record, POST a fixed JSON
    schema to the URL stored in root-only `/etc/gitea/backup-notify-url`, require
    HTTP 2xx, and never include tokens, repository contents, or command output.
+   The external adapter and its verification are owned by
+   `2026-07-19-pipedream-telegram-backup-notification.md`.
 
 6. Implement `gitea-restore-drill` to require the operator age key from a tmpfs
    path, decrypt into root-only temporary storage, start isolated temporary
@@ -1346,7 +1352,9 @@ alone.
    capture their contents in terminal evidence. Write the root-only Compose env
    file with only their absolute path variables, and prove every top-level
    Compose secret resolves. Install only the public age recipient and the
-   webhook URL in separate 0600 files.
+   Pipedream webhook URL in separate 0600 files. Follow
+   `2026-07-19-pipedream-telegram-backup-notification.md`; never place the
+   Telegram token or chat ID on Netcup.
 
 8. Render the platform project with both
    `--env-file /opt/gitea/images.lock.env` and
@@ -1857,8 +1865,9 @@ and `latest` exclusion without creating binary/multiarch outputs.
    Do not issue a deletion as site admin and do not delete the smoke tag,
    release, image, or request branch.
 
-6. Confirm no DockerHub manifest, GHCR publication, Telegram message, archive,
-   checksum file, macOS/Windows binary, or ARM64 manifest was produced.
+6. Confirm no DockerHub manifest, GHCR publication, legacy Telegram release
+   message, archive, checksum file, macOS/Windows binary, or ARM64 manifest was
+   produced. The isolated backup notification test is not release output.
 
 **Verification:** retained private smoke prerelease exists, digest matches the
 deployed commit, `latest` unchanged, immutable-ref controls proven.
@@ -1886,8 +1895,9 @@ owner stopped.
 
 3. Run lingering-reference checks. Classify retained GitHub references only as
    the explicit public updater/install compatibility boundary; any active fork
-   workflow, GHCR deploy input, DockerHub/Telegram release logic, or
-   `PROD_ENV_B64` is a failure.
+   workflow, GHCR deploy input, DockerHub/legacy Telegram release or deployment
+   logic, or `PROD_ENV_B64` is a failure. The exact versioned Pipedream backup
+   adapter is the only Telegram exception.
 
 4. Verify the old GitHub API still reports Actions disabled and no post-cutover
    run exists. Verify no Gitea push mirror exists.
@@ -1935,7 +1945,8 @@ owner stopped.
 - Main-path check: Gitea PR, CI, Registry, main deployment, and release smoke all
   pass.
 - Lingering-reference check: no canonical `.github/workflows`, GoReleaser,
-  private-fork GHCR/DockerHub/Telegram/PROD_ENV_B64 path.
+  private-fork GHCR/DockerHub/legacy Telegram release/deploy/PROD_ENV_B64 path;
+  only the versioned Pipedream backup adapter may call Telegram.
 - Negative check: GitHub dispatch rejected; non-main Gitea branch never deploys;
   stale/locked/migration-sensitive/unauthorized tag paths fail closed.
 - Boundary check: public upstream updater remains GitHub-backed, Gateway remains
