@@ -448,6 +448,195 @@ checksum record lives at `/var/lib/gitea/.platform/immutable-v-tags.sha256`
 inside the backed-up Gitea data volume. The short-lived Runner registration
 token remains deliberately excluded.
 
+## Gateway deployment enforcement
+
+These files are installed only on the existing Gateway in Los Angeles. They do
+not move the application, PostgreSQL, Redis, ingress, ports, environment, or
+business data to Netcup. The root program is the sole production-mutation
+owner; workflow YAML can request only the exact commit and manifest digest.
+
+Copy a reviewed Task 7 source directory into a temporary root-owned staging
+directory, compare its recorded checksums with the repository review evidence,
+and run the installer. It refuses symlinks, unsafe ownership/modes, and path
+type conflicts; an existing safe installation is replaced atomically.
+
+```bash
+umask 077
+sudo install -d -o root -g root -m 0700 /root/211api-gateway-install
+sudo cp -a /path/to/reviewed/deploy/gitea/gateway/. \
+  /root/211api-gateway-install/
+sudo chown -R root:root /root/211api-gateway-install
+sudo find /root/211api-gateway-install -type d -exec chmod 0700 {} +
+sudo chmod 0755 \
+  /root/211api-gateway-install/211api-deploy \
+  /root/211api-gateway-install/211api-deploy-dispatch \
+  /root/211api-gateway-install/211api-backup-restore-drill \
+  /root/211api-gateway-install/install-gateway-deployer \
+  /root/211api-gateway-install/gateway-audit-rotate \
+  /root/211api-gateway-install/gateway-retention.py \
+  /root/211api-gateway-install/gateway-validate-archive.py
+sudo chmod 0644 \
+  /root/211api-gateway-install/gateway-runtime.sh \
+  /root/211api-gateway-install/211api-deploy.logrotate
+sudo sha256sum /root/211api-gateway-install/*
+sudo /root/211api-gateway-install/install-gateway-deployer
+```
+
+The installer creates only the reviewed programs under `/usr/local/sbin`, the
+root-only `/etc/211api-deploy` control tree, the encrypted-backup/state/audit
+paths under `/opt/211api/deploy` and `/var/log`, and the logrotate owner. It
+does not create credentials and does not edit the existing Compose or `.env`.
+The deployer requires exactly one root-owned mode-0600 `SUB2API_IMAGE=` line;
+it fails rather than adding or guessing one.
+
+Install `age`/`age-keygen`, `curl`, `jq`, `python3`, `util-linux` (`flock` and
+`findmnt`), `openssl`, `gzip`, and GNU core utilities first; Docker must include
+Compose v2 and Buildx. The production installer refuses a missing runtime
+command. `/run` is intentionally ephemeral: every status/deploy/restore entry
+recreates only `/run/211api-deploy` and the two root-owned mode-0600 lock files
+after validating `/run` and `/run/lock`, so a host reboot does not require the
+installer to be rerun.
+
+Provision the Task 6 split credentials without printing them. Store the
+repository-read PAT only as a one-line mode-0600 curl config at
+`/etc/211api-deploy/gitea-head-api.curl`. Store the package-read PAT in a
+separate temporary root-only file, pass it to `docker login` over stdin, then
+remove that token file after the root Docker config is verified mode 0600.
+Neither token enters Actions or an argv value.
+
+```text
+header = "Authorization: token <svc-deploy-read repository-read PAT>"
+```
+
+```bash
+umask 077
+sudo install -o root -g root -m 0600 /dev/null \
+  /etc/211api-deploy/gitea-head-api.curl
+sudoedit /etc/211api-deploy/gitea-head-api.curl
+sudo install -o root -g root -m 0600 /dev/null \
+  /etc/211api-deploy/registry-pull.token
+sudoedit /etc/211api-deploy/registry-pull.token
+sudo sh -c 'docker login git.211api.com --username svc-deploy-read \
+  --password-stdin < /etc/211api-deploy/registry-pull.token'
+sudo chmod 0600 /root/.docker/config.json
+sudo rm -f /etc/211api-deploy/registry-pull.token
+```
+
+Install only the public age recipient at `/etc/211api-deploy/age-recipient`.
+`key-metadata.json` is mode 0600 with schema
+`211api-age-key-metadata.v1`, the recipient SHA-256, custody verification UTC,
+and rotation deadline; it contains no private key. During rotation, an optional
+`recipients` array retains old recipient hashes until every corresponding
+backup expires, so an operator-held old identity can still be verified for a
+restore drill. New backups require the public recipient file to equal the
+top-level active `recipient_sha256`; a historical array entry can never become
+the encryption target by leaving an old public-recipient file in place.
+
+The status command returns only nonsecret readiness, protected-main head,
+health, lock, image, and state metadata:
+
+```bash
+sudo /usr/local/sbin/211api-deploy status | jq .
+```
+
+Install the dedicated public deployment key as one exact root authorized-key
+line only after its source and Gateway host fingerprints are independently
+verified. The private key remains on Netcup as an Actions secret.
+
+```text
+from="37.221.194.27",restrict,command="/usr/local/sbin/211api-deploy-dispatch" ssh-ed25519 <reviewed-public-key> <reviewed-key-id>
+```
+
+The dispatcher accepts only `status` or
+`deploy --commit <40-lower-hex> --digest sha256:<64-lower-hex>`. It requires the
+split SSH source to equal `37.221.194.27`, rejects PTY/agent/X11 forwarding and
+all extra syntax, and invokes the root program through `env -i`. It cannot
+create a migration approval or invoke the Task 12 baseline branch.
+
+Before cutover, the human administrator records the proved current production
+commit/digest and creates a real encrypted backup without changing `.env`,
+Registry, Compose, or any container. This direct TTY-only mode is not in the
+forced-command grammar:
+
+```bash
+sudo /usr/local/sbin/211api-deploy deploy --record-baseline \
+  --commit "$PROVED_CURRENT_COMMIT" \
+  --digest "$PROVED_CURRENT_MANIFEST_DIGEST"
+```
+
+It first requires the current `.env` image, running container image ID, local
+RepoDigest, and OCI revision or exact full-commit image tag token to agree. Only
+then does it write the initial state and pre-cutover backup.
+
+A normal deploy locks the entire operation, verifies the Gitea candidate as a
+single Linux/AMD64 manifest with the exact OCI revision, checks protected
+`main`, computes the exact migration-sensitive path set, and creates a
+validated age-encrypted PostgreSQL/deployment backup. It checks `main` and the
+Compose/environment hashes again immediately before mutation, atomically
+replaces only `SUB2API_IMAGE`, and verifies health plus the running image ID,
+RepoDigest, and OCI revision. Head/API, backup, audit, pull, start, or health
+failure is fail-closed; no automatic database restore or blind image rollback
+exists.
+
+Because `.env` is the Compose source of truth, a pull/start/health failure after
+its atomic image switch can intentionally leave `.env` at the requested digest
+while deployment state still records the last proved healthy image. `status`
+then reports `state_env_consistent=false` and
+`intervention_required=true`; subsequent deployment is blocked by the same
+state check. This is evidence-preserving fail-closed behavior, not permission
+to retry blindly. The operator must review the validated backup, the bounded
+root-only failure log, actual container image/health, and any migration output,
+then obtain separately scoped recovery approval before reconciling the image
+line or database. No script performs that recovery automatically.
+
+For a migration-sensitive commit, use only the pre-existing human
+administrative TTY on Gateway. Review the displayed path set and enter the
+exact confirmation; the 30-minute record is bound to commit, digest, operator,
+random nonce, and sensitive-path hash. The CI key cannot reach this branch.
+
+```bash
+sudo /usr/local/sbin/211api-deploy approve-migration \
+  --commit "$TARGET_COMMIT" \
+  --digest "$TARGET_MANIFEST_DIGEST" \
+  --expires-in 30m
+```
+
+The next matching deploy atomically moves that record into
+`consumed-approvals` before the first application mutation. Wrong, expired,
+changed-path, non-TTY, CI, and replay attempts return 78. Lock contention
+returns 75; stale protected-main evidence returns 76.
+
+Each pre-deploy set under `/opt/211api/deploy/backups` contains only encrypted
+database/deployment streams, validation listings, nonsecret previous-state
+metadata, and a fsynced manifest. Retention runs under the deployment lock,
+dry-runs first, verifies every classified component checksum, keeps at least
+the newest three plus predecessor/known-good/leased/referenced sets, and never
+touches unclassified or legacy recovery paths.
+
+For the quarterly or pre-cutover restore drill, place the matching operator
+identity on a root-owned tmpfs and run the TTY-only command. It verifies the
+recipient history, ciphertext hashes, and manifest; restores through a pipe
+into the locked PostgreSQL 18.4 image with `--network none`, no published port,
+one newly labelled volume, and no production mount; checks schema,
+constraints, and representative nonsecret row counts; then removes only its
+own labelled container and volume. Unmount the operator-owned tmpfs afterward.
+
+```bash
+umask 077
+sudo install -d -o root -g root -m 0700 /run/211api-operator-key
+sudo mount -t tmpfs -o size=1m,mode=0700,nosuid,nodev,noexec \
+  tmpfs /run/211api-operator-key
+sudo /usr/local/sbin/211api-backup-restore-drill \
+  --backup-id "$GATEWAY_BACKUP_ID" \
+  --identity "$TMPFS_IDENTITY_PATH"
+sudo umount /run/211api-operator-key
+```
+
+Audit records are bounded single-line JSON, appended under a dedicated lock,
+and `fdatasync`ed before every production mutation and at completion. Crossing
+10 MiB rotates under that same lock; ten root-only compressed rotations are
+kept. A failed audit append/sync stops before the next mutation.
+
 ## Backups and notification
 
 The backup script refuses concurrent execution, checks NTP, TLS validity,
@@ -549,6 +738,7 @@ deploy/gitea/runner/tests/test-registration-token-lifecycle.sh
 deploy/gitea/runner/tests/smoke-rootless-dind.sh
 deploy/gitea/tests/test-admin-primitives.sh
 deploy/gitea/tests/test-immutable-tag-hook.sh
+deploy/gitea/tests/test-gateway-deployer.sh
 ```
 
 The DinD smoke uses unique project, network, and volume names, proves rootless

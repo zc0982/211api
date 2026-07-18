@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+
+SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+INSTALL_ROOT=
+
+usage() {
+  printf 'Usage: install-gateway-deployer [--test-root /tmp/DIR]\n' >&2
+  exit 64
+}
+
+if (($#)); then
+  [[ $# == 2 && "$1" == --test-root ]] || usage
+  INSTALL_ROOT=$2
+  [[ "$INSTALL_ROOT" == /tmp/* && -d "$INSTALL_ROOT" && ! -L "$INSTALL_ROOT" ]] || usage
+  [[ "$(stat -c '%u' "$INSTALL_ROOT")" == "$EUID" ]] || usage
+else
+  ((EUID == 0)) || {
+    printf 'install-gateway-deployer: root privileges are required\n' >&2
+    exit 1
+  }
+fi
+
+EXPECTED_OWNER=$([[ -n "$INSTALL_ROOT" ]] && printf '%s' "$EUID" || printf '0')
+EXPECTED_GROUP=$([[ -n "$INSTALL_ROOT" ]] && id -g || printf '0')
+CONFIG_ROOT="$INSTALL_ROOT/etc/211api-deploy"
+DEPLOY_DIR="$INSTALL_ROOT/opt/211api/deploy"
+BACKUP_ROOT="$DEPLOY_DIR/backups"
+STATE_FILE="$DEPLOY_DIR/.deployment-state.json"
+AUDIT_DIR="$INSTALL_ROOT/var/log/211api-deploy"
+AUDIT_FILE="$AUDIT_DIR/audit.jsonl"
+RUNTIME_ROOT="$INSTALL_ROOT/run/211api-deploy"
+LOCK_ROOT="$INSTALL_ROOT/run/lock"
+
+die() {
+  printf 'install-gateway-deployer: %s\n' "$1" >&2
+  exit 1
+}
+
+if [[ -z "$INSTALL_ROOT" ]]; then
+  for command in age age-keygen curl date docker findmnt flock gzip jq openssl \
+    python3 sha256sum sync tar; do
+    command -v "$command" >/dev/null 2>&1 || die "required runtime command is missing: $command"
+  done
+fi
+
+require_source() {
+  local path=$1
+  [[ -f "$path" && ! -L "$path" ]] || die "unsafe or missing source: $path"
+  [[ "$(stat -c '%u' "$path")" == "$EUID" ]] || die "source is not owned by the installer caller: $path"
+}
+
+ensure_parent() {
+  local path=$1 mode=$2
+  if [[ ! -e "$path" ]]; then
+    install -d -o "$EXPECTED_OWNER" -g "$EXPECTED_GROUP" -m "$mode" "$path"
+  fi
+  [[ -d "$path" && ! -L "$path" ]] || die "conflicting directory path: $path"
+  [[ "$(stat -c '%u:%g:%a' "$path")" == "$EXPECTED_OWNER:$EXPECTED_GROUP:$mode" ]] ||
+    die "directory ownership or mode conflicts: $path"
+}
+
+ensure_host_parent() {
+  local path=$1
+  if [[ ! -e "$path" && -n "$INSTALL_ROOT" ]]; then
+    install -d -o "$EXPECTED_OWNER" -g "$EXPECTED_GROUP" -m 0755 "$path"
+  fi
+  [[ -d "$path" && ! -L "$path" ]] || die "required host directory is missing: $path"
+  [[ "$(stat -c '%u:%g' "$path")" == "$EXPECTED_OWNER:$EXPECTED_GROUP" ]] ||
+    die "host directory owner or group conflicts: $path"
+  case "$(stat -c '%a' "$path")" in
+    700 | 750 | 755) ;;
+    775) [[ "$path" == "$LOCK_ROOT" ]] || die "host directory mode conflicts: $path" ;;
+    *) die "host directory mode conflicts: $path" ;;
+  esac
+}
+
+install_atomic() {
+  local source=$1 destination=$2 mode=$3 parent temporary
+  require_source "$source"
+  parent="$(dirname "$destination")"
+  if [[ -e "$destination" || -L "$destination" ]]; then
+    [[ -f "$destination" && ! -L "$destination" ]] || die "conflicting file path: $destination"
+    [[ "$(stat -c '%u:%g:%a' "$destination")" == "$EXPECTED_OWNER:$EXPECTED_GROUP:$mode" ]] ||
+      die "file ownership or mode conflicts: $destination"
+  fi
+  temporary="$parent/.211api-install.$(basename "$destination").$$"
+  [[ ! -e "$temporary" ]] || die "installer temporary path conflicts: $temporary"
+  install -o "$EXPECTED_OWNER" -g "$EXPECTED_GROUP" -m "$mode" "$source" "$temporary"
+  [[ "$(sha256sum "$source" | awk '{print $1}')" == "$(sha256sum "$temporary" | awk '{print $1}')" ]] ||
+    die "installed checksum mismatch: $destination"
+  sync -f "$temporary"
+  mv -f -- "$temporary" "$destination"
+  sync -f "$parent"
+}
+
+create_regular_once() {
+  local path=$1 mode=$2 content=${3:-}
+  local parent temporary
+  if [[ -e "$path" || -L "$path" ]]; then
+    [[ -f "$path" && ! -L "$path" ]] || die "conflicting file path: $path"
+    [[ "$(stat -c '%u:%g:%a' "$path")" == "$EXPECTED_OWNER:$EXPECTED_GROUP:$mode" ]] ||
+      die "file ownership or mode conflicts: $path"
+    return 0
+  fi
+  parent="$(dirname "$path")"
+  temporary="$parent/.211api-create.$(basename "$path").$$"
+  printf '%s' "$content" >"$temporary"
+  chown "$EXPECTED_OWNER:$EXPECTED_GROUP" "$temporary"
+  chmod "$mode" "$temporary"
+  sync -f "$temporary"
+  mv -- "$temporary" "$path"
+  sync -f "$parent"
+}
+
+for source in \
+  211api-deploy \
+  211api-deploy-dispatch \
+  211api-backup-restore-drill \
+  gateway-runtime.sh \
+  gateway-validate-archive.py \
+  gateway-retention.py \
+  gateway-audit-rotate \
+  211api-deploy.logrotate; do
+  require_source "$SOURCE_DIR/$source"
+done
+
+ensure_host_parent "$INSTALL_ROOT/usr"
+ensure_host_parent "$INSTALL_ROOT/usr/local"
+ensure_host_parent "$INSTALL_ROOT/usr/local/sbin"
+ensure_host_parent "$INSTALL_ROOT/etc"
+ensure_host_parent "$INSTALL_ROOT/etc/logrotate.d"
+ensure_host_parent "$INSTALL_ROOT/opt"
+ensure_host_parent "$INSTALL_ROOT/opt/211api"
+ensure_host_parent "$DEPLOY_DIR"
+ensure_host_parent "$INSTALL_ROOT/var"
+ensure_host_parent "$INSTALL_ROOT/var/log"
+ensure_host_parent "$INSTALL_ROOT/run"
+ensure_host_parent "$LOCK_ROOT"
+
+ensure_parent "$CONFIG_ROOT" 700
+ensure_parent "$CONFIG_ROOT/migration-approvals" 700
+ensure_parent "$CONFIG_ROOT/consumed-approvals" 700
+ensure_parent "$BACKUP_ROOT" 700
+ensure_parent "$AUDIT_DIR" 700
+ensure_parent "$RUNTIME_ROOT" 700
+
+install_atomic "$SOURCE_DIR/211api-deploy" "$INSTALL_ROOT/usr/local/sbin/211api-deploy" 755
+install_atomic "$SOURCE_DIR/211api-deploy-dispatch" "$INSTALL_ROOT/usr/local/sbin/211api-deploy-dispatch" 755
+install_atomic "$SOURCE_DIR/211api-backup-restore-drill" "$INSTALL_ROOT/usr/local/sbin/211api-backup-restore-drill" 755
+install_atomic "$SOURCE_DIR/gateway-runtime.sh" "$CONFIG_ROOT/gateway-runtime.sh" 600
+install_atomic "$SOURCE_DIR/gateway-validate-archive.py" "$CONFIG_ROOT/gateway-validate-archive.py" 600
+install_atomic "$SOURCE_DIR/gateway-retention.py" "$CONFIG_ROOT/gateway-retention.py" 600
+install_atomic "$SOURCE_DIR/gateway-audit-rotate" "$CONFIG_ROOT/gateway-audit-rotate" 755
+install_atomic "$SOURCE_DIR/211api-deploy.logrotate" "$INSTALL_ROOT/etc/logrotate.d/211api-deploy" 644
+
+initial_state='{"schema":"211api-deployment-state.v1","commit":null,"digest":null,"image":null,"backup_id":null,"deployed_at":null,"previous_commit":null,"previous_digest":null,"predecessor_backup_id":null,"known_good_backup_id":null}'
+create_regular_once "$STATE_FILE" 600 "$initial_state"
+create_regular_once "$AUDIT_FILE" 600 ''
+create_regular_once "$AUDIT_DIR/.rotation-trigger" 600 ''
+create_regular_once "$LOCK_ROOT/211api-deploy.lock" 600 ''
+create_regular_once "$LOCK_ROOT/211api-deploy-audit.lock" 600 ''
+
+jq -e '.schema == "211api-deployment-state.v1"' "$STATE_FILE" >/dev/null ||
+  die "existing deployment state has an invalid schema"
+
+printf 'Installed Gateway deployment boundary:\n'
+for path in \
+  "$INSTALL_ROOT/usr/local/sbin/211api-deploy" \
+  "$INSTALL_ROOT/usr/local/sbin/211api-deploy-dispatch" \
+  "$INSTALL_ROOT/usr/local/sbin/211api-backup-restore-drill" \
+  "$CONFIG_ROOT/gateway-runtime.sh" \
+  "$CONFIG_ROOT/gateway-validate-archive.py" \
+  "$CONFIG_ROOT/gateway-retention.py" \
+  "$CONFIG_ROOT/gateway-audit-rotate" \
+  "$INSTALL_ROOT/etc/logrotate.d/211api-deploy"; do
+  printf '  %s  %s\n' "$(sha256sum "$path" | awk '{print $1}')" "${path#"$INSTALL_ROOT"}"
+done
