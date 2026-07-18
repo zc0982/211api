@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-18-gitea-cicd-migration",
+  "taskIntentRef": "docs/aegis/work/2026-07-18-gitea-cicd-migration/task-intent-draft.json",
+  "baselineRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+  ],
+  "scopeStatus": "仍限定为 Gitea 平台与 CI/CD 迁移，未迁移 211API 业务运行时",
+  "compatStatus": "Gateway 生产 owner 和 GitHub 上游更新边界保持不变",
+  "retirementStatus": "GitHub Actions/GHCR/DockerHub/Telegram 退役路径已显式记录，尚未执行",
+  "newRiskSignals": [
+    "异地备份目标尚未提供，明确为非阻塞残余风险"
+  ],
+  "decision": "continue"
+}

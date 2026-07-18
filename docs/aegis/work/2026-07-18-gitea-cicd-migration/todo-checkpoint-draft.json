@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-18-gitea-cicd-migration",
+  "currentTodo": "Obtain user written-spec review before implementation planning",
+  "completedTodos": [
+    "Design drafted, independently reviewed, tightened, and self-reviewed"
+  ],
+  "activeSlice": "Written design review gate",
+  "evidenceRefs": [
+    "design-self-review, independent-design-review"
+  ],
+  "blockedOn": null,
+  "nextStep": "Ask the user to approve or amend the written design specification",
+  "updatedAt": "2026-07-18"
+}

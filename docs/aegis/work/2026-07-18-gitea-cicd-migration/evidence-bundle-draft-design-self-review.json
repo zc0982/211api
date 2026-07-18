@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "artifactKey": "design-self-review",
+  "type": "review",
+  "source": "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
+  "summary": "Self-review resolved deployment freshness, migration gating, runner isolation, registry immutability, backup consistency, cutover ordering, and exact acceptance evidence; no TODO/TBD placeholders remain.",
+  "verifier": "Primary agent structural and consistency review on 2026-07-18"
+}
