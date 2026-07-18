@@ -1,18 +1,18 @@
 {
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
-  "currentTodo": "Deploy exact committed Pipedream adapter and validate the live notification path",
+  "currentTodo": "Prepare Task 10 DNS, TLS, Gitea bootstrap, and identity gate",
   "completedTodos": [
-    "Adapter committed as af5b0cb6f; 8/8 tests passed locally and in digest-locked Node 20.20.2",
-    "Operator workflow, masked test, endpoint install, rotation, and retirement instructions committed as 7fb5d8842"
+    "Task 9 complete: Pipedream adapter af5b0cb6f tested 8/8 in locked Node 20; live preflight 200, invalid 400, notification-test 200, Telegram receipt confirmed",
+    "Netcup backup-notify-url is a regular root:root 0600 single-line file; remote preflight 200; zero containers/processes/new listeners; preserved services, Compose renders, Fail2ban, NTP, and firewall guard pass"
   ],
-  "activeSlice": "Operator Pipedream paste/deploy and live endpoint validation",
+  "activeSlice": "Task 9 evidence close; Task 10 not started",
   "evidenceRefs": [
+    "task9-netcup-preflight",
     "pipedream-telegram-adapter-local",
-    "af5b0cb6f",
-    "7fb5d8842"
+    "af5b0cb6f"
   ],
-  "blockedOn": "Operator must paste and deploy af5b0cb6f adapter in Pipedream and run masked live tests; endpoint must remain outside chat",
-  "nextStep": "Give the operator the exact paste/deploy sequence, then wait for preflight, invalid-schema, and synthetic Telegram confirmation before installing the endpoint on Netcup",
+  "blockedOn": "Task 10 requires Cloudflare authority and bootstrap identities; these are not Task 9 completion blockers",
+  "nextStep": "Commit Task 9 close evidence, then request/validate only the Task 10 inputs before any DNS, TLS, Gitea, or Runner start",
   "updatedAt": "2026-07-19"
 }

@@ -160,14 +160,14 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 ## EvidenceBundleDraft
 
 - Artifact key: task9-netcup-preflight
-- Type: live Netcup preflight; partial fail-closed checkpoint
-- Source: commits `65d8fe563` and `53cb6a213`, local verification, and `root@37.221.194.27:4422` on 2026-07-18
-- Summary: Installed and verified the approved Netcup prerequisites, time/uidmap/path ownership, checksum-matched production assets, presence-only platform secrets, SSH 4422 Fail2ban jail, IPv4-only UFW exposure, persistent IPv4/IPv6 Docker guards, and one Docker-restart replay. The supplied public age recipient passed strict platform.env validation and the platform Compose rendered without starting Gitea or Runner or mutating Gateway.
-- Verifier: Primary agent fresh commands plus independent host-installer, firewall, repair, and Fail2ban-readiness reviews
-- Runtime evidence: NTP offset was -1.001ms with 36.750ms root distance; all preserved services were active; only sshd 4422 listened; no container, `gitea`, or `act_runner` process existed; UFW retained both 4422 rules and deny defaults; the guard unit was enabled/active/successful after checksum/apply/reload/verify replay.
+- Type: live Netcup preflight; complete no-start checkpoint
+- Source: commits `65d8fe563`, `53cb6a213`, and Pipedream adapter `af5b0cb6f`; local/locked-Node checks, `root@37.221.194.27:4422` on 2026-07-18/19, and operator Pipedream/Telegram checks
+- Summary: Installed and verified the approved Netcup prerequisites, time/uidmap/path ownership, checksum-matched production assets, presence-only platform secrets, SSH 4422 Fail2ban jail, IPv4-only UFW exposure, persistent IPv4/IPv6 Docker guards, public age recipient, both no-start Compose renders, and the bounded Pipedream-to-Telegram backup-failure path. The opaque endpoint is a regular root-owned mode-0600 single-line file; no endpoint or Telegram credential was recorded.
+- Verifier: Primary agent fresh local/locked-Node/SSH checks, operator-reported Pipedream status classes and Telegram receipt, plus independent host-installer, firewall, repair, and Fail2ban-readiness reviews
+- Runtime evidence: Pipedream returned preflight 200, invalid-schema 400, and notification-test 200; the dedicated group received the bounded test message. A fresh Netcup preflight returned 200; all preserved services were active; only sshd 4422 listened; no container, `gitea`, or `act_runner` process existed; both Compose renders and the firewall guard passed; the Gitea jail remained disabled.
 - Diagnostic evidence: Debian Fail2ban's Type=simple service exposed a real active-before-socket race. The checked-in bounded readiness owner passed on attempt two after a real restart. Docker restart returned while its wanted guard briefly activated, so the final check joined the queued unit without issuing a second Docker restart.
-- Residual boundary: Task 9 is not complete. `BACKUP_FAILURE_WEBHOOK_URL` is absent, so backup-notify-url remains fail-closed. Gitea/Runner/DNS/TLS/bootstrap remain untouched.
-- Audit detail: `evidence-bundle-draft-task9-netcup-preflight.json` records package versions, time/uidmap bounds, path modes, manifest hashes, presence-only secret shape, Runner render, firewall ordering, replay proof, preserved services, diagnostics, and exact residual gates without secret values.
+- Residual boundary: Task 9 is complete. Gitea/Runner/DNS/TLS/bootstrap remain untouched; Task 10 still requires Cloudflare authority and bootstrap identities, and Task 13 still requires fresh cutover approval.
+- Audit detail: `evidence-bundle-draft-task9-netcup-preflight.json` records package versions, time/uidmap bounds, path modes, manifest hashes, presence-only secret shape, notification status classes, both Compose renders, firewall ordering, preserved services, diagnostics, and exact residual gates without secret values.
 
 ## EvidenceBundleDraft
 

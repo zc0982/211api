@@ -6,7 +6,7 @@
   ],
   "impactStatement": "docs/aegis/work/2026-07-18-gitea-cicd-migration/impact-statement-draft.json",
   "compatPlan": "应用内在线更新继续读取 Wei-Shaw/sub2api GitHub Releases；不形成 fork CI/CD 双 owner",
-  "retirementPlan": "Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner",
+  "retirementPlan": "Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner",
   "evidenceBundle": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-design-self-review.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-gateway-host-inspection.json",

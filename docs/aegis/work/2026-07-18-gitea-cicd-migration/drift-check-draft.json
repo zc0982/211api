@@ -6,11 +6,11 @@
     "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
     "docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md"
   ],
-  "scopeStatus": "Repository adapter, tests, and operator documentation are complete; no external workflow or host state was changed by these commits",
-  "compatStatus": "Existing sender payloads remain unchanged; Gateway remains production owner; endpoint/token/chat remain outside Git",
-  "retirementStatus": "Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner",
+  "scopeStatus": "Task 9 is complete at the approved no-start boundary; only notification endpoint installation and verification changed external state",
+  "compatStatus": "Netcup still hosts no 211API business runtime; Gateway remains sole production; no Gitea/Runner/DNS/TLS state was activated",
+  "retirementStatus": "Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner",
   "newRiskSignals": [
-    "Operator Pipedream deployment and live Telegram receipt are required before Netcup endpoint installation"
+    "Task 10 remains gated on Cloudflare authority and bootstrap identities; Task 13 still requires fresh explicit cutover approval"
   ],
   "decision": "pause-for-user"
 }

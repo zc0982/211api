@@ -2,21 +2,24 @@
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
   "artifactKey": "task9-netcup-preflight",
-  "type": "live Netcup preflight; partial fail-closed checkpoint",
-  "source": "feature/gitea-cicd-migration at 53cb6a2130db0e1c9fabb43236aeacde656d34fe plus root@37.221.194.27:4422 on 2026-07-18",
-  "summary": "Prepared and hardened the Netcup host without starting Gitea or Runner: installed the approved prerequisites, synchronized time, proved uidmap, created the canonical paths, copied checksum-matched production assets, generated three platform secrets in place without reading them, installed the reviewed host owner, corrected Fail2ban to SSH 4422, added only the declared IPv4 UFW rules, applied persistent IPv4/IPv6 DOCKER-USER guards, proved one Docker restart replayed the guard, accepted the supplied public age recipient into a strict root-only platform.env, and rendered the platform Compose. Task 9 remains intentionally incomplete because the backup-failure webhook URL was not supplied; no webhook file was fabricated and no service was started.",
-  "verifier": "Primary agent fresh local and SSH commands plus independent installer, firewall, Fail2ban-readiness, and repair-focused default-agent reviews",
+  "type": "live Netcup preflight; complete no-start checkpoint",
+  "source": "feature/gitea-cicd-migration at 234e320fe2e83a55ce04808491284b85ac59a3be plus root@37.221.194.27:4422 on 2026-07-18 and 2026-07-19 plus operator Pipedream/Telegram checks",
+  "summary": "Completed Task 9 without starting Gitea or Runner or touching Gateway: retained the hardened Netcup prerequisites, synchronized time, uidmap, canonical paths, checksum-matched assets, root-only platform secrets, SSH 4422 Fail2ban jail, IPv4 UFW rules, IPv4/IPv6 Docker guards, public age recipient, and both configuration-only Compose renders. Added the approved versioned Pipedream adapter, proved all eight branches in locked Node 20, received one bounded Telegram test alert, corrected the Pipedream trigger to preserve custom 400/500/502 responses, installed only the opaque endpoint as a root-owned mode-0600 single-line file, and received a fresh remote preflight HTTP 200 without exposing the endpoint or Telegram credentials.",
+  "verifier": "Primary agent fresh local/locked-Node/SSH checks, operator-reported Pipedream status classes and Telegram receipt, plus prior independent installer, firewall, Fail2ban-readiness, and repair-focused default-agent reviews",
   "details": {
     "repository": {
       "branch": "feature/gitea-cicd-migration",
-      "head": "53cb6a2130db0e1c9fabb43236aeacde656d34fe",
+      "head": "234e320fe2e83a55ce04808491284b85ac59a3be",
       "hostOwnerCommit": "65d8fe563",
       "fail2banReadinessRepairCommit": "53cb6a213",
+      "pipedreamAdapterCommit": "af5b0cb6f",
+      "pipedreamRunbookCommit": "7fb5d8842",
+      "pipedreamResponseModeRepairCommit": "234e320fe",
       "pushPerformed": false
     },
     "executionInputs": {
       "BACKUP_AGE_RECIPIENT": "supplied by user; accepted only as a public age1 recipient",
-      "BACKUP_FAILURE_WEBHOOK_URL": "absent; required before backup-notify-url may be created",
+      "BACKUP_FAILURE_WEBHOOK_URL": "operator-held; installed over SSH stdin without recording or displaying its value",
       "CLOUDFLARE_API_TOKEN": "absent; later Task 10 gate",
       "bootstrapAdminIdentity": "not supplied; later Task 10 gate",
       "fabricatedValues": false
@@ -78,7 +81,17 @@
       "internal-token": "root:root 0600; 65 bytes; validated 64 lowercase hex plus newline",
       "valuesReadOrPrinted": false,
       "platform.env": "root:root 0600; strict schema passed; contains only absolute paths plus the supplied public recipient",
-      "backup-notify-url": "absent"
+      "backup-notify-url": "present regular file; root:root 0600; exactly one line; value not printed or recorded"
+    },
+    "notificationValidation": {
+      "adapterSource": "deploy/gitea/pipedream/gitea-backup-to-telegram.mjs at af5b0cb6f",
+      "lockedNode20Tests": "pass; 8/8 covering silent preflight, strict request rejection, success, missing configuration, and Telegram HTTP, ok:false, malformed JSON, and network failures",
+      "trigger": "Full HTTP request; custom response from workflow; Authorization none",
+      "operatorLiveStatuses": "preflight 200; invalid schema 400 after response-mode correction; notification-test 200",
+      "telegramReceipt": "operator confirmed one dedicated-private-group test message containing only the approved heading, UTC time, notification-test code, and gitea-backup.service unit",
+      "remotePreflight": "HTTP 200 from Netcup on 2026-07-19 using root-only temporary curl/payload files removed on exit",
+      "credentials": "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID remain Pipedream project secrets; Netcup stores only the endpoint",
+      "endpointValueObservedOrRecorded": false
     },
     "compose": {
       "runnerRender": "pass; SHA-256 b90ab5980c6988595c93b714048a08e5a00ce890d86b928a27a3f475fc17f75d",
@@ -121,16 +134,15 @@
       "gatewayLosAngelesMutated": false
     },
     "taskStatus": {
-      "task9Complete": false,
+      "task9Complete": true,
       "safeHostPreparationComplete": true,
-      "blockedBefore": "backup-notify-url creation and final Task 9 close",
+      "blockedBefore": "none; backup-notify-url and live preflight are complete",
       "newPublicApplicationListenerCount": 0,
       "giteaOrRunnerStarted": false
     }
   },
   "residualRuntimeGates": [
-    "Supply BACKUP_FAILURE_WEBHOOK_URL through a private channel; the public age recipient is now installed and validated, while the age private identity remains operator-held and off Netcup",
-    "Create and validate backup-notify-url, then record the final Task 9 preflight close without starting the platform",
+    "The age private identity remains operator-held and off Netcup; no restore drill has yet consumed it",
     "Task 10 still requires Cloudflare authority and bootstrap identities before DNS, TLS, Gitea startup, or repository bootstrap",
     "Gateway Los Angeles remains the sole production runtime and was not mutated",
     "Task 13 still requires fresh explicit cutover authorization"

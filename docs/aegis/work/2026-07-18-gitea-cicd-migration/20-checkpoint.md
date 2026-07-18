@@ -274,3 +274,26 @@
 - New risk signals:
 - Operator Pipedream deployment and live Telegram receipt are required before Netcup endpoint installation
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Prepare Task 10 DNS, TLS, Gitea bootstrap, and identity gate
+- Active slice: Task 9 evidence close; Task 10 not started
+- Completed todos:
+- Task 9 complete: Pipedream adapter af5b0cb6f tested 8/8 in locked Node 20; live preflight 200, invalid 400, notification-test 200, Telegram receipt confirmed
+- Netcup backup-notify-url is a regular root:root 0600 single-line file; remote preflight 200; zero containers/processes/new listeners; preserved services, Compose renders, Fail2ban, NTP, and firewall guard pass
+- Evidence refs:
+- task9-netcup-preflight
+- pipedream-telegram-adapter-local
+- af5b0cb6f
+- Blocked on: Task 10 requires Cloudflare authority and bootstrap identities; these are not Task 9 completion blockers
+- Next step: Commit Task 9 close evidence, then request/validate only the Task 10 inputs before any DNS, TLS, Gitea, or Runner start
+
+## DriftCheckDraft
+
+- Scope status: Task 9 is complete at the approved no-start boundary; only notification endpoint installation and verification changed external state
+- Compatibility status: Netcup still hosts no 211API business runtime; Gateway remains sole production; no Gitea/Runner/DNS/TLS state was activated
+- Retirement status: Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner
+- New risk signals:
+- Task 10 remains gated on Cloudflare authority and bootstrap identities; Task 13 still requires fresh explicit cutover approval
+- Advisory decision: pause-for-user

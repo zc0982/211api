@@ -34,7 +34,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 
 ## Drift Check
 
-- Scope status: Repository adapter, tests, and operator documentation are complete; no external workflow or host state was changed by these commits
-- Compatibility status: Existing sender payloads remain unchanged; Gateway remains production owner; endpoint/token/chat remain outside Git
-- Retirement status: Legacy release/deploy Telegram paths remain retired and the committed adapter is the only permitted Telegram call owner
+- Scope status: Task 9 is complete at the approved no-start boundary; only notification endpoint installation and verification changed external state
+- Compatibility status: Netcup still hosts no 211API business runtime; Gateway remains sole production; no Gitea/Runner/DNS/TLS state was activated
+- Retirement status: Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner
 - Advisory decision: pause-for-user
