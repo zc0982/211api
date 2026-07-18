@@ -592,8 +592,10 @@ exact code step in the workflow that owns the two secrets.
 
 1. In the same Pipedream project that contains the two secrets, open the existing
    workflow `gitea-backup-failure-to-telegram`.
-2. Keep the trigger as `HTTP / Webhook` -> `New Requests` with Authorization
-   `None`.
+2. Keep the trigger as `HTTP / Webhook` -> `New Requests`, Event Data
+   `Full HTTP request`, Authorization `None`, and HTTP Response set to the
+   custom-response-from-workflow option. `Return HTTP 200 OK` is forbidden
+   because it would hide the adapter's 400/500/502 failure statuses.
 3. Add `Run custom code`, select Node.js, and paste the complete contents of
    `deploy/gitea/pipedream/gitea-backup-to-telegram.mjs` without edits.
 4. Deploy the workflow. Do not copy the endpoint into this chat.

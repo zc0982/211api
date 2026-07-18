@@ -749,7 +749,11 @@ In the same Pipedream project that owns the project secrets
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`:
 
 1. Open workflow `gitea-backup-failure-to-telegram`.
-2. Configure `HTTP / Webhook` -> `New Requests`, with Authorization `None`.
+2. Configure `HTTP / Webhook` -> `New Requests` with Event Data
+   `Full HTTP request`, Authorization `None`, and HTTP Response set to the
+   option that returns a custom response from the workflow. Do not select
+   `Return HTTP 200 OK`: the Node step must be allowed to return 400, 500, or
+   502 when validation or Telegram delivery fails.
 3. Add `Run custom code`, select Node.js, and paste the complete contents of
    `pipedream/gitea-backup-to-telegram.mjs` without modification.
 4. Deploy the workflow. Do not log `process.env`, the endpoint, or either
