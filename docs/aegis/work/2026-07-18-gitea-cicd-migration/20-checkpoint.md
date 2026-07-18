@@ -323,3 +323,28 @@
 - The bootstrap cannot proceed without a user-selected human identity, and the later 2FA/recovery-code gate is intentionally non-automatable
 - The age private identity remains operator-held and off Netcup; the empty-state restore drill must wait until bootstrap creates the dedicated backup-reader authority
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Complete the human password-change, 2FA, and recovery-code custody gate before bootstrap phase two
+- Active slice: Phase-one administrator handoff for `luoee`
+- Completed todos:
+- Received the explicit username and email, validated the strict two-key schema, and installed `/etc/gitea/bootstrap.env` as a root-owned mode-0600 file without recording the email in repository evidence
+- Created exactly one active administrator, retained zero repositories, and wrote the random password plus administrator PAT only to root-owned mode-0600 Netcup files without printing either value
+- Repaired the locked CLI version/global-runtime contract in `53ffd0fc2` and the real Gitea must-change-password API transition in `281613e71`; administrator primitives and immutable-tag fixtures passed
+- Re-ran the live first phase and proved it exits only with the reviewed instruction to change the password and enable 2FA; the user list still reports 2FA false as expected
+- Evidence refs:
+- task10-platform-bootstrap
+- 53ffd0fc2
+- 281613e71
+- Blocked on: user must retrieve the password directly on Netcup, change it over the verified HTTPS origin, enable 2FA, and retain recovery codes; the agent must not automate or inspect those values
+- Next step: after the user confirms all three actions, rerun `/opt/gitea/admin/bootstrap-gitea`, require the live 200/identity/OpenAPI/2FA gates, and create the exact empty private repository/control identities
+
+## DriftCheckDraft
+
+- Scope status: The slice created only the approved human Gitea administrator and root-only bootstrap artifacts; no service user, organization, repository, Runner, import, Gateway, GitHub, or cutover state was created
+- Compatibility status: Gateway remains sole production; Gitea, Caddy, PostgreSQL, Fail2ban, Hermes, Komari, Docker, and admin SSH boundaries are unchanged
+- Retirement status: The incorrect uppercase CLI contract, implicit global-runtime dependency, and impossible unconditional pre-password HTTP-200 assumption are retired; no fallback or broadened PAT scope was added
+- New risk signals:
+- The next step is intentionally human-only because password entry, TOTP enrollment, and recovery-code custody cannot be safely automated or observed by the agent
+- Advisory decision: pause-for-user

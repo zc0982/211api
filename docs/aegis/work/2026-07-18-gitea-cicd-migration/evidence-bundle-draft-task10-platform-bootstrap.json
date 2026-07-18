@@ -3,16 +3,18 @@
   "taskId": "2026-07-18-gitea-cicd-migration",
   "artifactKey": "task10-platform-bootstrap",
   "type": "live Cloudflare DNS and Netcup platform bootstrap; in-progress manual identity checkpoint",
-  "source": "feature/gitea-cicd-migration at 4bc66cbe143ec0adc3ec92ebd841b4babc01dc56 plus Cloudflare and root@37.221.194.27:4422 on 2026-07-18T17:15:34Z",
-  "summary": "Created the sole DNS-only A record for git.211api.com, verified authoritative and recursive convergence with no AAAA, started the locked PostgreSQL/Gitea/Caddy stack, verified public TLS and SSH identities, corrected two first-live-start defects at their Compose owners, enabled and exercised the checked-in Gitea Fail2ban jail, and retained an empty zero-user/zero-repository state before the mandatory human bootstrap identity and 2FA gate. Runner, repository import, Gateway mutation, GitHub disablement, and cutover remain out of scope and did not occur.",
+  "source": "feature/gitea-cicd-migration at 281613e71b4ccebfd2f5b40aaa7f6c8232b0333a plus Cloudflare and root@37.221.194.27:4422 through 2026-07-18T17:27:25Z",
+  "summary": "Created the sole DNS-only A record for git.211api.com, verified authoritative and recursive convergence with no AAAA, started the locked PostgreSQL/Gitea/Caddy stack, verified public TLS and SSH identities, corrected first-live defects at their canonical owners, enabled and exercised the checked-in Gitea Fail2ban jail, and completed bootstrap phase one for the explicit human identity. The instance now has one administrator, zero repositories, and a root-only random-password handoff, and is intentionally paused at the password-change/2FA/recovery-code manual gate. Runner, repository import, Gateway mutation, GitHub disablement, and cutover remain out of scope and did not occur.",
   "verifier": "Primary agent fresh Cloudflare API, authoritative/recursive DNS, OpenSSL, SSH, Netcup Docker/systemd/Fail2ban, and Gateway read-only TCP checks",
   "details": {
     "repository": {
       "branch": "feature/gitea-cicd-migration",
-      "head": "4bc66cbe143ec0adc3ec92ebd841b4babc01dc56",
+      "head": "281613e71b4ccebfd2f5b40aaa7f6c8232b0333a",
       "secretOwnershipRepairCommit": "839992222",
       "fileLoggerRepairCommit": "0b3096591",
       "fail2banFixtureRunbookRepairCommit": "4bc66cbe1",
+      "cliContractRepairCommit": "53ffd0fc2",
+      "bootstrapPasswordGateRepairCommit": "281613e71",
       "pushPerformed": false,
       "knownDerivedPathsPreserved": [
         ".pnpm-store/",
@@ -87,6 +89,18 @@
         "rootCause": "GITEA__log__file__* created literal file__* keys in [log] instead of the [log.file] section",
         "repair": "use the actual image's documented _0x2E_ dot escape in GITEA__log_0x2E_file__* and remove four inert persisted keys",
         "verification": "[log.file] contains the exact four expected keys, legacy key count is zero, and the host log is 1000:1000 mode 0640 and growing"
+      },
+      "adminCliContract": {
+        "symptom": "bootstrap rejected the locked CLI before creating its administrator PAT",
+        "rootCause": "the validator expected an uppercase Gitea prefix while the locked 1.26.4 binary emits lowercase gitea, and two validators relied on a caller-global runtime variable",
+        "repair": "match the exact locked output and make both scratch paths depend only on their explicit parameter",
+        "verification": "real locked output accepted, 1.26.5 rejected, global-runtime absence covered, administrator and immutable-tag tests passed"
+      },
+      "bootstrapPasswordGate": {
+        "symptom": "the newly generated PAT received HTTP 403 before the intended 2FA manual gate",
+        "rootCause": "Gitea blocks all PAT API calls for a must-change-password account, while the script unconditionally required GET /user HTTP 200 before exposing the manual gate",
+        "repair": "recognize only the locked server's explicit password-change 403 as the expected phase-one stop; all other 403 responses remain fail-closed and the post-change 200/identity/OpenAPI/2FA checks remain intact",
+        "verification": "unit fixtures distinguish the password gate from an unrelated 403; the live first phase exits exactly at the reviewed manual-gate message"
       }
     },
     "accessLogRedaction": {
@@ -126,12 +140,16 @@
       "gatewayLosAngelesMutation": false
     },
     "bootstrapGate": {
-      "bootstrapEnv": "absent",
-      "userCount": 0,
+      "bootstrapEnv": "present; exactly two validated assignments; root:root mode 0600",
+      "identity": "explicit username luoee plus operator-supplied email stored only in the root-only Netcup input",
+      "userCount": 1,
       "repositoryCount": 0,
-      "adminCreated": false,
-      "requiredInput": "explicit human administrator username and email",
-      "nextManualGate": "after the first bootstrap run, the user must retrieve the random password directly on Netcup, log in over HTTPS, change it, enable 2FA, and confirm recovery-code custody before the second run"
+      "adminCreated": true,
+      "adminState": "active administrator; 2FA=false; must-change password handoff active",
+      "phaseOne": "pass; exited only through the expected password-change/2FA manual gate",
+      "rootOnlyArtifacts": "bootstrap.env, one-time password, administrator curl config, and non-value metadata are regular root:root mode-0600 files; values were not read or printed",
+      "requiredInput": "resolved",
+      "nextManualGate": "the user must retrieve the random password directly on Netcup, log in over HTTPS, change it, enable 2FA, and confirm recovery-code custody before the second run"
     },
     "taskStatus": {
       "task10Complete": false,
@@ -147,8 +165,7 @@
     }
   },
   "remainingGates": [
-    "Receive and install the explicit bootstrap administrator username and email as root:root mode 0600 data-only input",
-    "Run bootstrap phase one, then require the user's password change, 2FA enablement, and recovery-code custody confirmation",
+    "Require the user's password change, 2FA enablement, and recovery-code custody confirmation",
     "Run bootstrap phase two and verify the exact private organization, empty repository, teams, service identities, split tokens, and backup curl config",
     "Run the empty-state age-encrypted backup and restore-mechanics drill plus a synthetic failure notification marker check",
     "Commit the completed Task 10 evidence only after all manual and runtime gates pass"
