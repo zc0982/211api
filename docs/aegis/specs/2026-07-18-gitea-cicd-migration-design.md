@@ -1,7 +1,7 @@
 # Gitea CI/CD Migration Design
 
 Date: `2026-07-18`
-Status: `approved base design; Telegram backup-notification amendment pending written review`
+Status: `approved written design; Telegram backup-notification amendment approved`
 ArchitectureReviewRequired: `yes`
 
 ## 1. Outcome

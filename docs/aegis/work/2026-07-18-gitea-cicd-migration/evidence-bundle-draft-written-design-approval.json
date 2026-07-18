@@ -2,7 +2,7 @@
   "schemaVersion": "aegis.schema.v0",
   "artifactKey": "written-design-approval",
   "type": "user approval",
-  "source": "2026-07-18 conversation: 批准书面规范",
-  "summary": "The user explicitly approved the written Gitea CI/CD migration design while retaining Gateway Los Angeles as the production runtime owner.",
-  "verifier": "Explicit user message on 2026-07-18"
+  "source": "2026-07-18 and 2026-07-19 conversation messages: 批准书面规范",
+  "summary": "The user explicitly approved the written Gitea CI/CD migration design while retaining Gateway Los Angeles as the production runtime owner, then explicitly approved the written amendment that scopes Pipedream-to-Telegram delivery to Gitea backup failures only.",
+  "verifier": "Explicit user approval messages on 2026-07-18 and 2026-07-19"
 }
