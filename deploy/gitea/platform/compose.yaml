@@ -112,10 +112,10 @@ services:
       GITEA__security__INTERNAL_TOKEN__FILE: /run/gitea-secrets/gitea_internal_token
       GITEA__packages__ENABLED: "true"
       GITEA__log__MODE: console,file
-      GITEA__log__file__FILE_NAME: /var/lib/gitea/log/gitea.log
-      GITEA__log__file__DAILY_ROTATE: "true"
-      GITEA__log__file__MAX_DAYS: "14"
-      GITEA__log__file__MAX_SIZE_SHIFT: "24"
+      GITEA__log_0x2E_file__FILE_NAME: /var/lib/gitea/log/gitea.log
+      GITEA__log_0x2E_file__DAILY_ROTATE: "true"
+      GITEA__log_0x2E_file__MAX_DAYS: "14"
+      GITEA__log_0x2E_file__MAX_SIZE_SHIFT: "24"
     volumes:
       - gitea_data:/var/lib/gitea
       - gitea_config:/etc/gitea

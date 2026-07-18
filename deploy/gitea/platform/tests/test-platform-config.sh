@@ -54,6 +54,12 @@ jq -e '
   and (.services."secret-init".cap_add == ["CHOWN"])
   and (.services.gitea.user == "1000:1000")
   and (.services.gitea.environment.GITEA__api__MAX_RESPONSE_ITEMS == "50")
+  and (.services.gitea.environment.GITEA__log__MODE == "console,file")
+  and (.services.gitea.environment.GITEA__log_0x2E_file__FILE_NAME == "/var/lib/gitea/log/gitea.log")
+  and (.services.gitea.environment.GITEA__log_0x2E_file__DAILY_ROTATE == "true")
+  and (.services.gitea.environment.GITEA__log_0x2E_file__MAX_DAYS == "14")
+  and (.services.gitea.environment.GITEA__log_0x2E_file__MAX_SIZE_SHIFT == "24")
+  and (.services.gitea.environment | has("GITEA__log__file__FILE_NAME") | not)
 ' "$tmp/rendered.json" >/dev/null
 
 jq -r '
