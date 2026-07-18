@@ -128,11 +128,8 @@ ensure_admin_curl_config
 
 status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET /user \
   "$runtime/current-admin.json") || gitea_die 'administrator token validation failed'
-gitea_expect_status "$status" 200 'GET /user with bootstrap administrator token'
-jq -e --arg username "$BOOTSTRAP_ADMIN_USERNAME" '
-  .login == $username and .is_admin == true
-' "$runtime/current-admin.json" >/dev/null ||
-  gitea_die 'bootstrap token does not belong to the expected administrator'
+gitea_validate_bootstrap_admin_response "$status" "$runtime/current-admin.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME" "$admin_password"
 
 gitea_validate_openapi "$runtime"
 
