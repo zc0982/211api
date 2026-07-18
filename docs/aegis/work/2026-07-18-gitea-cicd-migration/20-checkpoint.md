@@ -297,3 +297,29 @@
 - New risk signals:
 - Task 10 remains gated on Cloudflare authority and bootstrap identities; Task 13 still requires fresh explicit cutover approval
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Complete Task 10 bootstrap identity, two-phase repository bootstrap, and empty-state backup/restore gates
+- Active slice: Fail-closed wait for the explicit human administrator username and email
+- Completed todos:
+- Created the unique Cloudflare DNS-only A record for `git.211api.com`; both authoritative nameservers and Cloudflare, Google, and Quad9 return only `37.221.194.27` with no AAAA; retained existing DNSSEC and absent CAA unchanged
+- Started the locked PostgreSQL, Gitea 1.26.4, and Caddy stack without Runner; external HTTPS health is 200, the exact SAN/Let's Encrypt chain/checkend gate passes, and the public SSH fingerprint matches the container key
+- Repaired the first-live `secret-init` capability/order defect at commit `839992222` and the `[log.file]` environment escape defect at commit `0b3096591`; all eight platform tests passed and the real host log is growing with the required ownership/mode
+- Enabled the checked-in Gitea Fail2ban jail; the synthetic TEST-NET line matches, the `DOCKER-USER` jump precedes the platform guard, and manual ban/unban of `192.0.2.1` passed; corrected the Fail2ban 1.1 fixture invocation in `4bc66cbe1`
+- Revalidated preserved Netcup services, no Runner, zero users, zero repositories, and no Gateway mutation; recorded the in-progress external evidence as `f6a8a9b93`
+- Evidence refs:
+- task10-platform-bootstrap
+- f6a8a9b93
+- Blocked on: explicit `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_EMAIL`; `/etc/gitea/bootstrap.env` remains absent and no identity was inferred
+- Next step: receive the two non-secret identity values, install the strict root-only input, run bootstrap phase one, then stop for the user's password-change/2FA/recovery-code confirmation before phase two
+
+## DriftCheckDraft
+
+- Scope status: Netcup now runs only the Gitea control plane; Runner, repository import, Gateway deployment state, GitHub external state, and cutover remain untouched
+- Compatibility status: Gateway remains the sole 211API production runtime; Hermes, Komari, admin SSH, Docker, Fail2ban, and the firewall owner remain active
+- Retirement status: no additional compatibility owner or fallback was introduced; two live-start defects were repaired at their canonical Compose owners and stale persisted logger keys were removed
+- New risk signals:
+- The bootstrap cannot proceed without a user-selected human identity, and the later 2FA/recovery-code gate is intentionally non-automatable
+- The age private identity remains operator-held and off Netcup; the empty-state restore drill must wait until bootstrap creates the dedicated backup-reader authority
+- Advisory decision: pause-for-user
