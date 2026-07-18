@@ -57,3 +57,19 @@ No evidence has been recorded yet.
 - Source: docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md
 - Summary: Two independent read-only reviews checked workflow/cutover consistency and security boundaries; reported issues were incorporated and rechecked.
 - Verifier: Subagent consistency and security reviews on 2026-07-18
+
+## EvidenceBundleDraft
+
+- Artifact key: written-design-approval
+- Type: user approval
+- Source: 2026-07-18 conversation: 批准书面规范
+- Summary: The user explicitly approved the written Gitea CI/CD migration design while retaining Gateway Los Angeles as the production runtime owner.
+- Verifier: Explicit user message on 2026-07-18
+
+## EvidenceBundleDraft
+
+- Artifact key: implementation-plan-review
+- Type: review
+- Source: docs/aegis/plans/2026-07-18-gitea-cicd-migration.md
+- Summary: Independent reviews checked specification coverage, Gitea/Runner/Compose/Gateway executability, cutover races, restoration, and governance; all reported blocking and medium issues were incorporated.
+- Verifier: Primary agent plus independent reviews on 2026-07-18

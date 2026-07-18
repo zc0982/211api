@@ -1,15 +1,21 @@
 {
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
-  "currentTodo": "Obtain user written-spec review before implementation planning",
+  "currentTodo": "Obtain the user's implementation-plan execution choice",
   "completedTodos": [
-    "Design drafted, independently reviewed, tightened, and self-reviewed"
+    "Design drafted, independently reviewed, tightened, and self-reviewed",
+    "User explicitly approved the written Design Spec",
+    "Implementation plan written, independently reviewed, and tightened"
   ],
-  "activeSlice": "Written design review gate",
+  "activeSlice": "Reviewed implementation-plan handoff",
   "evidenceRefs": [
-    "design-self-review, independent-design-review"
+    "design-self-review",
+    "independent-design-review",
+    "written-design-approval",
+    "implementation-plan-review",
+    "docs/aegis/plans/2026-07-18-gitea-cicd-migration.md"
   ],
-  "blockedOn": null,
-  "nextStep": "Ask the user to approve or amend the written design specification",
+  "blockedOn": "User execution choice; external credentials remain later execution gates",
+  "nextStep": "Present subagent-driven (recommended) versus inline execution and wait for the user's choice before implementation",
   "updatedAt": "2026-07-18"
 }

@@ -39,3 +39,19 @@
 - design-self-review, independent-design-review
 - Blocked on: none
 - Next step: Ask the user to approve or amend the written design specification
+
+## Checkpoint Update
+
+- Current todo: Obtain the user's implementation-plan execution choice
+- Active slice: Reviewed implementation-plan handoff
+- Completed todos:
+- User explicitly approved the written Design Spec
+- Implementation plan written with 17 ordered tasks and a separate Task 13 cutover stop
+- Independent consistency, technical, operations, security, and governance findings incorporated
+- Official Gitea 1.26 token and Runner 2.1 socket contracts rechecked
+- Evidence refs:
+- written-design-approval
+- implementation-plan-review
+- docs/aegis/plans/2026-07-18-gitea-cicd-migration.md
+- Blocked on: user execution choice; external runtime inputs remain execution gates only
+- Next step: Present subagent-driven (recommended) versus inline execution; do not implement until the user chooses

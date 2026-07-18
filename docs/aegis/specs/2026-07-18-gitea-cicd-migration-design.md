@@ -1,7 +1,7 @@
 # Gitea CI/CD Migration Design
 
 Date: `2026-07-18`
-Status: `approved conversational design; self-reviewed; awaiting written-spec review`
+Status: `approved written design; implementation feasibility clarification recorded`
 ArchitectureReviewRequired: `yes`
 
 ## 1. Outcome
@@ -125,10 +125,13 @@ Directory: `/opt/gitea/runner`
 - The host `/var/run/docker.sock` and every other host Docker endpoint are absent
   from both runner and job mounts. Falling back to the host socket is forbidden;
   inability to run under this boundary stops the cutover.
-- Runner-to-DinD traffic uses mutual TLS on a dedicated private Docker network.
-  The DinD API has no published host port. Its data, client certificates, and
-  runner registration state use separate named volumes and fixed non-root
-  UID/GID ownership.
+- Runner-to-DinD traffic uses the rootless daemon's Unix socket in a dedicated
+  named tmpfs volume shared only by DinD, Runner, and the ephemeral job
+  containers that need Docker. No TCP Docker API is enabled or published. DinD
+  data, runtime socket, and runner registration state use separate named volumes
+  and fixed non-root UID/GID ownership. This implementation clarification follows
+  Gitea Runner 2.1.0's verified socket-injection contract and avoids distributing
+  Docker client TLS credentials into job containers.
 - Concurrency is one job. CPU, memory, process, and disk limits leave capacity
   for Caddy, Gitea, and PostgreSQL.
 - Job containers and workspaces are ephemeral. Cache volumes may contain only
@@ -173,11 +176,16 @@ Directory: `/opt/gitea/runner`
 - Protect `main`: direct push, force push, and deletion are disabled; changes
   enter through an internal pull request; only the maintainer team may merge;
   exact required statuses are `ci / required` and `security / required`.
-- Protect `v*`: only the release-maintainer team may create a new tag, and an
-  existing matching tag may not be moved or deleted. Release tags are annotated.
-  Signature enforcement is deliberately not added in this migration; protected
-  creator identity, immutable refs, and commit/digest validation are the trust
-  boundary.
+- Protect `v*`: the release-maintainer team initiates creation through a
+  protected `release/v*` request branch. Only the SSH-only `svc-release-tag`
+  technical account is whitelisted to create the annotated tag. Gitea 1.26
+  natively couples protected-tag create/update/delete permission, so a
+  root-managed repository `update.d` hook permits the zero-to-new creation and
+  rejects every later move or deletion over Git. User-managed custom hooks stay
+  disabled. A separate release-record PAT is not tag-whitelisted and therefore
+  cannot delete the protected tag through the API. Signature enforcement is
+  deliberately not added in this migration; protected initiator identity,
+  immutable refs, and commit/digest validation are the trust boundary.
 - Branch and tag protection are proved with negative push/update/delete tests
   from a normal team account, not only by reading the settings UI.
 - Before protection becomes a cutover gate, a test pull request must produce the
@@ -258,18 +266,25 @@ Trigger: push to protected `main` only.
    path in section 9.
 7. Invoke the audited Gateway deployment script for the fixed allowlisted target
    `root@157.254.234.244:4422` and `/opt/211api/deploy`; repository variables
-   cannot redirect production SSH. This dedicated root authorized key uses
-   OpenSSH `restrict` plus a fixed command dispatcher and cannot obtain a shell,
-   PTY, forwarding, agent forwarding, or execute arbitrary commands.
+   cannot redirect production SSH. This dedicated root authorized key is also
+   constrained with `from="37.221.194.27"`, OpenSSH `restrict`, and a fixed
+   command dispatcher. The dispatcher validates the SSH source again, clears the
+   inherited environment, fixes `PATH` and `umask`, and cannot obtain a shell,
+   PTY, forwarding, agent forwarding, or execute arbitrary commands. Key ID,
+   creation, rotation deadline, and revocation evidence are recorded without the
+   private key.
 8. Acquire `/run/lock/211api-deploy.lock` with non-blocking `flock`; the lock file
    descriptor remains open for the entire backup, update, pull, start, and health
    sequence. Exit code 75 means another deployment owns the lock. Process exit or
    disconnect releases the kernel lock; no lock-file deletion or TTL is used.
 9. Under the lock, the Gateway script uses a root-only, repository-read-only
-   Gitea head token to check protected `main` immediately before its first
-   mutable step. A mismatch exits as superseded before backup/environment change.
+   Gitea head token to check protected `main` before backup and again after the
+   validated backup, immediately before its first production mutation. API
+   timeout, non-2xx response, malformed JSON, or either mismatch fails closed.
    Capture the previous commit, image reference, manifest digest, and current
-   Compose/environment state, then create and validate pre-deploy backups.
+   Compose/environment state, then create and validate pre-deploy backups. A
+   head change during backup retains the valid backup as non-deployment evidence
+   but changes neither the environment nor any mutable Registry tag.
 10. Atomically update only `SUB2API_IMAGE` in the existing Gateway `.env` to
     `git.211api.com/211api/211api:<commit-sha>@sha256:<manifest-digest>` and write
     a root-only deployment-state record through temp-file-plus-rename.
@@ -300,7 +315,12 @@ semantics.
 
 ### 7.4 `release.yml`
 
-Trigger: protected `v*` tag only.
+Publication trigger: protected `v*` tag only. The same workflow also contains a
+request lane for a newly pushed protected `release/v*` branch. That lane verifies
+the actor, requires the branch head to equal current `main`, requires the SHA
+image to exist, validates VERSION/tag consistency, and uses the SSH-only
+technical account to create the annotated tag. It does not publish a release
+itself; the resulting tag event enters the publication lane below.
 
 - Resolve the tag's commit SHA.
 - Require the corresponding SHA image and recorded manifest digest to exist.
@@ -324,6 +344,12 @@ Trigger: protected `v*` tag only.
   read/write permission required to retag a verified digest.
 - `GITEA_RELEASE_TOKEN`: separate token with repository read and release write;
   it has no administration, Actions-secret, or package-write permission.
+- `RELEASE_TAG_SSH_KEY`: SSH-only key for `svc-release-tag`; the account has no
+  retained password or PAT, and native tag protection plus the platform-managed
+  immutable-tag hook bound what the key can change.
+- `RELEASE_TAG_KNOWN_HOSTS`: pinned Gitea built-in SSH host keys for
+  `git.211api.com:2222`, verified through the trusted Netcup administrative
+  connection rather than runtime `ssh-keyscan` trust.
 - Gateway `REGISTRY_PULL_TOKEN`: read-only package token stored only in root's
   Docker credential file on Gateway, mode `0600`; it never enters Gitea Actions.
 - Gateway `GITEA_HEAD_READ_TOKEN`: repository-content read-only token used only
@@ -418,10 +444,13 @@ database restore.
 - Before writing, require at least 20% free disk and capacity for two estimated
   backup sets. Directories are root-owned `0700`; artifacts are `0600`, encrypted
   to an operator-held `age` recipient whose private key is not on Netcup, and
-  accompanied by SHA-256 checksums. Validate database archives with
-  `pg_restore --list` and file archives with a full listing before retention.
-  Restore drills receive the operator-held decryption key only through an
-  ephemeral tmpfs/session; the private key is never persisted on Netcup.
+  accompanied by SHA-256 checksums. Database and archive streams are validated
+  while being encrypted, so no complete plaintext backup is staged on disk.
+  Partial ciphertext is signal-safe cleanup state; validated components are
+  fsynced and atomically promoted with a manifest containing backup time, WAL
+  position, recipient ID, source hashes, and component hashes. Restore drills
+  receive the operator-held decryption key only through an ephemeral
+  tmpfs/session; the private key is never persisted on Netcup.
 - Retain seven daily and four weekly validated local backups. Cleanup runs only
   after a new validated backup and never removes the latest weekly or the backup
   selected for the current restore drill.
@@ -440,19 +469,23 @@ database restore.
 
 - Store each pre-deploy set under
   `/opt/211api/deploy/backups/<UTC-timestamp>-<commit>/` with directory mode
-  `0700` and staging-file mode `0600`. Include PostgreSQL custom-format dump,
-  Compose, environment, previous commit/image/digest, checksums, and
-  `pg_restore --list` output. Validate the plaintext set, archive it, then encrypt
-  the complete archive with the same recorded operator-held `age` recovery
-  recipient used for Gitea backups; persist only ciphertext, its recipient ID,
-  manifest, and checksum. Plaintext staging is removed after ciphertext
-  validation. Backup, encryption, or validation failure aborts deployment.
+  `0700` and component mode `0600`. Include encrypted PostgreSQL custom-format
+  dump, encrypted Compose/environment state, previous commit/image/digest,
+  checksums, and a hashed validation listing. Validate each exact stream while
+  encrypting it to the same recorded operator-held `age` recovery recipient used
+  for Gitea backups; no complete plaintext dump or archive is staged on disk.
+  Trap signals and abnormal exits, remove only owned partial ciphertext, fsync
+  validated components, and atomically promote the completed set. Backup,
+  encryption, validation, or manifest-write failure aborts deployment.
 - Before first cutover and quarterly thereafter, the operator supplies the `age`
-  private key through tmpfs, decrypts one retained Gateway set into an isolated
-  root-only temporary directory, verifies its checksum and `pg_restore --list`,
-  and removes the temporary plaintext. Recipient rotation records old/new IDs
-  and retains the corresponding operator-held private keys until every backup
-  under the old recipient expires.
+  private key through a root-only tmpfs session and restores one retained
+  Gateway dump into a disposable PostgreSQL 18 container with a new volume, no
+  published port, no live volume, and no production network. The drill requires
+  `pg_restore --exit-on-error`, schema/constraint checks, and representative
+  nonsecret row-count checks before removing only its isolated resources and
+  unmounting tmpfs. Recipient rotation records old/new IDs and retains the
+  corresponding operator-held private keys until every backup under the old
+  recipient expires.
 - Retain at least the three newest validated sets. Cleanup occurs only after
   successful health verification and never removes the running deployment's
   predecessor or the newest known-good set.
@@ -482,6 +515,10 @@ follow-up and is not represented as already solved.
   administration, and prove firewall/listener behavior for both IPv4 and IPv6.
 - Validate Compose configuration before startup.
 - Apply container log rotation and disk-usage monitoring.
+- Bound Gateway deployment audit logs and Caddy/Gitea access logs by size and
+  age. A deployment must fail before production mutation if its audit record
+  cannot be atomically appended and fsynced; credential headers and query-secret
+  sentinels must not appear in retained logs.
 - Never inspect, print, commit, or copy private key contents into evidence.
 
 ## 12. Cutover Sequence
@@ -501,11 +538,14 @@ follow-up and is not represented as already solved.
    push this commit to the old GitHub fork.
 6. Record the current Gateway deployment/image/port baseline and complete the
    migration-sensitive first-deploy review and validated Gateway backup.
-7. On GitHub, wait for or cancel every queued/in-progress old run, disable
-   repository Actions through the API, verify `enabled=false`, and prove that a
-   new dispatch is rejected. Store redacted timestamped API JSON fields, old run
-   IDs/statuses, and rejected-dispatch HTTP status in the Aegis evidence bundle;
-   never store the authorization header or token.
+7. On GitHub, wait for or cancel every queued/in-progress old run within a
+   bounded ten-minute drain window, then require every listed run to be terminal
+   and no GitHub-originated SSH/deploy process to remain on Gateway. Disable
+   repository Actions through the API, verify `enabled=false`, repeat both
+   no-active-run and no-Gateway-session checks, and prove that a new dispatch
+   cannot start. Store redacted timestamped API JSON fields, old run IDs/statuses,
+   and the dispatch HTTP status/result in the Aegis evidence bundle; never store
+   the authorization header or token.
 8. Switch local `origin` to Gitea and merge the already-tested migration commit
    into protected Gitea `main`. The canonical commit removes
    `.github/workflows/*`; the retained GitHub repository may still contain those
@@ -514,8 +554,10 @@ follow-up and is not represented as already solved.
    migration-sensitive path.
 10. Verify production health, unchanged ingress/listener exposure, running
     manifest digest, source-revision label, and deployment-state record.
-11. Create annotated protected tag `v0.1.160-gitea-smoke.1`; verify the Gitea
-    prerelease and version image, and prove that `latest` was not changed.
+11. Push protected request branch `release/v0.1.160-gitea-smoke.1` at the
+    deployed `main` commit. Verify that the SSH-only service account creates the
+    annotated tag, then verify the Gitea prerelease and version image and prove
+    that `latest` was not changed.
 12. Confirm that no GitHub workflow, GHCR, DockerHub, or Telegram path remains
     an active delivery owner.
 
@@ -565,8 +607,9 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
   publicly reachable.
 - Effective runner mounts contain no Netcup host Docker socket or arbitrary host
   path; the runner is unprivileged, only the declared rootless DinD boundary may
-  be privileged, DinD TLS has no published port, and job UID/GID/capability
-  evidence matches section 5.3.
+  be privileged, no Docker TCP API is listening, and the shared socket resolves
+  only inside the dedicated tmpfs volume. Job UID/GID/capability evidence matches
+  section 5.3.
 - NTP is synchronized, SSH rate limiting/ban policy is active, and existing
   Hermes, Komari, and administrative SSH remain healthy.
 
@@ -575,8 +618,10 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - Exact source and Gitea `refs/heads/*` and `refs/tags/*` object-ID inventories
   match.
 - `origin`, `github`, and `upstream` have the approved roles.
-- Negative direct/force/delete tests prove protected `main`; negative move/delete
-  tests and role checks prove protected `v*`.
+- Negative direct/force/delete tests prove protected `main`. Role checks prove
+  only release maintainers can create `release/v*` requests; wrong-head requests
+  fail; Git and API move/delete attempts prove existing `v*` refs immutable; the
+  managed hook checksum is recorded and user custom hooks remain disabled.
 - Backend tests, frontend checks, lint, and security scan pass in Gitea.
 - Required contexts are exactly `ci / required` and `security / required`; the
   Gitea compatibility smoke covers every context/secret/service/cache feature
@@ -612,7 +657,7 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - The backup timer, persistent failure marker, notification path, owner, RPO/RTO,
   retention, and quarterly drill are configured and evidenced.
 - A validated Gateway pre-deploy backup and previous commit/image/digest are
-  recorded; age recipient/rotation and a decrypt-and-restore-list drill are
+  recorded; age recipient/rotation and an isolated PostgreSQL restore drill are
   evidenced; failed backup validation demonstrably blocks deployment.
 - Wrong-commit, wrong-digest, expired, replayed, and CI-key migration approvals
   are rejected; one valid approval is bound to one commit/digest and consumed.
