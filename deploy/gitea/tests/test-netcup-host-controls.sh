@@ -7,6 +7,7 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 HOST_ROOT="$REPO_ROOT/deploy/gitea/host"
 PROGRAM="$HOST_ROOT/netcup-firewall"
 INSTALLER="$HOST_ROOT/install-netcup-host-controls"
+FAIL2BAN_RELOAD="$HOST_ROOT/gitea-fail2ban-reload"
 TEST_ROOT="$(mktemp -d)"
 
 cleanup() {
@@ -31,7 +32,8 @@ mkdir -p "$fixture"
 expected_owner="$(id -u):$(id -g)"
 
 for executable in \
-  usr/local/sbin/gitea-netcup-firewall; do
+  usr/local/sbin/gitea-netcup-firewall \
+  usr/local/sbin/gitea-fail2ban-reload; do
   [[ "$(stat -c '%a' "$fixture/$executable")" == 755 ]] ||
     fail "bad executable mode: $executable"
   [[ "$(stat -c '%u:%g' "$fixture/$executable")" == "$expected_owner" ]] ||
@@ -52,6 +54,13 @@ done
 [[ "$(stat -c '%u:%g' "$fixture/etc/gitea/netcup-host-controls.sha256")" == "$expected_owner" ]]
 [[ ! -e "$fixture/etc/fail2ban/jail.d/zz-211api-gitea-enable.local" ]]
 sha256sum --quiet --check "$fixture/etc/gitea/netcup-host-controls.sha256"
+
+checksum_tamper="$TEST_ROOT/checksum-tamper"
+mkdir -p "$checksum_tamper"
+"$INSTALLER" --test-root "$checksum_tamper" >/dev/null
+printf 'tamper\n' >>"$checksum_tamper/usr/local/sbin/gitea-fail2ban-reload"
+expect_failure sha256sum --quiet --check \
+  "$checksum_tamper/etc/gitea/netcup-host-controls.sha256"
 
 install -d -o "$(id -u)" -g "$(id -g)" -m 0750 \
   "$fixture/opt/gitea/platform/log"
@@ -94,6 +103,7 @@ mkdir -p "$rollback"
 "$INSTALLER" --test-root "$rollback" >/dev/null
 rollback_paths=(
   usr/local/sbin/gitea-netcup-firewall
+  usr/local/sbin/gitea-fail2ban-reload
   etc/systemd/system/gitea-netcup-firewall.service
   etc/fail2ban/jail.d/211api-sshd.local
   etc/fail2ban/jail.d/211api-gitea.local
@@ -126,9 +136,12 @@ if find "$rollback" -type f \
 fi
 
 grep -Fx 'PartOf=docker.service' "$HOST_ROOT/gitea-netcup-firewall.service" >/dev/null
+grep -Fx \
+  'ExecStartPre=/usr/bin/sha256sum --check --quiet /etc/gitea/netcup-host-controls.sha256' \
+  "$HOST_ROOT/gitea-netcup-firewall.service" >/dev/null
 grep -Fx 'WantedBy=multi-user.target docker.service' \
   "$HOST_ROOT/gitea-netcup-firewall.service" >/dev/null
-grep -Fx 'ExecStartPost=/usr/bin/fail2ban-client reload' \
+grep -Fx 'ExecStartPost=/usr/local/sbin/gitea-fail2ban-reload' \
   "$HOST_ROOT/gitea-netcup-firewall.service" >/dev/null
 grep -Fx 'ReadWritePaths=/run/lock' "$HOST_ROOT/gitea-netcup-firewall.service" >/dev/null
 grep -Fx 'backend = systemd' "$HOST_ROOT/fail2ban/jail.d/211api-sshd.local" >/dev/null
@@ -142,6 +155,29 @@ grep -F 'Failed authentication attempt from <HOST>' \
 grep -F 'Failed authentication attempt for .* from <HOST>' \
   "$HOST_ROOT/fail2ban/filter.d/gitea-auth.conf" >/dev/null
 
+reload_stub="$TEST_ROOT/fail2ban-client"
+reload_state="$TEST_ROOT/fail2ban-state"
+reload_log="$TEST_ROOT/fail2ban-log"
+printf '0\n' >"$reload_state"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'count="$(<"$FAIL2BAN_TEST_STATE")"' \
+  'count=$((count + 1))' \
+  'printf "%s\n" "$count" >"$FAIL2BAN_TEST_STATE"' \
+  'case "${1:-}" in' \
+  '  ping) ((count >= 3)) ;;' \
+  '  reload) printf "reload\n" >>"$FAIL2BAN_TEST_LOG" ;;' \
+  '  *) exit 64 ;;' \
+  'esac' >"$reload_stub"
+chmod 0755 "$reload_stub"
+GITEA_FAIL2BAN_TEST_CLIENT="$reload_stub" \
+FAIL2BAN_TEST_STATE="$reload_state" \
+FAIL2BAN_TEST_LOG="$reload_log" \
+  "$FAIL2BAN_RELOAD" >/dev/null
+[[ "$(<"$reload_state")" == 5 ]]
+[[ "$(grep -c '^reload$' "$reload_log")" == 1 ]]
+
 set +e
 verify_output="$(systemd-analyze verify "$HOST_ROOT/gitea-netcup-firewall.service" 2>&1)"
 verify_status=$?
@@ -149,9 +185,9 @@ set -e
 if [[ "$verify_status" -ne 0 ]]; then
   while IFS= read -r line; do
     case "$line" in
-      netplan-ovs-cleanup.service:*Permission\ denied) ;;
+      "netplan-ovs-cleanup.service: Failed to open /run/systemd/system/netplan-ovs-cleanup.service: Permission denied") ;;
       gitea-netcup-firewall.service:*'/usr/local/sbin/gitea-netcup-firewall'*No\ such\ file\ or\ directory) ;;
-      gitea-netcup-firewall.service:*'/usr/bin/fail2ban-client'*No\ such\ file\ or\ directory) ;;
+      gitea-netcup-firewall.service:*'/usr/local/sbin/gitea-fail2ban-reload'*No\ such\ file\ or\ directory) ;;
       "") ;;
       *) fail "unexpected systemd verification error: $line" ;;
     esac

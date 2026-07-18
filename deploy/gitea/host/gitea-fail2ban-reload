@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+
+CLIENT=/usr/bin/fail2ban-client
+MAX_ATTEMPTS=100
+
+die() {
+  printf 'gitea-fail2ban-reload: %s\n' "$1" >&2
+  exit 1
+}
+
+for command in readlink sleep stat; do
+  command -v "$command" >/dev/null 2>&1 || die "required command is missing: $command"
+done
+
+if [[ -n "${GITEA_FAIL2BAN_TEST_CLIENT:-}" ]]; then
+  [[ "$(readlink -f -- "$0")" != /usr/local/sbin/gitea-fail2ban-reload ]] ||
+    die 'test client override is forbidden from the production path'
+  [[ "$GITEA_FAIL2BAN_TEST_CLIENT" == /tmp/* ]] ||
+    die 'test client must be below /tmp'
+  [[ -f "$GITEA_FAIL2BAN_TEST_CLIENT" && ! -L "$GITEA_FAIL2BAN_TEST_CLIENT" &&
+    -x "$GITEA_FAIL2BAN_TEST_CLIENT" ]] || die 'unsafe test client'
+  [[ "$(stat -c '%u' "$GITEA_FAIL2BAN_TEST_CLIENT")" == "$EUID" ]] ||
+    die 'test client is not owned by the caller'
+  CLIENT=$GITEA_FAIL2BAN_TEST_CLIENT
+else
+  ((EUID == 0)) || die 'root privileges are required'
+  [[ -x "$CLIENT" && ! -L "$CLIENT" ]] || die 'fail2ban-client is missing or unsafe'
+fi
+
+for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt++)); do
+  if "$CLIENT" ping >/dev/null 2>&1 &&
+    "$CLIENT" reload >/dev/null 2>&1 &&
+    "$CLIENT" ping >/dev/null 2>&1; then
+    printf 'Fail2ban became ready and reloaded on attempt %d\n' "$attempt"
+    exit 0
+  fi
+  sleep 0.1
+done
+
+die "Fail2ban did not become ready and reload within $MAX_ATTEMPTS attempts"

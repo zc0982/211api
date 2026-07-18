@@ -48,6 +48,7 @@ fi
 EXPECTED_OWNER=$([[ -n "$INSTALL_ROOT" ]] && printf '%s' "$EUID" || printf '0')
 EXPECTED_GROUP=$([[ -n "$INSTALL_ROOT" ]] && id -g || printf '0')
 PROGRAM="$INSTALL_ROOT/usr/local/sbin/gitea-netcup-firewall"
+FAIL2BAN_RELOAD="$INSTALL_ROOT/usr/local/sbin/gitea-fail2ban-reload"
 UNIT="$INSTALL_ROOT/etc/systemd/system/gitea-netcup-firewall.service"
 SSHD_JAIL="$INSTALL_ROOT/etc/fail2ban/jail.d/211api-sshd.local"
 GITEA_JAIL="$INSTALL_ROOT/etc/fail2ban/jail.d/211api-gitea.local"
@@ -70,8 +71,8 @@ die() {
   exit 1
 }
 
-for command in awk basename chmod chown cp dirname flock id install mktemp mv rm \
-  sha256sum stat sync; do
+for command in awk basename chmod chown cp dirname flock id install mktemp mv \
+  readlink rm sha256sum sleep stat sync; do
   command -v "$command" >/dev/null 2>&1 || die "required installer command is missing: $command"
 done
 
@@ -279,6 +280,7 @@ commit_transaction() {
 
 for source in \
   netcup-firewall \
+  gitea-fail2ban-reload \
   gitea-netcup-firewall.service \
   fail2ban/jail.d/211api-sshd.local \
   fail2ban/jail.d/211api-gitea.local \
@@ -307,6 +309,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 queue_install "$SOURCE_DIR/netcup-firewall" "$PROGRAM" 755
+queue_install "$SOURCE_DIR/gitea-fail2ban-reload" "$FAIL2BAN_RELOAD" 755
 queue_install "$SOURCE_DIR/gitea-netcup-firewall.service" "$UNIT" 644
 queue_install "$SOURCE_DIR/fail2ban/jail.d/211api-sshd.local" "$SSHD_JAIL" 644
 queue_install "$SOURCE_DIR/fail2ban/jail.d/211api-gitea.local" "$GITEA_JAIL" 644

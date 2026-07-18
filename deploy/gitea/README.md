@@ -108,10 +108,10 @@ sudo ip6tables -S DOCKER-USER
 ```
 
 The unit is `PartOf=docker.service`: a Docker restart replays and verifies the
-guard, reloads Fail2ban so its jump stays before the guard, and fails closed on
-an unknown `DOCKER-USER` rule or checksum drift. During first preparation,
-restart Docker exactly once and then re-run all four commands above plus the
-preserved-service checks.
+guard, waits up to ten seconds for Fail2ban's socket before reloading it so its
+jump stays before the guard, and fails closed on an unknown `DOCKER-USER` rule
+or checksum drift. During first preparation, restart Docker exactly once and
+then re-run all four commands above plus the preserved-service checks.
 
 If the Fail2ban reload fails after the guard was applied, systemd deliberately
 leaves the unit failed while the restrictive guard remains installed. Repair
