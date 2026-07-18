@@ -37,6 +37,7 @@ as `/opt/gitea/images.lock.env`, and create these host-owned paths:
 | `/etc/gitea/token-metadata` | `root:root 0700` | non-value PAT ID/scope/rotation/revocation records |
 | `/opt/gitea/platform/log` | numeric `1000:1000 0750` | bounded Gitea authentication logs |
 | `/opt/gitea/backups` | `root:root 0700` | local encrypted backup sets |
+| `/opt/gitea/host` | `root:root 0755` | reviewed Netcup firewall/Fail2ban installer and sources |
 
 Create the host directories before installing configuration:
 
@@ -44,6 +45,96 @@ Create the host directories before installing configuration:
 sudo install -d -o root -g root -m 0700 /etc/gitea /opt/gitea/backups
 sudo install -d -o 1000 -g 1000 -m 0750 /opt/gitea/platform/log
 ```
+
+## Netcup host controls
+
+Install `deploy/gitea/host` at `/opt/gitea/host` with root ownership, excluding
+tests and generated files. The installer writes only reviewed files through
+atomic replacements, records their SHA-256 values under `/etc/gitea`, and
+serializes concurrent installer runs. It leaves the Gitea jail disabled until
+`--enable-gitea` proves a non-empty, regular, numeric `1000:1000` log in the
+canonical mode-0750 log directory. Run it only from the canonical directory:
+
+```bash
+sudo /opt/gitea/host/install-netcup-host-controls
+sudo fail2ban-client -t
+sudo systemctl daemon-reload
+sudo systemctl restart fail2ban.service
+```
+
+After `--enable-gitea` has installed the explicit enable override, every later
+installer run must repeat `--enable-gitea`. A default run then refuses rather
+than silently preserving or disabling an already-live jail.
+
+The SSH jail uses the systemd backend, port 4422, five attempts per ten-minute
+window, and a one-hour ban. Confirm its effective action no longer resolves to
+the packaged `ssh`/22 default:
+
+```bash
+sudo fail2ban-client status sshd
+sudo fail2ban-client -d | grep -E "sshd.*|dports 4422"
+```
+
+Preserve the existing 4422 IPv4/IPv6 UFW rules and default
+`deny incoming`/`deny routed` policy. Add only these IPv4 rules; the explicit
+destination prevents UFW from creating raw-IPv6 Gitea exposure:
+
+```bash
+sudo ufw allow in on ens3 proto tcp from 0.0.0.0/0 \
+  to 37.221.194.27 port 80 comment 'gitea-http-v4'
+sudo ufw allow in on ens3 proto tcp from 0.0.0.0/0 \
+  to 37.221.194.27 port 443 comment 'gitea-https-v4'
+sudo ufw allow in on ens3 proto tcp from 0.0.0.0/0 \
+  to 37.221.194.27 port 2222 comment 'gitea-ssh-v4'
+sudo ufw reload
+```
+
+Docker diverts published traffic before UFW's host input rules, so the
+versioned guard is also mandatory. It atomically owns only `GITEA-GUARD` and
+`GITEA6-GUARD`; it never flushes Docker, UFW, Fail2ban, or another administrator
+chain. It permits Docker's canonical terminal `RETURN` only after the guard and
+inserts the guard before it when present. IPv4 matches the original conntrack
+destination after DNAT, accepts 80/443, rate-limits new 2222 connections per
+source to 30/minute with burst 20, and drops every other external forwarded
+flow. It deliberately returns traffic that did not enter on `ens3`, so
+container-to-container, host health probes, and container egress remain under
+Docker's own network owner. IPv6 publishes remain closed.
+
+```bash
+sudo systemctl enable --now gitea-netcup-firewall.service
+sudo /usr/local/sbin/gitea-netcup-firewall verify
+sudo iptables -S DOCKER-USER
+sudo ip6tables -S DOCKER-USER
+```
+
+The unit is `PartOf=docker.service`: a Docker restart replays and verifies the
+guard, reloads Fail2ban so its jump stays before the guard, and fails closed on
+an unknown `DOCKER-USER` rule or checksum drift. During first preparation,
+restart Docker exactly once and then re-run all four commands above plus the
+preserved-service checks.
+
+If the Fail2ban reload fails after the guard was applied, systemd deliberately
+leaves the unit failed while the restrictive guard remains installed. Repair
+Fail2ban, restart this unit, and require both the unit and its explicit `verify`
+command to pass; do not treat that partial fail-closed state as completion.
+
+After Gitea has a stable `/opt/gitea/platform/log/gitea.log`, validate the
+checked-in filter against a TEST-NET synthetic line before enabling its jail:
+
+```bash
+printf '%s\n' \
+  '2026-07-18 00:00:00 [W] Failed authentication attempt from 192.0.2.1:4242' \
+  | sudo fail2ban-regex - /opt/gitea/host/fail2ban/filter.d/gitea-auth.conf
+sudo /opt/gitea/host/install-netcup-host-controls --enable-gitea
+sudo fail2ban-client -t
+sudo systemctl restart fail2ban.service
+sudo fail2ban-client status gitea-auth
+```
+
+The Gitea jail explicitly selects `iptables-multiport`, sets its independent
+`chain = DOCKER-USER` interpolation, and uses port 2222. The Compose mapping is
+2222:2222, so the post-DNAT destination port remains exact. The filter text is
+tied to Gitea v1.26.4's standard `Failed authentication attempt` log messages.
 
 ## Secret material
 

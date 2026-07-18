@@ -1279,8 +1279,14 @@ its own syntax, test intent, immutable inputs, and retirement shape.
 
 ## Task 9: Prepare Netcup Without Starting the Delivery Owner
 
-**Files on Netcup:** `/opt/gitea/{platform,runner,backups,secrets}` and approved
-system packages/configuration only.
+**Repository files:** create `deploy/gitea/host/*` and
+`deploy/gitea/tests/test-netcup-host-controls.sh`; update
+`deploy/gitea/README.md` before any firewall mutation.
+
+**Files on Netcup:** `/opt/gitea/{platform,runner,admin,backups}`, the canonical
+root-only `/etc/gitea` configuration/secret owner, and approved system
+packages/configuration only. Do not create a duplicate `/opt/gitea/secrets`
+owner.
 
 **Why:** TLS, token registration, and rootless DinD are unsafe until time,
 uidmap, directories, and listener/firewall baselines are correct.
@@ -1318,20 +1324,26 @@ alone.
 4. Prove `newuidmap`, `newgidmap`, user namespaces, and the host's existing
    `/etc/subuid`/`subgid` state. Do not rewrite the existing `lym` mapping.
 
-5. Create `/opt/gitea/platform`, `/opt/gitea/platform/log`, `/opt/gitea/runner`,
-   `/opt/gitea/backups`, and `/opt/gitea/secrets`, root-owned 0700 where secret
-   material is present. Refuse any unexpected pre-existing path.
+5. Create root-owned mode 0755 `/opt/gitea/platform`, `/opt/gitea/runner`, and
+   `/opt/gitea/admin` directories, numeric `1000:1000` mode 0750
+   `/opt/gitea/platform/log`, and root-owned mode 0700 `/opt/gitea/backups` plus
+   `/etc/gitea`. Refuse any unexpected pre-existing path. `/etc/gitea` is the
+   only host secret/configuration owner; never create a duplicate
+   `/opt/gitea/secrets` tree.
 
-6. Copy the reviewed `deploy/gitea` assets and lock file with `rsync --checksum`.
-   Compare SHA-256 against the repository; do not copy `.git`, worktree files,
-   private keys, or generated local credentials.
+6. Copy only the reviewed production files from `deploy/gitea/platform`,
+   `deploy/gitea/runner`, and `deploy/gitea/admin`, plus `images.lock.env`, with
+   `rsync --checksum`. Compare SHA-256 against the repository. Exclude every
+   `tests` and `__pycache__` tree and do not copy `gateway`, `.git`, worktree
+   files, private keys, or generated local credentials. The Gateway owner is
+   installed only on Gateway in Task 12.
 
 7. Generate platform DB password, Gitea secret key, and internal token directly
-   into 0600 Netcup secret files using `openssl rand`; never capture their
-   contents in terminal evidence. Write the root-only Compose env file with only
-   their absolute path variables, and prove every top-level Compose secret
-   resolves. Install only the public age recipient and the webhook URL in
-   separate 0600 files.
+   into their canonical 0600 `/etc/gitea` files using `openssl rand`; never
+   capture their contents in terminal evidence. Write the root-only Compose env
+   file with only their absolute path variables, and prove every top-level
+   Compose secret resolves. Install only the public age recipient and the
+   webhook URL in separate 0600 files.
 
 8. Render the platform project with both
    `--env-file /opt/gitea/images.lock.env` and
@@ -1348,8 +1360,14 @@ alone.
    so raw IPv6 has no listener. Account for Docker's packet path with versioned,
    checksum-recorded `DOCKER-USER` rules: established/related first, allow only
    IPv4 80/443/2222 to the declared containers, rate-limit new 2222 connections
-   per source, then drop every other new container-bound IPv4/IPv6 flow. Install
-   a standard `sshd` fail2ban jail for host port 4422 using the systemd backend;
+   per source, then drop every other new container-bound IPv4/IPv6 flow. The
+   checked-in installer must atomically install a checksum-recorded systemd
+   owner for independent `GITEA-GUARD`/`GITEA6-GUARD` chains; serialize
+   concurrent installer runs and roll every managed file back on a partial
+   commit. It may preserve Fail2ban jumps before its guard but must refuse any
+   other unowned `DOCKER-USER` rule except Docker's exact terminal `RETURN`
+   after the guard. Install a checked-in `sshd` fail2ban jail for host port 4422
+   using the systemd backend;
    preserve the current management-source boundary. Persist rules without
    flushing unrelated Docker/UFW chains, restart UFW and Docker once, and prove
    identical effective ordering/defaults plus healthy preserved services.
@@ -1357,13 +1375,17 @@ alone.
 10. Start neither Gitea nor Runner yet. Re-run `ss`, UFW/nftables summaries,
     fail2ban status, preserved services, time/offset, disk, and Docker checks.
     Expected new listener count remains zero until Task 10; `sshd` jail is
-    active, while the Gitea jail remains deliberately disabled until its stable
-    log path exists in Task 10.
+    active, while the Gitea jail remains deliberately disabled until its stable,
+    non-empty regular log path exists in Task 10. The explicit enable operation
+    must enforce that path/owner boundary rather than depending only on operator
+    ordering.
 
 **Verification:** host prerequisites pass; existing services stay active; no
 Gitea delivery capability exists yet.
 
-**Commit:** external evidence only; update the Aegis Netcup-preflight bundle.
+**Commit:** commit the reviewed host-control owner and tests before applying its
+firewall changes; record packages, NTP, uidmap, installed checksums, firewall,
+preserved-service, and no-listener results in the Aegis Netcup-preflight bundle.
 
 ## Task 10: Create DNS, Start Gitea, and Complete Platform Bootstrap
 
