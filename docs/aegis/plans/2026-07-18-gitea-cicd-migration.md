@@ -588,7 +588,8 @@ no 211API service is added to Netcup.
    four services:
 
    - `secret-init`: a locked Alpine one-shot with no network, read-only root
-     filesystem, and all capabilities dropped. Docker Compose cannot remap
+     filesystem, all capabilities dropped, and only `CAP_CHOWN` restored for
+     the bounded ownership handoff. Docker Compose cannot remap
      `uid`/`gid`/`mode` for file-backed secrets, so this root-only boundary
      copies the three root-owned 0600 source files into a dedicated named
      volume as UID/GID 1000 mode 0400. Gitea receives only that read-only

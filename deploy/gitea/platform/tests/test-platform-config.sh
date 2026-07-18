@@ -6,8 +6,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 LOCK="$ROOT/deploy/gitea/images.lock.env"
 COMPOSE="$ROOT/deploy/gitea/platform/compose.yaml"
 tmp="$(mktemp -d)"
+test_volume="gitea-platform-secret-test-$$-$RANDOM"
+alpine_image="$(sed -n 's/^APP_ALPINE_IMAGE=//p' "$LOCK")"
 
 cleanup() {
+  docker volume rm -f "$test_volume" >/dev/null 2>&1 || true
   rm -rf -- "$tmp"
 }
 trap cleanup EXIT HUP INT TERM
@@ -16,6 +19,16 @@ for name in db-password secret-key internal-token; do
   printf 'dummy-%s-sentinel\n' "$name" >"$tmp/$name"
   chmod 0600 "$tmp/$name"
 done
+
+docker run --rm \
+  --network none \
+  --read-only \
+  --cap-drop ALL \
+  --cap-add CHOWN \
+  --cap-add DAC_OVERRIDE \
+  -v "$tmp:/host" \
+  "$alpine_image" \
+  chown 0:0 /host/db-password /host/secret-key /host/internal-token
 
 cat >"$tmp/platform.env" <<EOF
 GITEA_DB_PASSWORD_FILE=$tmp/db-password
@@ -37,6 +50,8 @@ jq -e '
   and (.services.caddy.ports | length) == 2
   and (.services."secret-init".network_mode == "none")
   and (.services."secret-init".read_only == true)
+  and (.services."secret-init".cap_drop == ["ALL"])
+  and (.services."secret-init".cap_add == ["CHOWN"])
   and (.services.gitea.user == "1000:1000")
   and (.services.gitea.environment.GITEA__api__MAX_RESPONSE_ITEMS == "50")
 ' "$tmp/rendered.json" >/dev/null
@@ -79,5 +94,33 @@ for required in GITEA_DB_PASSWORD_FILE GITEA_SECRET_KEY_FILE GITEA_INTERNAL_TOKE
     exit 1
   fi
 done
+
+cat >"$tmp/runtime-override.yaml" <<EOF
+volumes:
+  gitea_runtime_secrets:
+    name: $test_volume
+EOF
+
+docker compose \
+  --env-file "$LOCK" \
+  --env-file "$tmp/platform.env" \
+  -f "$COMPOSE" \
+  -f "$tmp/runtime-override.yaml" \
+  run --rm --no-deps secret-init >/dev/null
+
+docker run --rm \
+  --network none \
+  --read-only \
+  --cap-drop ALL \
+  --user 1000:1000 \
+  -v "$test_volume:/staged:ro" \
+  "$alpine_image" \
+  /bin/sh -ec '
+    test "$(stat -c "%u:%g:%a" /staged)" = "1000:1000:700"
+    for name in gitea_db_password gitea_secret_key gitea_internal_token; do
+      test "$(stat -c "%u:%g:%a" "/staged/$name")" = "1000:1000:400"
+      test -s "/staged/$name"
+    done
+  '
 
 printf 'platform Compose invariants passed\n'

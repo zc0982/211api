@@ -15,6 +15,8 @@ services:
     restart: "no"
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
     security_opt:
       - no-new-privileges:true
     volumes:
@@ -29,15 +31,17 @@ services:
       - |
         umask 077
         mkdir -p /staged
-        chown 1000:1000 /staged
+        chown 0:0 /staged
         chmod 0700 /staged
         for name in gitea_db_password gitea_secret_key gitea_internal_token; do
           test -s "/run/secrets/$${name}"
+          rm -f "/staged/.$${name}.partial"
           cp "/run/secrets/$${name}" "/staged/.$${name}.partial"
-          chown 1000:1000 "/staged/.$${name}.partial"
           chmod 0400 "/staged/.$${name}.partial"
+          chown 1000:1000 "/staged/.$${name}.partial"
           mv -f "/staged/.$${name}.partial" "/staged/$${name}"
         done
+        chown 1000:1000 /staged
     logging: *local-logging
 
   postgres:
