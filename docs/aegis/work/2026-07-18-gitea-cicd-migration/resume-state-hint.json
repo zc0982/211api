@@ -2,11 +2,20 @@
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
   "lastCheckpointRef": "docs/aegis/work/2026-07-18-gitea-cicd-migration/todo-checkpoint-draft.json",
-  "resumeInstruction": "Read the approved design and reviewed implementation plan; wait for the user's execution-mode choice before implementation, and still stop again at Task 13 for explicit cutover authorization.",
+  "resumeInstruction": "Resume in /home/lym/dev/projects/211api-gitea-cicd at Task 9. Tasks 1-7 are complete in commits 2359acad8, eea546041, c65b78cbd, 86f5abbc1, 908aa74c5, and a9ab06b61; Task 8's complete repository-only gate passed and its documentation is the next commit. Prepare Netcup fail-closed, and still stop at Task 13 for fresh cutover authorization.",
   "knownPartialWork": [
     "Design approved by the user",
     "Implementation plan written and independently reviewed",
-    "No implementation or external-state mutation has started"
+    "Execution option A selected",
+    "Task 1 worktree, input inventory, host checks, baseline tests, and approved cache cleanup completed",
+    "Task 2 exact locks and dispatcher committed as 2359acad8",
+    "Task 3 Gitea workflow owner and old workflow retirement committed as eea546041",
+    "Task 4 private platform, backup/restore, systemd, runbook, and local fault tests committed as c65b78cbd",
+    "Task 5 isolated rootless DinD Runner, strict token lifecycle, backup compatibility repairs, and runtime smoke committed as 86f5abbc1",
+    "Task 6 exact Gitea repository controls, least-privilege PAT automation, protection verification, immutable v-tag hook, and backup coverage committed as 908aa74c5",
+    "Task 7 Gateway digest deployment enforcement, encrypted backup, one-time migration approval, audit/retention, direct baseline, and isolated restore committed as a9ab06b61",
+    "Task 8 all locked dispatcher paths, 15 shell tests, two Compose contracts, AMD64 build, retirement, compatibility, secret, and diff gates passed locally",
+    "No push or external-state mutation has started"
   ],
   "mustReadBeforeContinuing": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/10-intent.md",

@@ -105,6 +105,10 @@ Directory: `/opt/gitea/platform`
 - Caddy terminates TLS for `git.211api.com`.
 - Gitea serves private Git, Actions coordination, releases, and packages.
 - PostgreSQL stores Gitea platform metadata only.
+- A networkless, one-shot secret initializer bridges Docker Compose's lack of
+  UID/GID remapping for file-backed secrets: it copies the root-owned 0600
+  sources into a private named volume as UID/GID 1000 mode 0400, then exits.
+  Gitea remains rootless and mounts only the staged volume read-only.
 - Persistent directories contain repositories, LFS, attachments, packages,
   configuration, database data, and Caddy state.
 - Images are pinned to explicit stable version tags and recorded digests.
@@ -132,6 +136,19 @@ Directory: `/opt/gitea/runner`
   and fixed non-root UID/GID ownership. This implementation clarification follows
   Gitea Runner 2.1.0's verified socket-injection contract and avoids distributing
   Docker client TLS credentials into job containers.
+- The locked DinD entrypoint receives an explicit command beginning with
+  `dockerd`, only the Unix `--host`, and `--group=root`; a leading option would
+  cause that image to inject an unauthenticated TCP 2375 listener, while the
+  explicit group makes RootlessKit expose deterministic outer 1000:1000 socket
+  ownership rather than a host-dependent subordinate GID. The root-owned
+  mode-0600 runner
+  registration token is never mounted directly into the UID 1000 Runner because
+  Compose file secrets cannot remap it. A reviewed, non-privileged, networkless
+  one-off utility stages it as mode 0400 in the runtime tmpfs and removes it as
+  soon as persistent registration state exists. No token enters Compose
+  environment values, persistent volumes, logs, or the archived Runner manifest
+  tree; its root-only source remains under `/etc/gitea` only for the bounded
+  registration window.
 - Concurrency is one job. CPU, memory, process, and disk limits leave capacity
   for Caddy, Gitea, and PostgreSQL.
 - Job containers and workspaces are ephemeral. Cache volumes may contain only
@@ -342,8 +359,12 @@ itself; the resulting tag event enters the publication lane below.
   the minimum package read permission needed by the deploy build job.
 - `REGISTRY_RELEASE_TOKEN`: separate service-account PAT with only the package
   read/write permission required to retag a verified digest.
-- `GITEA_RELEASE_TOKEN`: separate token with repository read and release write;
+- `RELEASE_RECORD_TOKEN`: separate token with repository read and release write;
   it has no administration, Actions-secret, or package-write permission.
+- `GITEA_TOKEN` remains the per-job built-in actor identity and is never
+  shadowed by a static repository secret. Gitea 1.26.4 rejects user secret names
+  with the reserved `GITEA_` prefix, so the release-record PAT uses the
+  non-reserved `RELEASE_RECORD_TOKEN` name.
 - `RELEASE_TAG_SSH_KEY`: SSH-only key for `svc-release-tag`; the account has no
   retained password or PAT, and native tag protection plus the platform-managed
   immutable-tag hook bound what the key can change.
@@ -477,6 +498,12 @@ database restore.
   Trap signals and abnormal exits, remove only owned partial ciphertext, fsync
   validated components, and atomically promote the completed set. Backup,
   encryption, validation, or manifest-write failure aborts deployment.
+- The initial pre-cutover set and proven deployment state use the same audited
+  deploy owner through a direct-human, TTY-confirmed `deploy
+  --record-baseline` mode. That mode is not accepted by the CI forced-command
+  dispatcher and makes no `.env`, Registry, Compose, or container change; it
+  exists so the real baseline backup is not produced through an ad hoc root
+  shell outside the owner.
 - Before first cutover and quarterly thereafter, the operator supplies the `age`
   private key through a root-only tmpfs session and restores one retained
   Gateway dump into a disposable PostgreSQL 18 container with a new volume, no
@@ -503,11 +530,22 @@ follow-up and is not represented as already solved.
 
 - Disable Gitea self-registration.
 - Require the bootstrap administrator to enable 2FA before normal use.
+- Limit the root-only administrator automation PAT to `write:admin`,
+  `write:organization`, and `write:repository`; record its creation and a
+  30-day rotation deadline. It has no package scope and never replaces the
+  human 2FA gate.
 - Keep the repository private.
 - Keep runner concurrency at one.
 - Use separate non-human service accounts for runner registration, build
-  packages, release packages, and release records; rotate bootstrap tokens after
-  registration and record PAT expiry/rotation dates without recording values.
+  packages, backup reads, release packages, release records, and production
+  deployment reads. The backup reader is non-admin and limited to `read:user`,
+  `read:repository`, and `read:package`; it is never reused by deployment or
+  release automation. Gitea grants organization-owned Registry access through
+  granular team units, so `package-publishers` has only
+  `repo.packages:write` and `package-readers` has only `repo.packages:read`;
+  service accounts are not placed in either human maintainer team. Rotate
+  bootstrap tokens after registration and record PAT expiry/rotation dates
+  without recording values.
 - Preserve existing Hermes, Komari, administrative SSH, and Gateway ingress
   services.
 - Do not expose database or runner-internal ports.

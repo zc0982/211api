@@ -30,3 +30,6 @@ Entries are workspace records, not authoritative runtime decisions.
 | 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-implementation-plan-review.json | 2026-07-18-gitea-cicd-migration evidence implementation-plan-review |
 | 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/gate-input-pack.json | 2026-07-18-gitea-cicd-migration gate input pack |
 | 2026-07-18 | work | docs/aegis/work/2026-07-18-gitea-cicd-migration/proof-bundle.md | 2026-07-18-gitea-cicd-migration proof bundle |
+| 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json | 2026-07-18-gitea-cicd-migration evidence task1-preflight |
+| 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json | 2026-07-18-gitea-cicd-migration evidence task2-3-repository-ci |
+| 2026-07-18 | artifact | docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json | 2026-07-18-gitea-cicd-migration evidence task8-repository-gate |

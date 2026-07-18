@@ -1,21 +1,45 @@
 {
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
-  "currentTodo": "Obtain the user's implementation-plan execution choice",
+  "currentTodo": "Prepare Task 9 Netcup control plane without starting the delivery owner",
   "completedTodos": [
     "Design drafted, independently reviewed, tightened, and self-reviewed",
     "User explicitly approved the written Design Spec",
-    "Implementation plan written, independently reviewed, and tightened"
+    "Implementation plan written, independently reviewed, and tightened",
+    "User selected execution option A",
+    "Isolated implementation worktree created without pushing",
+    "Task 1 input inventory, host read-only checks, and clean-baseline tests completed",
+    "Generated .pnpm-store removed after exact-path user approval",
+    "Task 2 committed as 2359acad8 with locked inputs and reviewed dispatcher",
+    "Task 3 committed as eea546041 with Gitea workflow ownership and GitHub workflow retirement",
+    "All seven dispatcher paths passed in the locked Go/Node images",
+    "Task 4 committed as c65b78cbd with private Gitea platform, backup/restore, retention, notification, systemd, runbook, and eight passing tests",
+    "Task 5 committed as 86f5abbc1 with isolated rootless DinD Runner, strict ephemeral registration-token staging, and disposable runtime smoke",
+    "Task 5 repairs removed TCP-listener injection, subordinate-GID drift, a non-restorable bootstrap-backup fallback, and obsolete Runner env ownership",
+    "Task 6 committed as 908aa74c5 with exact Gitea repository controls, least-privilege PAT lifecycle, protected refs, Actions secrets, immutable v-tag hook, and backup coverage",
+    "Task 6 locked-version API/OpenAPI/Registry probes, fault tests, syntax checks, and two independent final audits passed",
+    "Task 7 committed as a9ab06b61 with forced-SSH dispatch, digest-only Gateway mutation, encrypted backup, one-time approval, audit/retention, direct baseline, and isolated restore",
+    "Task 7 fault matrix plus independent specification/security/backup/operations/test/final repair reviews passed without remaining high or medium blocker",
+    "Task 8 all seven locked dispatcher paths and all 15 migration shell tests passed",
+    "Task 8 effective Compose, digest-locked AMD64 build, retirement/compatibility, tracked-secret, and diff gates passed without push or external mutation"
   ],
-  "activeSlice": "Reviewed implementation-plan handoff",
+  "activeSlice": "Task 9 Netcup installed-path and host-readiness gate",
   "evidenceRefs": [
     "design-self-review",
     "independent-design-review",
     "written-design-approval",
     "implementation-plan-review",
-    "docs/aegis/plans/2026-07-18-gitea-cicd-migration.md"
+    "docs/aegis/plans/2026-07-18-gitea-cicd-migration.md",
+    "task1-preflight",
+    "task2-toolchain-lock",
+    "task3-gitea-workflow-owner",
+    "task4-private-platform",
+    "task5-isolated-runner",
+    "task6-repository-controls",
+    "task7-gateway-enforcement",
+    "task8-repository-gate"
   ],
-  "blockedOn": "User execution choice; external credentials remain later execution gates",
-  "nextStep": "Present subagent-driven (recommended) versus inline execution and wait for the user's choice before implementation",
+  "blockedOn": "Task 9+ requires real Netcup/Gitea identities, age custody, notification destination, DNS/TLS authority, and live evidence; do not fabricate missing inputs",
+  "nextStep": "Run Task 9 fail-closed Netcup preflight, correct time readiness, and prepare only approved control-plane paths without starting Gitea/Runner or mutating Gateway",
   "updatedAt": "2026-07-18"
 }

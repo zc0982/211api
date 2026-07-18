@@ -274,13 +274,18 @@ generated:
 - `deploy/gitea/runner/compose.yaml`
 - `deploy/gitea/runner/config.yaml`
 - `deploy/gitea/admin/bootstrap-gitea`
+- `deploy/gitea/admin/admin-lib.sh`
 - `deploy/gitea/admin/configure-repository`
+- `deploy/gitea/admin/install-immutable-tag-hook`
+- `deploy/gitea/admin/immutable-hook-installer`
 - `deploy/gitea/admin/immutable-v-tags`
+- `deploy/gitea/admin/templates/*.json`
 - `deploy/gitea/admin/verify-repository`
 - `deploy/gitea/gateway/install-gateway-deployer`
 - `deploy/gitea/gateway/211api-deploy`
 - `deploy/gitea/gateway/211api-deploy-dispatch`
 - `deploy/gitea/tests/test-ci-dispatcher.sh`
+- `deploy/gitea/tests/test-admin-primitives.sh`
 - `deploy/gitea/tests/test-immutable-tag-hook.sh`
 - `deploy/gitea/tests/test-gateway-deployer.sh`
 
@@ -518,7 +523,7 @@ only private fork delivery paths retire.
    - publication lane on `v*` tag: require the SHA digest, refuse conflicting
      version tags, retag the digest without rebuilding, update `latest` only for
      stable SemVer, and create the Gitea Release with
-     `GITEA_RELEASE_TOKEN`. Prerelease tags set `prerelease=true`.
+     `RELEASE_RECORD_TOKEN`. Prerelease tags set `prerelease=true`.
 
 6. Delete all five GitHub workflow files and both GoReleaser files in the same
    commit. Do not create compatibility copies or a GitHub mirror.
@@ -578,6 +583,13 @@ no 211API service is added to Netcup.
 1. Create `platform/compose.yaml` with project name `gitea-platform` and exactly
    four services:
 
+   - `secret-init`: a locked Alpine one-shot with no network, read-only root
+     filesystem, and all capabilities dropped. Docker Compose cannot remap
+     `uid`/`gid`/`mode` for file-backed secrets, so this root-only boundary
+     copies the three root-owned 0600 source files into a dedicated named
+     volume as UID/GID 1000 mode 0400. Gitea receives only that read-only
+     staged volume; the service never remains running;
+
    - `postgres`: locked PostgreSQL 14.23, database/user `gitea`, password from
      `POSTGRES_PASSWORD_FILE=/run/secrets/gitea_db_password`, no published port,
      named data volume,
@@ -626,9 +638,10 @@ no 211API service is added to Netcup.
 
    Use `GITEA__database__PASSWD__FILE`,
    `GITEA__security__SECRET_KEY__FILE`, and
-   `GITEA__security__INTERNAL_TOKEN__FILE` pointing to the mounted
-   `/run/secrets/*` files. Never put password, secret key, internal token, or
-   admin password in Compose environment literals.
+   `GITEA__security__INTERNAL_TOKEN__FILE` pointing to the staged read-only
+   `/run/gitea-secrets/*` files. PostgreSQL alone reads the raw database file at
+   `/run/secrets/gitea_db_password`. Never put password, secret key, internal
+   token, or admin password in Compose environment literals.
 
 3. Create `platform/Caddyfile` for only `git.211api.com`, JSON access logs to
    stdout, zstd/gzip encoding, and this valid active-health structure:
@@ -652,12 +665,20 @@ no 211API service is added to Netcup.
 4. Implement `platform/gitea-backup` as a root-only Bash program that:
 
    - takes `/run/lock/gitea-platform-backup.lock` with nonblocking `flock`;
+   - authenticates API reads through a root-only one-line curl config owned by
+     a dedicated non-admin `svc-backup-read` identity with only `read:user`,
+     `read:repository`, and `read:package`; it never reuses deployment or
+     release credentials;
    - requires `BACKUP_AGE_RECIPIENT`, a 2xx webhook configuration, at least 20%
      free disk, and room for two estimated sets;
    - asks Gitea's API for active Actions tasks and postpones once when any task
      is running; it never kills a job;
+   - snapshots normalized release/package metadata before quiescing ingress and
+     verifies the API snapshots are unchanged after service restoration, so a
+     concurrent release or package write invalidates the partial set;
    - treats a not-yet-created or already-stopped Runner container as idle during
-     the bootstrap backup, without treating other API/network failures as idle;
+     the bootstrap backup, while still requiring the non-admin backup API
+     config and without treating any API/network failure as idle;
    - stops runner dispatch, then Gitea and Caddy, while PostgreSQL remains up;
    - creates a PostgreSQL custom stream using the matching client and records
      start/end UTC plus WAL positions while Gitea remains quiesced;
@@ -698,7 +719,8 @@ no 211API service is added to Netcup.
    - `gitea-backup.timer`: `OnCalendar=*-*-* 18:30:00 UTC`, persistent, randomized
      delay disabled so evidence is deterministic;
    - `gitea-backup.service`: oneshot, root, hardened filesystem/device settings,
-     `OnFailure=gitea-backup-notify@%n.service`;
+     `OnFailure=gitea-backup-notify@%N.service`; `%N` removes the source unit
+     suffix, and the notifier template appends `.service` to its payload value;
    - notification template service calling only the notifier.
 
    The backup preflight also verifies NTP synchronization/offset bounds, Gitea
@@ -749,8 +771,8 @@ no 211API service is added to Netcup.
 
 ## Task 5: Add the Isolated Gitea Runner and Rootless DinD Stack
 
-**Files:** create `deploy/gitea/runner/compose.yaml` and `config.yaml`; update
-`deploy/gitea/README.md`.
+**Files:** create `deploy/gitea/runner/compose.yaml`, `config.yaml`, and focused
+Runner configuration/DinD smoke tests; update `deploy/gitea/README.md`.
 
 **Why:** CI needs Docker execution without the Netcup host Docker socket.
 
@@ -766,17 +788,24 @@ job containers are not.
 
    - `docker`: locked `29.6.1-dind-rootless`, `privileged: true`, its image's
      rootless UID/GID 1000 execution path,
-     `DOCKER_TLS_CERTDIR=` to disable the unused TCP listener, no published
+     `DOCKER_TLS_CERTDIR=` because no TLS/TCP endpoint exists, no published
      ports, persistent `/home/rootless/.local/share/docker`, shared named tmpfs
-     runtime volume at `/run/user/1000`, and an explicit sole daemon argument
-     `--host=unix:///run/user/1000/docker.sock` so the entrypoint cannot add
-     2375. Apply 3 GiB memory and 3 CPU limit;
+     runtime volume at `/run/user/1000`, and an explicit command beginning with
+     `dockerd` followed by the sole daemon endpoint
+     `--host=unix:///run/user/1000/docker.sock` and `--group=root`. The group
+     flag makes root inside RootlessKit map to the outer fixed GID 1000 instead
+     of leaking a host-dependent subordinate GID onto the shared socket. The
+     leading `dockerd` is
+     security-significant: the locked image's entrypoint adds
+     `tcp://0.0.0.0:2375` when its first argument begins with `-`, while the
+     explicit command retains the rootless checks/RootlessKit path without that
+     listener injection. Apply 3 GiB memory and 3 CPU limit;
    - `runner`: locked basic `gitea/runner:2.1.0`, forced by Compose to numeric
      unprivileged UID/GID 1000 with `HOME=/data`, 512 MiB and 0.5 CPU limit,
-     pre-owned runner data volume, read-only config, registration token file
-     secret, the same named tmpfs runtime volume mounted read-write at
-     `/run/user/1000`, `DOCKER_HOST=unix:///run/user/1000/docker.sock`, and no
-     host path or host socket mount.
+     pre-owned runner data volume, read-only config, the same named tmpfs runtime
+     volume mounted read-write at `/run/user/1000`, a registration-token file
+     path inside that tmpfs, `DOCKER_HOST=unix:///run/user/1000/docker.sock`, and
+     no host path or host socket mount.
 
      The mount mode is not treated as authorization: Docker socket access already
      grants full control of only the disposable DinD daemon, and a read-only
@@ -805,7 +834,9 @@ job containers are not.
    pulls disabled, and no host-mode labels.
 
 4. Define the runtime volume as local-driver tmpfs owned 1000:1000 mode 0700.
-   Runner startup waits for and connects to that exact socket. The intended
+   Runner startup waits for that exact socket and requires effective
+   UID/GID 1000 access plus numeric owner/group 1000:1000 before connecting.
+   The intended
    Runner 2.1.0 contract, implemented by
    `internal/app/run/runner.go` (`ContainerDaemonSocket`) and
    `act/runner/run_context.go` (`GetBindsAndMounts`/`validVolumes`), is that
@@ -817,10 +848,24 @@ job containers are not.
    prove it. Fail startup if the socket is missing; never fall back to TCP
    2375/2376 or `/var/run/docker.sock` on Netcup.
 
-5. Add a documented one-off initialization command using the locked utility
-   Alpine image to create/chown only the Runner data volume to 1000:1000 before
-   first start. Prove the resulting Runner process effective UID is 1000. Do not
-   add a privileged init container or run the Runner as root.
+5. Add documented one-off commands using the locked utility Alpine image to:
+
+   - create/chown only the Runner data volume to 1000:1000 before first start;
+   - copy the root-owned mode-0600 registration-token source into the dedicated
+     runtime tmpfs as UID/GID 1000 mode 0400, with no network, a read-only root
+     filesystem/source mount, and only the narrow filesystem capabilities
+     required for staging, only after DinD is running as the long-lived tmpfs
+     mount holder; and
+   - after a nonempty `/data/.runner` registration state exists, remove the
+     staged token from the tmpfs immediately.
+
+   Docker Compose file-backed secrets cannot remap a root-owned mode-0600 source
+   for a forced UID 1000 process, so mounting that source directly would be a
+   nonfunctional security control. Keep the source path out of Compose, never
+   put the token in an environment variable or persistent volume, and do not
+   print it. The staging utility is one-off and non-privileged; do not add an
+   init service or run the Runner process as root. Prove the resulting Runner
+   process effective UID is 1000.
 
 6. Validate configuration, then run the locked DinD service alone as a
    disposable local stack on a host with `uidmap`. Wait with a finite deadline
@@ -854,8 +899,10 @@ job containers are not.
 
 ## Task 6: Add Gitea Bootstrap, Protection, and Verification Automation
 
-**Files:** create all `deploy/gitea/admin/*` files and
-`deploy/gitea/tests/test-immutable-tag-hook.sh`; update README.
+**Files:** create all `deploy/gitea/admin/*` files,
+`deploy/gitea/tests/test-admin-primitives.sh`, and
+`deploy/gitea/tests/test-immutable-tag-hook.sh`; update README and the encrypted
+host-config backup allowlist.
 
 **Why:** organization, service identities, repository units, protection, and
 the tag permission split must be reproducible and negatively testable.
@@ -871,12 +918,21 @@ repositories, releases, tags, or teams.
 1. Implement `bootstrap-gitea` with `set -euo pipefail`, root-only input files,
    API token read through a curl config file, and idempotent create/get logic for:
 
+   The administrator automation token is limited to `write:admin`,
+   `write:organization`, and `write:repository`, has root-only metadata, and
+   hard-stops after its 30-day rotation deadline; it is not a substitute for
+   the human 2FA gate.
+
    - bootstrap human admin (CLI, must change password, then manual 2FA gate);
    - organization `211api`;
    - private empty repository `211api/211api`, default branch `main`, Actions,
      Packages, Pull Requests, and Releases enabled;
-   - teams `maintainers` and `release-maintainers`;
-   - non-human users `svc-build`, `svc-release-package`,
+   - human teams `maintainers` and `release-maintainers`, plus granular service
+     teams `package-publishers` (`repo.packages:write`) and
+     `package-readers` (`repo.packages:read`), because Gitea Registry access is
+     granted through organization team units rather than a repository
+     collaborator alone;
+   - non-human users `svc-build`, `svc-backup-read`, `svc-release-package`,
      `svc-release-record`, `svc-release-tag`, and `svc-deploy-read`.
 
    Generate random service passwords directly into root-only files. After the
@@ -891,6 +947,7 @@ repositories, releases, tags, or teams.
    needed:
 
    - build: `write:package` (which includes package read);
+   - backup reader: `read:user`, `read:repository`, and `read:package`;
    - release package: `write:package` (which includes package read);
    - release record: `write:repository`;
    - Gateway head: `read:repository`;
@@ -900,7 +957,7 @@ repositories, releases, tags, or teams.
    token. Before accepting each token, run its positive operation and at least
    one negative forbidden operation: package tokens cannot create releases or
    edit repository settings; release-record cannot push packages, tags, or
-   settings; head/pull tokens cannot write. A broader token is a stop, not a
+   settings; backup/head/pull tokens cannot write. A broader token is a stop, not a
    fallback. Store token ID, account, exact scope list, creation, expiry/rotation
    deadline, and revocation procedure without the value.
 
@@ -965,6 +1022,7 @@ repositories, releases, tags, or teams.
 
    ```bash
    bash -n deploy/gitea/admin/*
+   bash deploy/gitea/tests/test-admin-primitives.sh
    bash deploy/gitea/tests/test-immutable-tag-hook.sh
    ```
 
@@ -1045,6 +1103,15 @@ Gateway `.env`, Compose, data, ingress, and services remain intact.
    health_url=http://127.0.0.1:8080/health
    lock=/run/lock/211api-deploy.lock
    ```
+
+   `deploy --record-baseline --commit ... --digest ...` is a Task-12-only
+   direct-human mode of the existing `deploy` subcommand, not a fourth
+   subcommand. It is excluded from the forced-command grammar, requires a TTY
+   confirmation, proves the current `.env` image, container image ID,
+   RepoDigest, and OCI revision or exact full-commit tag token, then creates the
+   encrypted pre-cutover backup and initial state without editing `.env`,
+   Registry, Compose, or containers. This closes the Task 12 pre-cutover backup
+   requirement without an ad hoc root shell bypass around the audited owner.
 
 4. In `deploy`, hold nonblocking `flock` FD for the entire operation; return 75
    if held. Validate exact SHA/digest and Gitea Registry manifest AMD64. Query
@@ -1127,6 +1194,8 @@ Gateway `.env`, Compose, data, ingress, and services remain intact.
     - migration approval wrong SHA/digest, expiry, replay, and CI creation fail;
     - a valid approval is consumed once;
     - health failure preserves evidence and does not call restore;
+    - direct baseline recording requires a human confirmation, cannot be
+      dispatched by the CI key, and leaves `.env`/containers byte-identical;
     - restore drill refuses every live target and deletes only its own fixture.
 
 12. Run:
@@ -1266,8 +1335,9 @@ alone.
 
 8. Render the platform project with both
    `--env-file /opt/gitea/images.lock.env` and
-   `--env-file /etc/gitea/platform.env`; render the runner with the image lock
-   and its fixed root-only registration-secret path. Assert no published 3000,
+   `--env-file /etc/gitea/platform.env`; render the runner with the image lock.
+   Keep its fixed root-only registration-token source outside Compose and stage
+   it only through the reviewed one-off tmpfs command. Assert no published 3000,
    5432, 2375,
    2376, cache, metrics, or Docker API port; no IPv6 publish; no host Docker
    socket; only DinD privileged.
@@ -1437,12 +1507,18 @@ worktree remains unpushed to GitHub.
    never use the canonical repository for a disposable immutable tag.
 
 6. Generate a repository/organization runner token with the pinned Gitea CLI;
-   write it to `/opt/gitea/runner/secrets/runner-token` mode 0600. Start DinD,
-   wait with a finite deadline for rootless Unix-socket health, initialize/chown
-   only the Runner data volume with the locked utility image, then start Runner
-   and confirm effective UID 1000 and one online `linux/amd64` runner at capacity
-   one. Prove socket owner/mode and connect with the locked CLI before Runner
-   registration; any fallback endpoint or rootful daemon is a stop.
+   write it to `/etc/gitea/runner-registration-token` mode 0600 so it cannot be
+   captured with the archived `/opt/gitea/runner` manifests. Initialize and
+   chown only the Runner data volume with the locked utility image, start DinD,
+   and wait with a finite deadline for rootless Unix-socket health. Stage the
+   token into the runtime tmpfs with the reviewed one-off command, then start
+   Runner and confirm effective UID 1000 and one online `linux/amd64` runner at
+   capacity one. Once nonempty registration state exists, remove the staged
+   token with the reviewed one-off command and prove it is absent without
+   printing either file. Rotate/revoke the registration token in Gitea and
+   delete that fixed source before any normal backup. Prove socket owner/mode
+   and connect with the locked CLI before Runner registration; any fallback
+   endpoint or rootful daemon is a stop.
 
 7. Inspect effective containers:
 
@@ -1540,7 +1616,7 @@ allowed to call it.
    TTY and is the only path that can invoke `approve-migration` directly.
 
 6. Upload `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `REGISTRY_BUILD_TOKEN`,
-   `REGISTRY_RELEASE_TOKEN`, `GITEA_RELEASE_TOKEN`, and
+   `REGISTRY_RELEASE_TOKEN`, `RELEASE_RECORD_TOKEN`, and
    `RELEASE_TAG_SSH_KEY` plus `RELEASE_TAG_KNOWN_HOSTS` to Gitea repository
    Actions secrets through the API. List only names/descriptions afterward;
    secret values must be unreadable.

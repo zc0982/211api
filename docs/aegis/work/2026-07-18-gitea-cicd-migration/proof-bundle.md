@@ -24,12 +24,16 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-independent-design-review.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-netcup-host-inspection.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-repo-ci-audit.json
+- docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json
+- docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json
+- docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-user-design-decisions.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-written-design-approval.json
 
 ## Drift Check
 
-- Scope status: 仍限定为 Gitea 平台与 CI/CD 迁移，未迁移 211API 业务运行时
-- Compatibility status: Gateway 生产 owner 和 GitHub 上游更新边界保持不变
-- Retirement status: GitHub Actions/GHCR/DockerHub/Telegram 退役路径已显式记录，尚未执行
+- Scope status: Task 8 仅验证仓库、一次性本地容器和本地派生镜像；未改 Netcup、Gateway、Gitea、DNS、Registry、GitHub 或业务运行时
+- Compatibility status: Gateway 仍是唯一生产 owner，`Wei-Shaw/sub2api` updater/download 边界保持非空
+- Retirement status: feature branch 已退休 GitHub workflow/GoReleaser 代码 owner 与旧 secret 名；外部 GitHub owner 仍受 Task 12/13 门禁约束
+- Runtime boundary: Task 8 不构成 Netcup/Gateway 生产验证；真实 NTP/DNS/TLS/身份/Registry/SSH/备份恢复证据仍在 Tasks 9-12/15
 - Advisory decision: continue
