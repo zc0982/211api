@@ -156,3 +156,15 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Retirement evidence: `.github/workflows` is absent; active `PROD_ENV_B64|GHCR_TOKEN|DOCKERHUB_|TELEGRAM_` references are absent; the declared `Wei-Shaw/sub2api` updater/download boundary remains nonempty. Four high-confidence secret-pattern hits matched the exact pre-existing test-fixture allowlist, while production secret paths and suspect tracked filenames remained empty.
 - Residual boundary: This is repository/local-container evidence only. No Netcup, Gateway, Gitea, DNS, Registry, GitHub, or production runtime verification is claimed; real gates remain Tasks 9-12/15 and cutover still stops at Task 13.
 - Audit detail: `evidence-bundle-draft-task8-repository-gate.json` records commands' semantic outcomes, derived local state, exact fixture boundary, initial network diagnostic, and unverified live scope.
+
+## EvidenceBundleDraft
+
+- Artifact key: task9-netcup-preflight
+- Type: live Netcup preflight; partial fail-closed checkpoint
+- Source: commits `65d8fe563` and `53cb6a213`, local verification, and `root@37.221.194.27:4422` on 2026-07-18
+- Summary: Installed and verified the approved Netcup prerequisites, time/uidmap/path ownership, checksum-matched production assets, presence-only platform secrets, SSH 4422 Fail2ban jail, IPv4-only UFW exposure, persistent IPv4/IPv6 Docker guards, and one Docker-restart replay without starting Gitea or Runner or mutating Gateway.
+- Verifier: Primary agent fresh commands plus independent host-installer, firewall, repair, and Fail2ban-readiness reviews
+- Runtime evidence: NTP offset was -1.001ms with 36.750ms root distance; all preserved services were active; only sshd 4422 listened; no container, `gitea`, or `act_runner` process existed; UFW retained both 4422 rules and deny defaults; the guard unit was enabled/active/successful after checksum/apply/reload/verify replay.
+- Diagnostic evidence: Debian Fail2ban's Type=simple service exposed a real active-before-socket race. The checked-in bounded readiness owner passed on attempt two after a real restart. Docker restart returned while its wanted guard briefly activated, so the final check joined the queued unit without issuing a second Docker restart.
+- Residual boundary: Task 9 is not complete. `BACKUP_AGE_RECIPIENT` and `BACKUP_FAILURE_WEBHOOK_URL` are absent, so platform.env, backup-notify-url, and the platform render remain fail-closed. Gitea/Runner/DNS/TLS/bootstrap remain untouched.
+- Audit detail: `evidence-bundle-draft-task9-netcup-preflight.json` records package versions, time/uidmap bounds, path modes, manifest hashes, presence-only secret shape, Runner render, firewall ordering, replay proof, preserved services, diagnostics, and exact residual gates without secret values.

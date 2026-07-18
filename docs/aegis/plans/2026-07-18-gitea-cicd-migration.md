@@ -1336,7 +1336,10 @@ alone.
    `rsync --checksum`. Compare SHA-256 against the repository. Exclude every
    `tests` and `__pycache__` tree and do not copy `gateway`, `.git`, worktree
    files, private keys, or generated local credentials. The Gateway owner is
-   installed only on Gateway in Task 12.
+   installed only on Gateway in Task 12. After committing the repository host
+   owner, copy only `deploy/gitea/host` to root-owned mode-0755
+   `/opt/gitea/host`, compare every file hash, and run its default installer
+   without the Gitea-jail enable override.
 
 7. Generate platform DB password, Gitea secret key, and internal token directly
    into their canonical 0600 `/etc/gitea` files using `openssl rand`; never
@@ -1371,6 +1374,10 @@ alone.
    preserve the current management-source boundary. Persist rules without
    flushing unrelated Docker/UFW chains, restart UFW and Docker once, and prove
    identical effective ordering/defaults plus healthy preserved services.
+   Because `systemctl restart docker` may return while its wanted guard is still
+   `activating`, join the queued dependency with `systemctl start
+   gitea-netcup-firewall.service` before the final active/verify assertions; do
+   not issue a second Docker restart.
 
 10. Start neither Gitea nor Runner yet. Re-run `ss`, UFW/nftables summaries,
     fail2ban status, preserved services, time/offset, disk, and Docker checks.
