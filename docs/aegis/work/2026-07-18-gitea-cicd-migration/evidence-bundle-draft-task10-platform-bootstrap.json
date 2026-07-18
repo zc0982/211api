@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-18-gitea-cicd-migration",
+  "artifactKey": "task10-platform-bootstrap",
+  "type": "live Cloudflare DNS and Netcup platform bootstrap; in-progress manual identity checkpoint",
+  "source": "feature/gitea-cicd-migration at 4bc66cbe143ec0adc3ec92ebd841b4babc01dc56 plus Cloudflare and root@37.221.194.27:4422 on 2026-07-18T17:15:34Z",
+  "summary": "Created the sole DNS-only A record for git.211api.com, verified authoritative and recursive convergence with no AAAA, started the locked PostgreSQL/Gitea/Caddy stack, verified public TLS and SSH identities, corrected two first-live-start defects at their Compose owners, enabled and exercised the checked-in Gitea Fail2ban jail, and retained an empty zero-user/zero-repository state before the mandatory human bootstrap identity and 2FA gate. Runner, repository import, Gateway mutation, GitHub disablement, and cutover remain out of scope and did not occur.",
+  "verifier": "Primary agent fresh Cloudflare API, authoritative/recursive DNS, OpenSSL, SSH, Netcup Docker/systemd/Fail2ban, and Gateway read-only TCP checks",
+  "details": {
+    "repository": {
+      "branch": "feature/gitea-cicd-migration",
+      "head": "4bc66cbe143ec0adc3ec92ebd841b4babc01dc56",
+      "secretOwnershipRepairCommit": "839992222",
+      "fileLoggerRepairCommit": "0b3096591",
+      "fail2banFixtureRunbookRepairCommit": "4bc66cbe1",
+      "pushPerformed": false,
+      "knownDerivedPathsPreserved": [
+        ".pnpm-store/",
+        "deploy/gitea/gateway/__pycache__/",
+        "deploy/gitea/platform/__pycache__/"
+      ]
+    },
+    "cloudflare": {
+      "credentialHandling": "Existing root-owned mode-0600 Certbot token input was read only into a root runtime curl config; neither token nor zone/record ID was printed or recorded",
+      "zoneQuery": "HTTP 200; success=true; exactly one active zone named 211api.com",
+      "zoneIdSha256NoNewline": "0c4c1063b1eb2dac3917aab82b01e06583b2aff7910bd34a8366b35d6f82c04a",
+      "recordIdSha256NoNewline": "67026b0499d0400f52b79c12f841227a4972f4a5cd757d4c383c7995b6346284",
+      "exactRecord": {
+        "type": "A",
+        "name": "git.211api.com",
+        "content": "37.221.194.27",
+        "ttl": 1,
+        "proxied": false
+      },
+      "conflictingExactNameRecords": 0,
+      "forbiddenRecordsCreated": false
+    },
+    "dns": {
+      "authoritativeNameservers": [
+        "tegan.ns.cloudflare.com",
+        "mustafa.ns.cloudflare.com"
+      ],
+      "authoritativeProof": "both servers returned AA=true, A=37.221.194.27, AAAA=[]",
+      "recursiveProof": "Cloudflare 1.1.1.1, Google 8.8.8.8, and Quad9 9.9.9.9 returned only A=37.221.194.27 and no AAAA",
+      "caa": "none; unchanged",
+      "dnssec": "existing DS retained and observed: key tag 2371, algorithm ECDSAP256SHA256, digest type 2; unchanged"
+    },
+    "platform": {
+      "composeFileSha256": "40bfa0c55b92d29d15fbb5474b2e76dc788f27c2d4499e56c1aef25900f22004",
+      "restoreComposeFileSha256": "022da87af1624d858623320326ff636c086c3286f0503300fc515f8632e91a82",
+      "images": {
+        "gitea": "docker.io/gitea/gitea:1.26.4-rootless@sha256:cd1d2614b403fc9b085fa52ceb4424dde9c4dcf5da8e3263abb27955562070c4",
+        "postgres": "docker.io/library/postgres:14.23-alpine@sha256:f1341c01408dc7278e9d365ed4f860cd3f87dd16b4464ac326fc0f422083a579",
+        "caddy": "docker.io/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+      },
+      "currentState": "PostgreSQL healthy; Gitea healthy; Caddy running; external /api/healthz HTTP 200",
+      "giteaVersion": "1.26.4",
+      "runtimeSecrets": "three files visible only through the read-only Gitea mount as UID/GID 1000 mode 0400; values never printed",
+      "caddyValidation": "exact mounted Caddyfile validated successfully",
+      "caddyStorage": "named caddy-data volume contains persisted ACME account, certificate, key, UUID, and maintenance state",
+      "runnerStarted": false
+    },
+    "tls": {
+      "chainVerification": "OpenSSL Verify return code 0",
+      "leafSubject": "CN=git.211api.com",
+      "exactSan": "DNS:git.211api.com",
+      "issuer": "Let's Encrypt YE1",
+      "notBefore": "2026-07-18T16:04:42Z",
+      "notAfter": "2026-10-16T16:04:41Z",
+      "checkEnd14Days": "pass"
+    },
+    "ssh": {
+      "publicGreeting": "SSH-2.0-Go on git.211api.com:2222",
+      "publicRsaFingerprint": "SHA256:/RYjNUWgtLq00sIYdlbbPLN/WL+akCwtBRuO9RfrJNk",
+      "containerRsaFingerprint": "SHA256:/RYjNUWgtLq00sIYdlbbPLN/WL+akCwtBRuO9RfrJNk",
+      "knownHostsMutation": false
+    },
+    "firstLiveStartRepairs": {
+      "secretInit": {
+        "symptom": "secret-init exited with chown: /staged: Operation not permitted",
+        "rootCause": "all capabilities were dropped while the one-shot still required a numeric ownership handoff",
+        "repair": "restore only CAP_CHOWN, keep the staging directory root-owned until all atomic copies are complete, then hand off directory and mode-0400 files to 1000:1000",
+        "verification": "full platform test suite 8/8 passed; production one-shot completed; runtime modes verified"
+      },
+      "fileLogger": {
+        "symptom": "Gitea wrote stdout only and did not create /opt/gitea/platform/log/gitea.log",
+        "rootCause": "GITEA__log__file__* created literal file__* keys in [log] instead of the [log.file] section",
+        "repair": "use the actual image's documented _0x2E_ dot escape in GITEA__log_0x2E_file__* and remove four inert persisted keys",
+        "verification": "[log.file] contains the exact four expected keys, legacy key count is zero, and the host log is 1000:1000 mode 0640 and growing"
+      }
+    },
+    "accessLogRedaction": {
+      "syntheticRequestMarkerCount": 1,
+      "authorizationValueCount": 0,
+      "cookieValueCount": 0,
+      "queryValueCount": 0,
+      "requestUriFieldPresent": false,
+      "result": "pass"
+    },
+    "fail2ban": {
+      "filterSha256": "764d9e1503311784b9abded9ff126d7ae655d14974906c320653cfccec0b46d1",
+      "jail": "gitea-auth active; polling /opt/gitea/platform/log/gitea.log; maxretry 5; findtime 10m; bantime 1h",
+      "action": "iptables-multiport for TCP 2222 with jump inserted before the managed GITEA-GUARD in DOCKER-USER",
+      "syntheticRegex": "1 matched, 0 missed for 192.0.2.1:4242",
+      "manualBan": "192.0.2.1 appeared in f2b-gitea-auth with packet/byte counters and was then unbanned",
+      "currentBanned": 0,
+      "hostControlChecksumVerification": "pass",
+      "runbookRepair": "fail2ban 1.1 treats '-' as a literal test line rather than stdin; the runbook now passes the synthetic line directly"
+    },
+    "networkExposure": {
+      "ipv4Published": [80, 443, 2222],
+      "adminSshPreserved": 4422,
+      "gatewayExternalReadOnlyProbe": "80, 443, 2222, and 4422 reachable; 2019, 2375, 2376, 3000, 5432, 8080, and 8443 filtered",
+      "ipv6": "Gitea/Caddy/2222 have no IPv6 listener or UFW allow rule; GITEA6-GUARD drops every external forwarded flow; preserved admin 4422 rule remains separate",
+      "dockerUserV4": "Fail2ban jump for 2222 precedes the managed guard; all other external forwarded flows outside 80/443/2222 are dropped",
+      "databasePublished": false,
+      "internalHttpPublished": false
+    },
+    "preservedState": {
+      "ssh.service": "active",
+      "docker.service": "active",
+      "fail2ban.service": "active",
+      "gitea-netcup-firewall.service": "active",
+      "hermes-gateway.service": "active",
+      "komari-agent.service": "active",
+      "gatewayLosAngelesMutation": false
+    },
+    "bootstrapGate": {
+      "bootstrapEnv": "absent",
+      "userCount": 0,
+      "repositoryCount": 0,
+      "adminCreated": false,
+      "requiredInput": "explicit human administrator username and email",
+      "nextManualGate": "after the first bootstrap run, the user must retrieve the random password directly on Netcup, log in over HTTPS, change it, enable 2FA, and confirm recovery-code custody before the second run"
+    },
+    "taskStatus": {
+      "task10Complete": false,
+      "dnsComplete": true,
+      "platformStartComplete": true,
+      "tlsAndSshIdentityComplete": true,
+      "giteaFail2banComplete": true,
+      "bootstrapComplete": false,
+      "emptyEncryptedBackupAndRestoreMechanicsComplete": false,
+      "gatewayMutated": false,
+      "githubDisabled": false,
+      "cutoverPerformed": false
+    }
+  },
+  "remainingGates": [
+    "Receive and install the explicit bootstrap administrator username and email as root:root mode 0600 data-only input",
+    "Run bootstrap phase one, then require the user's password change, 2FA enablement, and recovery-code custody confirmation",
+    "Run bootstrap phase two and verify the exact private organization, empty repository, teams, service identities, split tokens, and backup curl config",
+    "Run the empty-state age-encrypted backup and restore-mechanics drill plus a synthetic failure notification marker check",
+    "Commit the completed Task 10 evidence only after all manual and runtime gates pass"
+  ]
+}
