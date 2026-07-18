@@ -4,7 +4,7 @@
   "artifactKey": "task9-netcup-preflight",
   "type": "live Netcup preflight; partial fail-closed checkpoint",
   "source": "feature/gitea-cicd-migration at 53cb6a2130db0e1c9fabb43236aeacde656d34fe plus root@37.221.194.27:4422 on 2026-07-18",
-  "summary": "Prepared and hardened the Netcup host without starting Gitea or Runner: installed the approved prerequisites, synchronized time, proved uidmap, created the canonical paths, copied checksum-matched production assets, generated three platform secrets in place without reading them, installed the reviewed host owner, corrected Fail2ban to SSH 4422, added only the declared IPv4 UFW rules, applied persistent IPv4/IPv6 DOCKER-USER guards, and proved one Docker restart replayed the guard. Task 9 remains intentionally incomplete because the public age recipient and backup-failure webhook URL were not supplied; platform.env was not fabricated and the platform was not rendered or started.",
+  "summary": "Prepared and hardened the Netcup host without starting Gitea or Runner: installed the approved prerequisites, synchronized time, proved uidmap, created the canonical paths, copied checksum-matched production assets, generated three platform secrets in place without reading them, installed the reviewed host owner, corrected Fail2ban to SSH 4422, added only the declared IPv4 UFW rules, applied persistent IPv4/IPv6 DOCKER-USER guards, proved one Docker restart replayed the guard, accepted the supplied public age recipient into a strict root-only platform.env, and rendered the platform Compose. Task 9 remains intentionally incomplete because the backup-failure webhook URL was not supplied; no webhook file was fabricated and no service was started.",
   "verifier": "Primary agent fresh local and SSH commands plus independent installer, firewall, Fail2ban-readiness, and repair-focused default-agent reviews",
   "details": {
     "repository": {
@@ -15,7 +15,7 @@
       "pushPerformed": false
     },
     "executionInputs": {
-      "BACKUP_AGE_RECIPIENT": "absent; public value required before platform.env may be created",
+      "BACKUP_AGE_RECIPIENT": "supplied by user; accepted only as a public age1 recipient",
       "BACKUP_FAILURE_WEBHOOK_URL": "absent; required before backup-notify-url may be created",
       "CLOUDFLARE_API_TOKEN": "absent; later Task 10 gate",
       "bootstrapAdminIdentity": "not supplied; later Task 10 gate",
@@ -77,12 +77,12 @@
       "secret-key": "root:root 0600; 65 bytes; validated 64 lowercase hex plus newline",
       "internal-token": "root:root 0600; 65 bytes; validated 64 lowercase hex plus newline",
       "valuesReadOrPrinted": false,
-      "platform.env": "absent",
+      "platform.env": "root:root 0600; strict schema passed; contains only absolute paths plus the supplied public recipient",
       "backup-notify-url": "absent"
     },
     "compose": {
       "runnerRender": "pass; SHA-256 b90ab5980c6988595c93b714048a08e5a00ce890d86b928a27a3f475fc17f75d",
-      "platformRender": "not run; blocked on missing public age recipient and webhook input",
+      "platformRender": "pass; configuration-only render; no services started",
       "containers": 0,
       "giteaProcess": "absent",
       "runnerProcess": "absent",
@@ -123,14 +123,14 @@
     "taskStatus": {
       "task9Complete": false,
       "safeHostPreparationComplete": true,
-      "blockedBefore": "platform.env creation and platform Compose render",
+      "blockedBefore": "backup-notify-url creation and final Task 9 close",
       "newPublicApplicationListenerCount": 0,
       "giteaOrRunnerStarted": false
     }
   },
   "residualRuntimeGates": [
-    "Supply the public BACKUP_AGE_RECIPIENT and the BACKUP_FAILURE_WEBHOOK_URL through a private channel; do not place the age private identity on Netcup",
-    "Create and validate platform.env and backup-notify-url, then render the platform without starting it to complete Task 9",
+    "Supply BACKUP_FAILURE_WEBHOOK_URL through a private channel; the public age recipient is now installed and validated, while the age private identity remains operator-held and off Netcup",
+    "Create and validate backup-notify-url, then record the final Task 9 preflight close without starting the platform",
     "Task 10 still requires Cloudflare authority and bootstrap identities before DNS, TLS, Gitea startup, or repository bootstrap",
     "Gateway Los Angeles remains the sole production runtime and was not mutated",
     "Task 13 still requires fresh explicit cutover authorization"

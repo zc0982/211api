@@ -209,23 +209,24 @@
 ## Checkpoint Update
 
 - Current todo: Complete Task 9 platform-input and render gate
-- Active slice: Fail-closed wait for the public age recipient and backup-failure webhook URL
+- Active slice: Fail-closed wait for the backup-failure webhook URL
 - Completed todos:
 - Committed the reviewed Netcup host owner as `65d8fe563` and its real Fail2ban socket-readiness repair as `53cb6a213`; all 16 migration shell tests passed after the repair
 - Installed only the approved packages, restored bounded NTP synchronization, proved the existing 65536-entry uidmap, and created the canonical `/opt/gitea` plus root-only `/etc/gitea` layout without `/opt/gitea/secrets`
 - Copied 32 production files and eight host-owner files with exact SHA-256 agreement; generated only the three 64-hex platform secrets directly in 0600 files without reading or printing their values
 - Activated the SSH 4422 jail while leaving the Gitea jail disabled; the live Type=simple socket race reproduced and the bounded ping/reload/ping owner succeeded on attempt two after a real restart
+- Accepted the supplied public age recipient into strict root-only `/etc/gitea/platform.env`; strict schema validation and configuration-only platform Compose rendering passed
 - Preserved the existing 4422 IPv4/IPv6 rules and UFW deny defaults; added only explicit IPv4 80/443/2222 rules, installed both DOCKER-USER guards, and proved one Docker restart replayed the checksum/apply/reload/verify chain
 - Revalidated all preserved services, NTP bounds, 305984184320 free bytes, zero Docker containers, no `gitea`/`act_runner` process, and only sshd 4422 host listeners; Gateway Los Angeles was not mutated
 - Evidence refs:
 - task9-netcup-preflight
-- Blocked on: `BACKUP_AGE_RECIPIENT` and `BACKUP_FAILURE_WEBHOOK_URL`; platform.env, backup-notify-url, and the platform render were deliberately not fabricated
-- Next step: receive both inputs through a private channel, validate their strict schemas, create only the canonical 0600 files, render the platform without starting it, and close Task 9
+- Blocked on: `BACKUP_FAILURE_WEBHOOK_URL`; `/etc/gitea/backup-notify-url` was deliberately not fabricated
+- Next step: receive the webhook URL through a private channel, validate and write only its canonical 0600 file, then close Task 9 without starting the platform
 
 ## DriftCheckDraft
 
 - Scope status: Netcup now owns only prepared Gitea control-plane prerequisites and host enforcement; no Gitea/Runner delivery owner is running, and Gateway Los Angeles remains the sole production runtime
 - Compatibility status: Hermes, Komari, Docker, SSH 4422, UFW defaults, the existing 4422 IPv4/IPv6 rules, uidmap, and all copied production hashes remain intact
 - Retirement status: no GitHub, Registry, DNS, Gitea, Runner, or Gateway cutover owner was disabled or activated; Task 13 remains a separate explicit approval gate
-- New risk signals: Task 9 cannot truthfully complete until the public age recipient and external HTTPS failure webhook are supplied; Task 10 also remains gated on Cloudflare and bootstrap identities
+- New risk signals: Task 9 cannot truthfully complete until the external HTTPS failure webhook is supplied; Task 10 also remains gated on Cloudflare and bootstrap identities
 - Advisory decision: stop fail-closed at the declared input boundary
