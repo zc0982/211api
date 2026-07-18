@@ -300,7 +300,8 @@ gitea_template_keys_match_definition() {
 }
 
 gitea_validate_openapi() {
-  local runtime=$1 swagger="$runtime/swagger.v1.json" status template_root
+  local runtime=$1
+  local swagger="$runtime/swagger.v1.json" status template_root
   template_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/templates" && pwd)
   status=$(gitea_swagger_status "$GITEA_ADMIN_CURL_CONFIG" "$swagger") ||
     gitea_die 'failed to retrieve deployed OpenAPI document'
@@ -368,11 +369,12 @@ gitea_validate_openapi() {
 }
 
 gitea_validate_cli_contract() {
-  local runtime=$1 version_file="$runtime/gitea-version" create_help="$runtime/user-create.help"
+  local runtime=$1
+  local version_file="$runtime/gitea-version" create_help="$runtime/user-create.help"
   local token_help="$runtime/token-create.help" hooks_help="$runtime/regenerate-hooks.help"
   gitea_cli --version >"$version_file" 2>&1 ||
     gitea_die 'cannot inspect the deployed Gitea CLI version'
-  grep -Eq "^Gitea version ${GITEA_EXPECTED_VERSION}([ +]|$)" "$version_file" ||
+  grep -Eq "^gitea version ${GITEA_EXPECTED_VERSION}([ +]|$)" "$version_file" ||
     gitea_die "deployed Gitea CLI is not version $GITEA_EXPECTED_VERSION"
   gitea_cli admin user create --help >"$create_help" 2>&1 ||
     gitea_die 'cannot inspect admin user create CLI help'

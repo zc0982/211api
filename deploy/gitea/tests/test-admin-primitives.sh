@@ -129,4 +129,45 @@ if (
   fail 'pending required status was accepted'
 fi
 
+mkdir -p "$tmp/cli-contract"
+CLI_VERSION_OUTPUT='gitea version 1.26.4 built with go1.26.4-X:jsonv2 : bindata'
+gitea_cli() {
+  case "$*" in
+    --version)
+      printf '%s\n' "$CLI_VERSION_OUTPUT"
+      ;;
+    'admin user create --help')
+      printf '%s\n' \
+        '--username --email --user-type --random-password --random-password-length --must-change-password --restricted' \
+        'can be disabled by --must-change-password=false'
+      ;;
+    'admin user generate-access-token --help')
+      printf '%s\n' '--username --token-name --raw --scopes'
+      ;;
+    'admin regenerate hooks --help')
+      printf '%s\n' 'Regenerate git-hooks'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+gitea_validate_cli_contract "$tmp/cli-contract"
+
+CLI_VERSION_OUTPUT='gitea version 1.26.5 built with go1.26.5 : bindata'
+if (gitea_validate_cli_contract "$tmp/cli-contract") >/dev/null 2>&1; then
+  fail 'unexpected Gitea CLI version was accepted'
+fi
+
+gitea_swagger_status() {
+  return 1
+}
+if openapi_error=$(
+  (unset runtime; gitea_validate_openapi "$tmp/openapi-contract") 2>&1
+); then
+  fail 'OpenAPI validator unexpectedly accepted an unavailable document'
+fi
+grep -F 'failed to retrieve deployed OpenAPI document' <<<"$openapi_error" >/dev/null ||
+  fail 'OpenAPI validator still depends on a caller-global runtime path'
+
 printf '%s\n' 'admin pagination, metadata, and protection primitives passed'
