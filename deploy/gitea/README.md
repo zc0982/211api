@@ -260,6 +260,15 @@ entrypoint at `/usr/local/bin/dockerd-entrypoint.sh` is also treated as code:
 the disposable smoke inspects its effective command, rootless security option,
 socket, listeners, and mounts instead of relying on image documentation.
 
+JavaScript Actions execute `node` inside the selected job container. The
+digest-locked Go image does not contain that runtime, so the `go-1.26.5` label
+uses the private `GO_ACTIONS_CI_IMAGE` package instead. Its reviewed
+`go-actions.Dockerfile` copies only Node 24.18.0 plus its license/readme/changelog
+from `NODE_ACTIONS_BASE_IMAGE` into `GO_CI_IMAGE`; it installs no package and
+retains the exact Go toolchain. Both bases, the published image, and its
+Dockerfile checksum label are immutable inputs. A missing package is a stop:
+never remap the label to the plain Go image or install Node during a workflow.
+
 Runner project, container, volume, and network names are fixed in Compose so
 backup, inspection, and restore cannot drift through an environment override.
 The exact container names are `gitea-runner` and `gitea-runner-docker`. No
@@ -288,9 +297,11 @@ for image in "$DIND_IMAGE" "$RUNNER_IMAGE" "$DOCKER_CLI_IMAGE" \
 done
 ```
 
-Pull all four digest-locked images before creating any Runner resource. Compose
-pulls only the two service images; it does not fetch the Docker CLI and Alpine
-utility images used by volume initialization and socket verification.
+Pull all four public digest-locked service/utility images before creating any
+Runner resource. Compose pulls only the two service images; it does not fetch
+the Docker CLI and Alpine utility images used by volume initialization and
+socket verification. The private Go Actions job image is pulled into the
+isolated DinD daemon after that daemon is healthy.
 
 Initialize only the persistent Runner state volume. This utility container is
 networkless and non-privileged; it does not initialize DinD data or any host
@@ -320,6 +331,47 @@ sudo docker run --rm --network none --read-only --user 1000:1000 \
   --mount type=volume,src=gitea-runner-runtime,dst=/run/user/1000 \
   -e DOCKER_HOST=unix:///run/user/1000/docker.sock \
   "$DOCKER_CLI_IMAGE" info --format '{{json .SecurityOptions}}'
+```
+
+Pull the locked private Go Actions image through the existing package-read-only
+backup identity. The Docker client configuration is temporary inside the DinD
+container and is removed immediately; the token is never placed in an argument,
+environment value, job container, or log. A restored platform backup already
+contains this Registry package. If the locked digest is absent, stop for a
+reviewed image rebuild and lock update rather than substituting a mutable tag.
+
+```bash
+runner_registry_config=/tmp/gitea-runner-registry-auth
+cleanup_runner_registry_auth() {
+  sudo docker exec gitea-runner-docker \
+    rm -rf -- "$runner_registry_config" >/dev/null 2>&1 || true
+}
+trap cleanup_runner_registry_auth EXIT HUP INT TERM
+sudo test "$(sudo stat -c '%u:%g %a' \
+  /etc/gitea/tokens/backup-reader.token)" = '0:0 600'
+sudo docker exec gitea-runner-docker test ! -e "$runner_registry_config"
+sudo docker exec gitea-runner-docker \
+  mkdir -m 0700 "$runner_registry_config"
+sudo sh -c 'docker exec -i \
+  -e DOCKER_CONFIG=/tmp/gitea-runner-registry-auth \
+  gitea-runner-docker docker login git.211api.com \
+  --username svc-backup-read --password-stdin \
+  < /etc/gitea/tokens/backup-reader.token' >/dev/null
+sudo docker exec -e DOCKER_CONFIG="$runner_registry_config" \
+  gitea-runner-docker docker pull "$GO_ACTIONS_CI_IMAGE" >/dev/null
+sudo docker exec gitea-runner-docker docker run --rm \
+  --network none --read-only --user 1000:1000 --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  "$GO_ACTIONS_CI_IMAGE" /bin/bash --noprofile --norc -ec '
+    test "$(node --version)" = v24.18.0
+    test "$(go version)" = "go version go1.26.5 linux/amd64"
+    test -f /usr/local/share/licenses/node/LICENSE
+    test -f /usr/local/share/doc/node/README.md
+    test -f /usr/local/share/doc/node/CHANGELOG.md
+  '
+cleanup_runner_registry_auth
+trap - EXIT HUP INT TERM
+unset -f cleanup_runner_registry_auth
 ```
 
 Generate a repository- or organization-scoped registration token only after
@@ -1071,6 +1123,7 @@ deploy/gitea/platform/tests/test-retention.sh
 deploy/gitea/platform/tests/test-caddy-redaction.sh
 deploy/gitea/platform/tests/test-systemd-units.sh
 deploy/gitea/runner/tests/test-runner-config.sh
+deploy/gitea/runner/tests/test-go-actions-image.sh
 deploy/gitea/runner/tests/test-registration-token-lifecycle.sh
 deploy/gitea/runner/tests/smoke-rootless-dind.sh
 deploy/gitea/tests/test-admin-primitives.sh

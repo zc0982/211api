@@ -58,7 +58,7 @@ set -a
 # shellcheck source=/dev/null
 source "$LOCK"
 set +a
-expected_labels="linux-amd64:docker://${NODE_CI_IMAGE},go-1.26.5:docker://${GO_CI_IMAGE},node-20.20.2:docker://${NODE_CI_IMAGE},docker-29.6.1:docker://${DOCKER_CLI_IMAGE}"
+expected_labels="linux-amd64:docker://${NODE_CI_IMAGE},go-1.26.5:docker://${GO_ACTIONS_CI_IMAGE},node-20.20.2:docker://${NODE_CI_IMAGE},docker-29.6.1:docker://${DOCKER_CLI_IMAGE}"
 jq -e --arg labels "$expected_labels" \
   '.services.runner.environment.GITEA_RUNNER_LABELS == $labels' \
   "$tmp/rendered.json" >/dev/null

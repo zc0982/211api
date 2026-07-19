@@ -142,6 +142,14 @@ Directory: `/opt/gitea/runner`
   and fixed non-root UID/GID ownership. This implementation clarification follows
   Gitea Runner 2.1.0's verified socket-injection contract and avoids distributing
   Docker client TLS credentials into job containers.
+- The pinned checkout action is a JavaScript Action and therefore requires a
+  Node runtime inside every selected job image. Go jobs use one private,
+  digest-locked image derived only from the approved Go 1.26.5 Debian image and
+  the approved Node 24.18.0 Debian runtime; the reviewed Dockerfile copies only
+  the Node binary and its license/readme/changelog. The plain Go image remains
+  the build source, not a runnable Actions label. A missing derived package
+  stops Runner startup rather than triggering an in-job download or mutable
+  image fallback.
 - The locked DinD entrypoint receives an explicit command beginning with
   `dockerd`, only the Unix `--host`, and `--group=root`; a leading option would
   cause that image to inject an unauthenticated TCP 2375 listener, while the

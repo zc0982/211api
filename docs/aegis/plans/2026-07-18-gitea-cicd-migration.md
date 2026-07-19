@@ -26,7 +26,7 @@ Redis, ingress, configuration, and business data on Gateway Los Angeles.
 
 ## Tech Stack and Version Lock
 
-| Surface | Pinned version | Manifest-list digest |
+| Surface | Pinned version | Locked digest |
 | --- | --- | --- |
 | Gitea rootless | `gitea/gitea:1.26.4-rootless` | `sha256:cd1d2614b403fc9b085fa52ceb4424dde9c4dcf5da8e3263abb27955562070c4` |
 | Gitea Runner | `gitea/runner:2.1.0` | `sha256:b1d3cb21a98fcfc3e6f242e847136045cf1972b943f09805fb607f94b1dedc0d` |
@@ -34,7 +34,9 @@ Redis, ingress, configuration, and business data on Gateway Los Angeles.
 | Gitea PostgreSQL | `postgres:14.23-alpine` | `sha256:f1341c01408dc7278e9d365ed4f860cd3f87dd16b4464ac326fc0f422083a579` |
 | Rootless DinD | `docker:29.6.1-dind-rootless` | `sha256:371962f4344295a1eb185f1c9e62064bf4503a7beb8c6e73be3405500041784b` |
 | Docker CLI job | `docker:29.6.1-cli` | `sha256:862099ada15c669000bef53aa4cb9d821262829f45b0dda2159ccb276443043b` |
-| Go CI job | `golang:1.26.5-bookworm` | `sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651` |
+| Go CI base | `golang:1.26.5-bookworm` | `sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651` |
+| Node Actions base | `node:24.18.0-bookworm` | `sha256:4e9cb555d708e0829c9d93e5eeae9dfab0617b832ca436a690680e0fca735ef5` |
+| Private Go Actions job | `runner-go-actions:go1.26.5-node24.18.0-v1` | `sha256:e4b9dfb39865cf738a0ab9dadaf4341916ca081c6770be67ac01d0b8768b2dec` |
 | Node CI job | `node:20.20.2-bookworm` | `sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5` |
 | App frontend build | `node:24.18.0-alpine` | `sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd` |
 | App backend build | `golang:1.26.5-alpine` | `sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2` |
@@ -277,6 +279,8 @@ generated:
 - `deploy/gitea/platform/systemd/gitea-backup-notify@.service`
 - `deploy/gitea/runner/compose.yaml`
 - `deploy/gitea/runner/config.yaml`
+- `deploy/gitea/runner/go-actions.Dockerfile`
+- `deploy/gitea/runner/tests/test-go-actions-image.sh`
 - `deploy/gitea/admin/bootstrap-gitea`
 - `deploy/gitea/admin/admin-lib.sh`
 - `deploy/gitea/admin/configure-repository`
@@ -368,7 +372,9 @@ ready to receive the migration branch.
 ## Task 2: Add the Canonical Image/Tool Lock and CI Dispatcher
 
 **Files:** create `deploy/gitea/images.lock.env`, `.gitea/actions.lock`,
-`tools/gitea-ci.sh`, and `deploy/gitea/tests/test-ci-dispatcher.sh`.
+`tools/gitea-ci.sh`, `deploy/gitea/tests/test-ci-dispatcher.sh`, and the
+Task 11 live-compatibility amendment
+`deploy/gitea/runner/go-actions.Dockerfile` plus its contract test.
 
 **Why:** workflows and Compose must resolve identical immutable inputs and test
 commands.
@@ -390,6 +396,8 @@ replacement.
    DIND_IMAGE=docker.io/library/docker:29.6.1-dind-rootless@sha256:371962f4344295a1eb185f1c9e62064bf4503a7beb8c6e73be3405500041784b
    DOCKER_CLI_IMAGE=docker.io/library/docker:29.6.1-cli@sha256:862099ada15c669000bef53aa4cb9d821262829f45b0dda2159ccb276443043b
    GO_CI_IMAGE=docker.io/library/golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+   NODE_ACTIONS_BASE_IMAGE=docker.io/library/node:24.18.0-bookworm@sha256:4e9cb555d708e0829c9d93e5eeae9dfab0617b832ca436a690680e0fca735ef5
+   GO_ACTIONS_CI_IMAGE=git.211api.com/211api/runner-go-actions:go1.26.5-node24.18.0-v1@sha256:e4b9dfb39865cf738a0ab9dadaf4341916ca081c6770be67ac01d0b8768b2dec
    NODE_CI_IMAGE=docker.io/library/node:20.20.2-bookworm@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5
    APP_NODE_IMAGE=docker.io/library/node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
    APP_GO_IMAGE=docker.io/library/golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2
@@ -429,7 +437,10 @@ replacement.
    and `python3`, then proves every allowed subcommand dispatches exactly the
    expected command and an unknown command returns 64.
 
-5. Verify all locked manifests still resolve and include `linux/amd64`:
+5. Verify all public locked manifests still resolve and include `linux/amd64`.
+   The private `GO_ACTIONS_CI_IMAGE` is intentionally excluded from this
+   credential-free loop; Task 11 separately requires its authenticated exact
+   digest pull, label inspection, and runtime contract check:
 
    ```bash
    set -a
@@ -437,7 +448,8 @@ replacement.
    set +a
    for image in "$GITEA_IMAGE" "$RUNNER_IMAGE" "$CADDY_IMAGE" \
      "$GITEA_POSTGRES_IMAGE" "$DIND_IMAGE" "$DOCKER_CLI_IMAGE" \
-     "$GO_CI_IMAGE" "$NODE_CI_IMAGE" "$APP_NODE_IMAGE" \
+     "$GO_CI_IMAGE" "$NODE_ACTIONS_BASE_IMAGE" "$NODE_CI_IMAGE" \
+     "$APP_NODE_IMAGE" \
      "$APP_GO_IMAGE" "$APP_ALPINE_IMAGE" "$APP_POSTGRES_IMAGE"; do
      docker buildx imagetools inspect "$image" >/dev/null
    done
@@ -448,6 +460,7 @@ replacement.
    ```bash
    bash -n tools/gitea-ci.sh deploy/gitea/tests/test-ci-dispatcher.sh
    bash deploy/gitea/tests/test-ci-dispatcher.sh
+   bash deploy/gitea/runner/tests/test-go-actions-image.sh
    ```
 
    Expected: all dispatcher cases pass; no network credential is required.
@@ -456,6 +469,8 @@ replacement.
 
    ```bash
    git add .gitea/actions.lock deploy/gitea/images.lock.env \
+     deploy/gitea/runner/go-actions.Dockerfile \
+     deploy/gitea/runner/tests/test-go-actions-image.sh \
      tools/gitea-ci.sh deploy/gitea/tests/test-ci-dispatcher.sh
    git commit -m "ci: lock Gitea toolchain inputs"
    ```
@@ -825,7 +840,7 @@ job containers are not.
 
    ```text
    linux-amd64:docker://${NODE_CI_IMAGE}
-   go-1.26.5:docker://${GO_CI_IMAGE}
+   go-1.26.5:docker://${GO_ACTIONS_CI_IMAGE}
    node-20.20.2:docker://${NODE_CI_IMAGE}
    docker-29.6.1:docker://${DOCKER_CLI_IMAGE}
    ```
@@ -1621,8 +1636,14 @@ worktree remains unpushed to GitHub.
    delete the fixed source before any normal backup. Before creating any Runner
    resource, pull and inspect the two locked service images plus the locked
    Docker CLI and Alpine utility images; Compose pull alone does not fetch those
-   utility images. Prove socket owner/mode and connect with the locked CLI before
-   Runner registration; any fallback endpoint or rootful daemon is a stop.
+   utility images. Once DinD is healthy, use the package-read-only backup
+   identity through a temporary client configuration to pull and execute-check
+   the digest-locked private Go Actions job image, then remove that client
+   configuration. The image is built only from the locked Go 1.26.5 and Node
+   24.18.0 Debian bases by the reviewed Dockerfile; a missing Registry digest is
+   a stop, never an in-job install or plain-Go fallback. Prove socket owner/mode
+   and connect with the locked CLI before Runner registration; any fallback
+   endpoint or rootful daemon is a stop.
 
 7. Inspect effective containers:
 

@@ -57,7 +57,7 @@ services:
       GITEA_INSTANCE_URL: https://git.211api.com
       GITEA_RUNNER_NAME: netcup-amd64-1
       GITEA_RUNNER_REGISTRATION_TOKEN_FILE: /run/user/1000/runner-registration-token
-      GITEA_RUNNER_LABELS: linux-amd64:docker://${NODE_CI_IMAGE:?NODE_CI_IMAGE is required},go-1.26.5:docker://${GO_CI_IMAGE:?GO_CI_IMAGE is required},node-20.20.2:docker://${NODE_CI_IMAGE:?NODE_CI_IMAGE is required},docker-29.6.1:docker://${DOCKER_CLI_IMAGE:?DOCKER_CLI_IMAGE is required}
+      GITEA_RUNNER_LABELS: linux-amd64:docker://${NODE_CI_IMAGE:?NODE_CI_IMAGE is required},go-1.26.5:docker://${GO_ACTIONS_CI_IMAGE:?GO_ACTIONS_CI_IMAGE is required},node-20.20.2:docker://${NODE_CI_IMAGE:?NODE_CI_IMAGE is required},docker-29.6.1:docker://${DOCKER_CLI_IMAGE:?DOCKER_CLI_IMAGE is required}
       DOCKER_HOST: unix:///run/user/1000/docker.sock
     entrypoint:
       - /bin/sh
