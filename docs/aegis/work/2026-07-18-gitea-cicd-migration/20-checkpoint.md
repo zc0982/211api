@@ -435,3 +435,29 @@
 - The import identity still requires an explicitly approved credential-bearing write
 - The manual Runner-token reset will require the authenticated administrator only after successful Runner registration; it is not part of the current import-identity gate
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Establish the dedicated Gitea import SSH identity and atomically import exact old-GitHub refs
+- Active slice: Task 11 credential-write approval gate; disposable immutable-tag smoke installer gap closed locally
+- Completed todos:
+- Located the Task 11 Step 5 mismatch: the approved plan required a disposable real-SSH hook smoke repository, while the sole production hook installer accepted only the canonical bare repository
+- Repaired the canonical owner at `f21194c62`: the existing wrapper/engine now accept only `hook-smoke-YYYYMMDDtHHMMSSz-8hex`, derive both fixed Gitea-volume paths, retain root/owner/mode/symlink/checksum/atomic-link checks, and grant no repository deletion authority
+- Kept canonical `--install` and `--verify` behavior unchanged; documented that a fresh API/database owner-name-ID guard and canonical-repository exclusion remain mandatory before deletion
+- The immutable-hook fixture, admin primitives, Bash/POSIX syntax, production ShellCheck, fixture ShellCheck excluding only intentional literal `SC2016`, and `git diff --check` passed
+- Fresh specification and quality review loops passed after repairing safe checksum-parent creation and removing an execution-UID-dependent test assertion
+- Evidence refs:
+- f21194c62
+- task11-disposable-hook-installer
+- Blocked on: explicit approval to create a dedicated local Gitea import private key and add only its public key to `luoee`; Gitea refs remain empty and no Runner/token/smoke repository exists
+- Next step: after approval, verify the trusted built-in SSH fingerprint over the Netcup admin channel, create/add the dedicated import key, prove SSH authentication, and execute the atomic exact-ref import
+
+## DriftCheckDraft
+
+- Scope status: this slice changed only repository-owned Task 11 hook installation controls, tests, runbook, plan, and evidence; no external state changed
+- Compatibility status: canonical hook installation remains unchanged, Gateway remains sole production, and no arbitrary path or alternate delivery owner was introduced
+- Retirement status: a second smoke-only installer was rejected; the existing installer remains the sole owner for canonical and disposable managed-hook installation
+- New risk signals:
+- The real Gitea receive path, human-maintainer negative test, owner/name/ID deletion guard, and checksum-record cleanup still require the later live smoke execution
+- The import credential write remains outside this slice until explicitly approved
+- Advisory decision: pause-for-user

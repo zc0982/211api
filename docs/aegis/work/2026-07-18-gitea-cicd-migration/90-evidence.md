@@ -186,3 +186,13 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Verifier: Primary-agent source inspection and shell syntax extraction plus fresh specification and quality reviews
 - Contract evidence: `cmd/actions.go` invokes the private generation route; `routers/private/actions.go` returns the latest active scope token unless none exists; `models/actions/runner_token.go` deactivates same-scope predecessors when a new token is inserted; `routers/web/shared/actions/runners.go` calls the new-token path from the authenticated CSRF-protected reset action.
 - Residual boundary: No live token was generated and no Runner was registered. Real registration, tmpfs staging/removal, web reset, database-state proof, socket injection, and backup exclusion remain Task 11 live gates.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-disposable-hook-installer
+- Type: Task 11 live-smoke prerequisite repair and local verification
+- Source: commit `f21194c62`
+- Summary: Extended the sole root-managed immutable-tag installer with a fail-closed disposable-repository mode. It accepts only the exact lower-case run-ID format, derives the Gitea-volume bare path and unique root-only checksum record, preserves canonical behavior, and does not grant deletion authority or accept an operator filesystem path.
+- Verifier: Primary-agent syntax, fixture, admin-regression, ShellCheck, and diff-hygiene commands plus fresh specification and quality review loops
+- Runtime evidence: `test-immutable-tag-hook.sh` and `test-admin-primitives.sh` passed; Bash/POSIX syntax passed; production scripts passed ShellCheck; the fixture passed ShellCheck with only its intentional single-quoted generated-script/source-pattern literals excluded as `SC2016`.
+- Residual boundary: This is repository-local evidence only. The disposable repository, managed Gitea hook regeneration, real SSH positive/negative pushes, fresh API/database deletion guard, deletion, and checksum-record cleanup remain Task 11 live gates.
