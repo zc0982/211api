@@ -4,7 +4,8 @@ log:
 runner:
   file: .runner
   capacity: 1
-  envs: {}
+  envs:
+    GOFLAGS: -p=1
   env_file: ""
   timeout: 3h
   shutdown_timeout: 5m

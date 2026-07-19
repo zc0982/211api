@@ -849,7 +849,9 @@ job containers are not.
    colon-containing `GITEA_RUNNER_LABELS`.
 
 3. Configure `runner.capacity: 1`, `runner.timeout: 3h`, Gitea TLS verification on,
-   no debug logs, `cache.enabled: false`, `container.privileged: false`,
+   `runner.envs.GOFLAGS: -p=1` to bound package compilation under the fixed
+   DinD 3 GiB cgroup, no debug logs, `cache.enabled: false`,
+   `container.privileged: false`,
    `container.valid_volumes: []`,
    `container.docker_host: unix:///run/user/1000/docker.sock`,
    `container.bind_workdir: false`, IPv6-disabled per-job networks, forced image

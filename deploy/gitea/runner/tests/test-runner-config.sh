@@ -85,6 +85,9 @@ for expected in \
   '  labels: []'; do
   grep -Fx "$expected" "$tmp/runner.section" >/dev/null
 done
+grep -Fx '  envs:' "$tmp/runner.section" >/dev/null
+grep -Fx '    GOFLAGS: -p=1' "$tmp/runner.section" >/dev/null
+[[ "$(grep -Ec '^    [A-Z][A-Z0-9_]*:' "$tmp/runner.section")" -eq 1 ]]
 grep -Fx '  enabled: false' "$tmp/cache.section" >/dev/null
 for expected in \
   '  privileged: false' \

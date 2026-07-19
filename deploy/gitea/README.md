@@ -268,6 +268,10 @@ from `NODE_ACTIONS_BASE_IMAGE` into `GO_CI_IMAGE`; it installs no package and
 retains the exact Go toolchain. Both bases, the published image, and its
 Dockerfile checksum label are immutable inputs. A missing package is a stop:
 never remap the label to the plain Go image or install Node during a workflow.
+The repository-wide Runner environment sets `GOFLAGS=-p=1`, limiting Go's
+package build parallelism while leaving test semantics unchanged. This keeps
+the real generated Ent compile below the isolated DinD 3 GiB limit instead of
+raising that security/resource boundary; Runner capacity remains one.
 
 Runner project, container, volume, and network names are fixed in Compose so
 backup, inspection, and restore cannot drift through an environment override.

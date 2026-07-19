@@ -150,6 +150,11 @@ Directory: `/opt/gitea/runner`
   the build source, not a runnable Actions label. A missing derived package
   stops Runner startup rather than triggering an in-job download or mutable
   image fallback.
+- The repository-scoped Runner injects `GOFLAGS=-p=1` into every job. This
+  bounds Go package compilation under the fixed 3 GiB DinD cgroup after live
+  unit and integration builds independently exhausted that cgroup; the host
+  retained ample memory. The resource boundary is not widened, workflow test
+  commands remain canonical, and Runner capacity stays one.
 - The locked DinD entrypoint receives an explicit command beginning with
   `dockerd`, only the Unix `--host`, and `--group=root`; a leading option would
   cause that image to inject an unauthenticated TCP 2375 listener, while the
