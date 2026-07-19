@@ -159,6 +159,24 @@ grep -F 'GET /admin/users with bootstrap administrator token returned HTTP 403 (
   <<<"$unexpected_forbidden_error" >/dev/null ||
   fail 'unexpected administrator-token 403 did not remain fail-closed'
 
+CLI_USER_LIST=$'ID   Username Email IsActive IsAdmin 2FA\n1    luoee user@example.com true true true'
+gitea_cli() {
+  [[ "$*" == 'admin user list' ]] || return 1
+  printf '%s\n' "$CLI_USER_LIST"
+}
+gitea_cli_user_has_2fa luoee || fail 'CLI 2FA=true administrator was rejected'
+
+CLI_USER_LIST=$'ID   Username Email IsActive IsAdmin 2FA\n1    luoee user@example.com true true false'
+if gitea_cli_user_has_2fa luoee; then
+  fail 'CLI 2FA=false administrator was accepted'
+fi
+
+CLI_USER_LIST=$'ID   Username Email IsActive IsAdmin 2FA\n1    luoee one@example.com true true true\n2    luoee two@example.com true true true'
+if gitea_cli_user_has_2fa luoee; then
+  fail 'duplicate CLI administrator rows were accepted for 2FA'
+fi
+unset -f gitea_cli
+
 mkdir -p "$tmp/cli-contract"
 CLI_VERSION_OUTPUT='gitea version 1.26.4 built with go1.26.4-X:jsonv2 : bindata'
 gitea_cli() {

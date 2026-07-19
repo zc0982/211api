@@ -143,8 +143,9 @@ jq -e --arg username "$BOOTSTRAP_ADMIN_USERNAME" \
   and $matches[0].is_admin == true
   and $matches[0].email == $email
   and $matches[0].restricted == false
-  and $matches[0].is_2fa_enabled == true
 ' "$runtime/admin-users.json" >/dev/null ||
+  gitea_die 'bootstrap administrator identity or privilege drifted'
+gitea_cli_user_has_2fa "$BOOTSTRAP_ADMIN_USERNAME" ||
   gitea_die "manual gate: change the bootstrap password and enable 2FA for $BOOTSTRAP_ADMIN_USERNAME, then rerun"
 if [[ -e "$admin_password" || -L "$admin_password" ]]; then
   gitea_require_root_secret "$admin_password"

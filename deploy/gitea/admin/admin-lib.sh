@@ -132,6 +132,15 @@ gitea_cli_user_exists() {
     awk -v username="$username" 'NR > 1 && $2 == username { found=1 } END { exit !found }'
 }
 
+gitea_cli_user_has_2fa() {
+  local username=$1
+  gitea_cli admin user list 2>/dev/null |
+    awk -v username="$username" '
+      NR > 1 && $2 == username { matches += 1; enabled = $6 }
+      END { exit !(matches == 1 && enabled == "true") }
+    '
+}
+
 gitea_api_status() {
   local config=$1 method=$2 path=$3 output=$4 body=${5:-}
   local -a args=(
