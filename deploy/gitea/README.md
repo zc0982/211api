@@ -275,9 +275,11 @@ single `internal/service` compiler process crossed that cgroup; DinD therefore
 has a still-bounded 4 GiB limit. Runner capacity remains one, and no workflow or
 business package receives a resource-specific branch. The separate cold source
 build of `golangci-lint` has a compiler-internal concurrency peak, so only that
-fixed-version `go install` runs with `GOMAXPROCS=1`. A live cold build of v2.9.0
-with Go 1.26.5 completed inside the 4 GiB boundary without increasing the OOM
-counter; the linter execution and all business tests keep their normal runtime.
+fixed-version `go install` and the linter process run with `GOMAXPROCS=1`. A
+live cold build of v2.9.0 with Go 1.26.5 completed inside the 4 GiB boundary;
+the first unrestricted linter analysis still exhausted that boundary, so the
+same compiler-internal limit also owns package loading and analysis. Business
+tests keep their normal runtime.
 
 Testcontainers needs two explicit values only for Gitea Actions jobs. Rootless
 DinD publishes ports in its parent network namespace, not at either inner

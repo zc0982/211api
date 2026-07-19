@@ -34,6 +34,9 @@ printf '%s\n' \
   'if [[ "$command_name:$*" == go:install\ github.com/golangci/golangci-lint/* ]]; then' \
   '  printf "|gomaxprocs=%s" "${GOMAXPROCS:-}" >>"$CI_TEST_LOG"' \
   'fi' \
+  'if [[ "$command_name:$*" == "golangci-lint:run --timeout=30m" ]]; then' \
+  '  printf "|gomaxprocs=%s" "${GOMAXPROCS:-}" >>"$CI_TEST_LOG"' \
+  'fi' \
   'printf "\\n" >>"$CI_TEST_LOG"' \
   'case "$command_name:$*" in' \
   '  "go:version") printf "%s\\n" "go version go1.26.5 linux/amd64" ;;' \
@@ -140,7 +143,7 @@ run_case frontend "$(printf '%s\n' \
 run_case lint "$(printf '%s\n' \
   'go|<repo>|version' \
   'go|<repo>|install|github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0|gomaxprocs=1' \
-  'golangci-lint|<repo>/backend|run|--timeout=30m')"
+  'golangci-lint|<repo>/backend|run|--timeout=30m|gomaxprocs=1')"
 
 run_case security-backend "$(printf '%s\n' \
   'go|<repo>|version' \

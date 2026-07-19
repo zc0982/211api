@@ -428,8 +428,9 @@ replacement.
    - `frontend`: assert Node major 20; enable Corepack; activate pnpm 9.15.9;
      run frozen install and `make test-frontend`.
    - `lint`: install golangci-lint v2.9.0 into a temporary `GOBIN` with
-     `GOMAXPROCS=1` only for that source build; run from `backend/` with
-     `--timeout=30m`; remove the temp directory via trap.
+     `GOMAXPROCS=1`, then run it from `backend/` under the same
+     compiler-internal limit with `--timeout=30m`; remove the temp directory
+     via trap.
    - `security-backend`: install govulncheck v1.6.0 into a temporary `GOBIN`;
      run `govulncheck ./...` from `backend/`.
    - `security-frontend`: activate pnpm 9.15.9, frozen install, write audit JSON

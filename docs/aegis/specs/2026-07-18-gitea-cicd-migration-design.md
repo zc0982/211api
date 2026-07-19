@@ -158,9 +158,11 @@ Directory: `/opt/gitea/runner`
   4 GiB is the smallest bounded correction rather than an unbounded daemon or
   business-code accommodation. Workflow commands remain canonical and Runner
   capacity stays one. The fixed golangci-lint source build is the separate
-  compiler-internal peak: only its `go install` uses `GOMAXPROCS=1`. A cold
-  v2.9.0 build with Go 1.26.5 completed under the 4 GiB boundary without a new
-  OOM; linter execution and business test runtimes remain unchanged.
+  compiler-internal peak: its `go install` and linter process both use
+  `GOMAXPROCS=1`. A cold v2.9.0 build with Go 1.26.5 completed under the 4 GiB
+  boundary, while the first unrestricted analysis still exhausted it; the same
+  limit therefore owns package loading and analysis. Business test runtimes
+  remain unchanged.
 - Gitea Runner places each job on an ephemeral user-defined inner Docker
   network. Testcontainers' default remote-daemon host discovery resolves the
   default `172.17.0.1` bridge, but RootlessKit publishes ports in DinD's parent

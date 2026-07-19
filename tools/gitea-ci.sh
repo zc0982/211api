@@ -93,7 +93,7 @@ run_lint() (
     go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
   (
     cd backend
-    "$tool_dir/golangci-lint" run --timeout=30m
+    GOMAXPROCS=1 "$tool_dir/golangci-lint" run --timeout=30m
   )
 )
 
