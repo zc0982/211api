@@ -852,11 +852,17 @@ job containers are not.
    linux-amd64:docker://${NODE_CI_IMAGE}
    go-1.26.5:docker://${GO_ACTIONS_CI_IMAGE}
    node-20.20.2:docker://${NODE_CI_IMAGE}
-   docker-29.6.1:docker://${DOCKER_CLI_IMAGE}
+   docker-29.6.1:docker://${DOCKER_ACTIONS_CI_IMAGE}
    ```
 
    This is why Runner 2.1.0 is selected: its stable release explicitly honors
    colon-containing `GITEA_RUNNER_LABELS`.
+
+   The Docker Actions image is derived from the locked Node 24 Alpine base and
+   copies only the locked Docker CLI plus buildx/compose plugins. Docker jobs
+   use `shell: sh` for their first `apk add bash ...` step; subsequent pinned
+   JavaScript checkout and Bash steps then have both required runtimes. The
+   plain Docker CLI image is never a runnable Actions label.
 
 3. Configure `runner.capacity: 1`, `runner.timeout: 3h`, Gitea TLS verification on,
    `runner.envs.GOFLAGS: -p=1` to serialize package compilation and a bounded

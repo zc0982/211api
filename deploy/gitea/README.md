@@ -281,6 +281,16 @@ the first unrestricted linter analysis still exhausted that boundary, so the
 same compiler-internal limit also owns package loading and analysis. Business
 tests keep their normal runtime.
 
+Docker-label jobs also execute JavaScript Actions and every normal `run` step
+uses Bash, while the locked public Docker CLI image contains neither Node nor
+Bash. The `docker-29.6.1` label therefore uses the private digest-locked
+`DOCKER_ACTIONS_CI_IMAGE`: it starts from the locked Node 24.18.0 Alpine image
+and copies only `/usr/local/bin/docker` plus the buildx/compose CLI plugins from
+`DOCKER_CLI_IMAGE`. The first deploy/release step explicitly uses `sh` to
+install Bash and the other reviewed helpers before checkout or Bash steps run.
+A missing private package is a stop; never remap the label to the plain Docker
+CLI image.
+
 Testcontainers needs two explicit values only for Gitea Actions jobs. Rootless
 DinD publishes ports in its parent network namespace, not at either inner
 Docker bridge gateway. The Gitea workflows explicitly set `GITEA_CI=true` on
@@ -323,8 +333,8 @@ done
 Pull all four public digest-locked service/utility images before creating any
 Runner resource. Compose pulls only the two service images; it does not fetch
 the Docker CLI and Alpine utility images used by volume initialization and
-socket verification. The private Go Actions job image is pulled into the
-isolated DinD daemon after that daemon is healthy.
+socket verification. The private Go and Docker Actions job images are pulled
+into the isolated DinD daemon after that daemon is healthy.
 
 Initialize only the persistent Runner state volume. This utility container is
 networkless and non-privileged; it does not initialize DinD data or any host
@@ -356,12 +366,13 @@ sudo docker run --rm --network none --read-only --user 1000:1000 \
   "$DOCKER_CLI_IMAGE" info --format '{{json .SecurityOptions}}'
 ```
 
-Pull the locked private Go Actions image through the existing package-read-only
+Pull both locked private Actions images through the existing package-read-only
 backup identity. The Docker client configuration is temporary inside the DinD
 container and is removed immediately; the token is never placed in an argument,
 environment value, job container, or log. A restored platform backup already
-contains this Registry package. If the locked digest is absent, stop for a
-reviewed image rebuild and lock update rather than substituting a mutable tag.
+contains these Registry packages. If either locked digest is absent, stop for a
+reviewed image rebuild and lock update rather than substituting a mutable tag or
+the public Docker CLI image.
 
 ```bash
 runner_registry_config=/tmp/gitea-runner-registry-auth
@@ -380,8 +391,10 @@ sudo sh -c 'docker exec -i \
   gitea-runner-docker docker login git.211api.com \
   --username svc-backup-read --password-stdin \
   < /etc/gitea/tokens/backup-reader.token' >/dev/null
-sudo docker exec -e DOCKER_CONFIG="$runner_registry_config" \
-  gitea-runner-docker docker pull "$GO_ACTIONS_CI_IMAGE" >/dev/null
+for image in "$GO_ACTIONS_CI_IMAGE" "$DOCKER_ACTIONS_CI_IMAGE"; do
+  sudo docker exec -e DOCKER_CONFIG="$runner_registry_config" \
+    gitea-runner-docker docker pull "$image" >/dev/null
+done
 sudo docker exec gitea-runner-docker docker run --rm \
   --network none --read-only --user 1000:1000 --cap-drop ALL \
   --security-opt no-new-privileges:true \
@@ -391,6 +404,17 @@ sudo docker exec gitea-runner-docker docker run --rm \
     test -f /usr/local/share/licenses/node/LICENSE
     test -f /usr/local/share/doc/node/README.md
     test -f /usr/local/share/doc/node/CHANGELOG.md
+  '
+sudo docker exec gitea-runner-docker docker run --rm \
+  --network none --read-only --user 1000:1000 --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  "$DOCKER_ACTIONS_CI_IMAGE" sh -ec '
+    test "$(node --version)" = v24.18.0
+    test "$(docker --version)" = "Docker version 29.6.1, build 8900f1d"
+    docker buildx version
+    docker compose version
+    command -v apk >/dev/null
+    test ! -e /bin/bash
   '
 cleanup_runner_registry_auth
 trap - EXIT HUP INT TERM

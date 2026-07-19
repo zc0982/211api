@@ -150,6 +150,12 @@ Directory: `/opt/gitea/runner`
   the build source, not a runnable Actions label. A missing derived package
   stops Runner startup rather than triggering an in-job download or mutable
   image fallback.
+- Docker-label jobs additionally require the Docker CLI/buildx contract and a
+  shell bootstrap path. Their private digest-locked image uses the approved
+  Node 24 Alpine base and copies only Docker CLI plus buildx/compose plugins
+  from the approved Docker CLI image. The first helper-install step explicitly
+  runs under `sh` to install Bash before checkout and later Bash steps. The
+  plain Docker CLI image is not a runnable Actions label.
 - The repository-scoped Runner injects `GOFLAGS=-p=1` into every job and keeps
   DinD under a 4 GiB cgroup. Live unit and integration builds independently
   exhausted the original 3 GiB limit; serialization removed package-level
