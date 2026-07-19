@@ -35,4 +35,22 @@ if scratch_path_for_original /etc//gitea/secret >/dev/null; then
   exit 1
 fi
 
+permission_fixture="$tmp/root-owned-executable"
+printf '#!/bin/sh\n' >"$permission_fixture"
+chmod 0755 "$permission_fixture"
+stat() {
+  if [[ "$1" == -c && "$2" == %u ]]; then
+    printf '0\n'
+  else
+    command stat "$@"
+  fi
+}
+require_root_nonsecret_file "$permission_fixture"
+chmod 0700 "$permission_fixture"
+if require_root_nonsecret_file "$permission_fixture" 2>/dev/null; then
+  printf 'restore accepted an unsupported root-owned executable mode\n' >&2
+  exit 1
+fi
+unset -f stat
+
 printf 'restore path and Registry manifest primitives passed\n'
