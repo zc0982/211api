@@ -1073,7 +1073,9 @@ install and prove the replacement, then disable the old workflow endpoint.
 
 The backup script refuses concurrent execution, checks NTP, TLS validity,
 health, webhook delivery, active Actions, and disk headroom, then quiesces the
-writer services. It streams every database/archive component through validation
+writer services. After Runner dispatch stops, it captures normalized release,
+package, and Actions-run metadata and compares those snapshots again before the
+Runner restarts. It streams every database/archive component through validation
 and `age`; only ciphertext partials exist on disk before atomic promotion.
 
 The webhook must be an HTTPS endpoint returning 2xx. It receives only the fixed
@@ -1151,8 +1153,9 @@ host-wide Docker daemon, NAT, or `route_localnet` settings when Docker cannot
 materialize a loopback-only published port. The proxy accepts only loopback or
 RFC1918 targets and is stopped by the restore cleanup trap. The drill
 verifies PostgreSQL restore, the non-admin backup identity, exact heads/tags,
-release metadata, package metadata, and each OCI/Docker manifest through the
-isolated Registry endpoint, then removes only resources bearing its run
+release metadata, package metadata, normalized Actions-run metadata, and each
+OCI/Docker manifest through the isolated Registry endpoint, then removes only
+resources bearing its run
 label and unmounts its own key copy. Finally unmount the operator-owned source
 tmpfs separately.
 

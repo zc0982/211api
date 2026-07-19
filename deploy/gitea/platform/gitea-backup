@@ -186,33 +186,53 @@ wait_platform_health() {
   return 1
 }
 
-restore_services() {
-  local status=0 platform_status=0 runner_status=0
+restore_platform_services() {
+  local status=0
   if ((SERVICES_QUIESCED)); then
-    platform_compose up -d secret-init postgres gitea caddy || platform_status=1
-    wait_platform_health || platform_status=1
-    if ((platform_status == 0)); then
+    platform_compose up -d secret-init postgres gitea caddy || status=1
+    wait_platform_health || status=1
+    if ((status == 0)); then
       SERVICES_QUIESCED=0
-    else
-      status=1
     fi
   fi
+  return "$status"
+}
+
+restore_runner_service() {
+  local status=0
   if ((RUNNER_WAS_RUNNING)); then
-    runner_compose up -d docker runner || runner_status=1
+    runner_compose up -d docker runner || status=1
     for _ in $(seq 1 30); do
       if runner_compose ps --status running --services 2>/dev/null | grep -qx runner; then
         break
       fi
       sleep 2
     done
-    runner_compose ps --status running --services 2>/dev/null | grep -qx runner || runner_status=1
-    if ((runner_status == 0)); then
+    runner_compose ps --status running --services 2>/dev/null | grep -qx runner || status=1
+    if ((status == 0)); then
       RUNNER_WAS_RUNNING=0
-    else
-      status=1
     fi
   fi
   return "$status"
+}
+
+restore_services() {
+  local status=0
+  restore_platform_services || status=1
+  restore_runner_service || status=1
+  return "$status"
+}
+
+restore_and_verify_services() {
+  restore_platform_services || {
+    FAILURE_CODE=service-restore
+    return 1
+  }
+  verify_api_snapshots_unchanged || return 1
+  restore_runner_service || {
+    FAILURE_CODE=service-restore
+    return 1
+  }
 }
 
 finalize() {
@@ -468,6 +488,39 @@ produce_packages() {
   produce_paginated_array "$GITEA_API/packages/211api?type=container"
 }
 
+produce_action_runs() {
+  local page=1 body length page_total total_count=-1 emitted=0 first=1
+  printf '['
+  while ((page <= 1000)); do
+    body="$(api_get "$GITEA_API/repos/211api/211api/actions/runs?page=$page&limit=50")"
+    jq -e '
+      type == "object"
+      and (.workflow_runs | type == "array")
+      and (.total_count | type == "number" and . >= 0 and floor == .)
+    ' <<<"$body" >/dev/null
+    page_total="$(jq -r '.total_count' <<<"$body")"
+    if ((total_count < 0)); then
+      total_count=$page_total
+    elif ((page_total != total_count)); then
+      return 1
+    fi
+    length="$(jq -r '.workflow_runs | length' <<<"$body")"
+    while IFS= read -r item; do
+      ((first)) || printf ','
+      first=0
+      emitted=$((emitted + 1))
+      printf '%s' "$item"
+    done < <(jq -c '.workflow_runs[]' <<<"$body")
+    ((emitted == total_count)) && break
+    ((length == 50)) || return 1
+    page=$((page + 1))
+  done
+  if ((page > 1000 || emitted != total_count)); then
+    return 1
+  fi
+  printf ']\n'
+}
+
 validate_release_array() {
   jq -S -e '
     if type == "array" and all(.[];
@@ -489,6 +542,50 @@ validate_package_array() {
       and (.version | type == "string"))
     then map({type,name,version}) | sort_by(.type,.name,.version)
     else error("invalid package array") end
+  ' -
+}
+
+normalize_action_run_array() {
+  jq -S -e '
+    def integer: type == "number" and floor == .;
+    def valid_actor:
+      . == null
+      or (type == "object"
+          and (.id | integer and . > 0)
+          and (.login | type == "string" and length > 0));
+    def normalized_actor:
+      if . == null then null else {id,login} end;
+    if type == "array" and all(.[];
+      (.id | integer and . > 0)
+      and (.repository_id | integer and . > 0)
+      and (.run_number | integer and . > 0)
+      and (.run_attempt | integer and . > 0)
+      and (.path | type == "string" and length > 0)
+      and (.event | type == "string" and length > 0)
+      and (.display_title | type == "string")
+      and (.status | type == "string" and length > 0)
+      and (.head_sha | type == "string" and test("^[0-9a-f]{40}$"))
+      and (.started_at == null or (.started_at | type == "string"))
+      and (.completed_at == null or (.completed_at | type == "string"))
+      and (.actor | valid_actor)
+      and (.trigger_actor | valid_actor))
+      and ((map(.id) | unique | length) == length)
+    then map({
+      id,
+      repository_id,
+      run_number,
+      run_attempt,
+      path,
+      event,
+      display_title,
+      status,
+      head_sha,
+      started_at,
+      completed_at,
+      actor:(.actor | normalized_actor),
+      trigger_actor:(.trigger_actor | normalized_actor)
+    }) | sort_by(.id,.run_attempt)
+    else error("invalid action run array") end
   ' -
 }
 
@@ -739,10 +836,11 @@ verify_api_snapshots_unchanged() {
     actual="$("$producer" | "$validator" | sha256sum | awk '{print $1}')" ||
       die "post-backup API snapshot verification failed" snapshot-api
     [[ "$actual" == "$expected" ]] ||
-      die "release or package state changed during backup" snapshot-race
+      die "API metadata state changed during backup" snapshot-race
   done <<'EOF'
 releases.json.age produce_releases validate_release_array
 packages.json.age produce_packages validate_package_array
+actions.json.age produce_action_runs normalize_action_run_array
 EOF
 }
 
@@ -869,6 +967,7 @@ create_backup_set() {
   stop_runner_dispatch
   stream_component releases.json produce_releases validate_release_array
   stream_component packages.json produce_packages validate_package_array
+  stream_component actions.json produce_action_runs normalize_action_run_array
   quiesce_platform
   WAL_START="$(capture_wal)"
   [[ -n "$WAL_START" ]]
@@ -937,11 +1036,7 @@ main() {
   cleanup_stale_partials
   preflight
   create_backup_set
-  restore_services || {
-    FAILURE_CODE=service-restore
-    return 1
-  }
-  verify_api_snapshots_unchanged
+  restore_and_verify_services
   write_manifest_and_promote
   rotate_validated_sets
   log "Validated backup created: $BACKUP_ID"

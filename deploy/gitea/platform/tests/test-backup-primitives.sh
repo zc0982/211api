@@ -169,6 +169,123 @@ rg -q 'status=pending' "$api_log"
 rg -q 'status=queued' "$api_log"
 rg -q 'status=in_progress' "$api_log"
 
+make_action_page() {
+  local start=$1 end=$2 total=$3
+  jq -nc --argjson start "$start" --argjson end "$end" --argjson total "$total" '
+    {
+      total_count:$total,
+      workflow_runs:[range($start;$end) | {
+        id:., repository_id:1, run_number:., run_attempt:1,
+        path:"ci.yml@refs/heads/feature", event:"push", display_title:"CI",
+        status:"completed", head_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        started_at:null, completed_at:null, actor:null, trigger_actor:null,
+        url:"https://live.example.invalid/unstable"
+      }]
+    }
+  '
+}
+
+api_get() {
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 51 ;;
+    *'page=2&limit=50'*) make_action_page 51 52 51 ;;
+    *) return 1 ;;
+  esac
+}
+produce_action_runs >"$tmp/actions.json"
+[[ "$(jq -r 'length' "$tmp/actions.json")" -eq 51 ]]
+normalize_action_run_array <"$tmp/actions.json" >"$tmp/actions.normalized.json"
+jq -e '
+  length == 51
+  and .[0].actor == null
+  and .[0].completed_at == null
+  and (.[0] | has("url") | not)
+' "$tmp/actions.normalized.json" >/dev/null
+
+full_page_calls="$tmp/actions-full-page.calls"
+api_get() {
+  printf '%s\n' "$1" >>"$full_page_calls"
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 50 ;;
+    *) return 1 ;;
+  esac
+}
+produce_action_runs >"$tmp/actions-full-page.json"
+[[ "$(jq -r 'length' "$tmp/actions-full-page.json")" -eq 50 ]]
+[[ "$(wc -l <"$full_page_calls")" -eq 1 ]]
+
+api_get() {
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 52 ;;
+    *'page=2&limit=50'*) make_action_page 51 52 52 ;;
+    *) return 1 ;;
+  esac
+}
+if produce_action_runs >"$tmp/actions-count-mismatch.json"; then
+  printf 'Actions pagination accepted a total_count mismatch\n' >&2
+  exit 1
+fi
+api_get() {
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 51 ;;
+    *'page=2&limit=50'*) make_action_page 51 52 50 ;;
+    *) return 1 ;;
+  esac
+}
+if produce_action_runs >"$tmp/actions-total-drift.json"; then
+  printf 'Actions pagination accepted total_count drift\n' >&2
+  exit 1
+fi
+jq '.[0].id = "invalid"' "$tmp/actions.json" >"$tmp/actions-invalid.json"
+if normalize_action_run_array <"$tmp/actions-invalid.json" >/dev/null 2>&1; then
+  printf 'Actions validator accepted an invalid stable field\n' >&2
+  exit 1
+fi
+jq '.[1].id = .[0].id' "$tmp/actions.json" >"$tmp/actions-duplicate.json"
+if normalize_action_run_array <"$tmp/actions-duplicate.json" >/dev/null 2>&1; then
+  printf 'Actions validator accepted duplicate run IDs\n' >&2
+  exit 1
+fi
+
+produce_releases() { printf '[]\n'; }
+produce_packages() { printf '[]\n'; }
+produce_action_runs() { make_action_page 1 2 1 | jq '.workflow_runs'; }
+COMPONENT_RECORDS="$tmp/snapshot-components.jsonl"
+: >"$COMPONENT_RECORDS"
+while read -r name producer validator; do
+  listing_hash="$("$producer" | "$validator" | sha256sum | awk '{print $1}')"
+  jq -nc --arg name "$name" --arg listing_sha256 "$listing_hash" \
+    '{name:$name,listing_sha256:$listing_sha256}' >>"$COMPONENT_RECORDS"
+done <<'EOF'
+releases.json.age produce_releases validate_release_array
+packages.json.age produce_packages validate_package_array
+actions.json.age produce_action_runs normalize_action_run_array
+EOF
+verify_api_snapshots_unchanged
+produce_action_runs() {
+  make_action_page 1 2 1 | jq '.workflow_runs | .[0].status = "cancelled"'
+}
+if verify_api_snapshots_unchanged 2>/dev/null; then
+  printf 'Actions snapshot race was accepted\n' >&2
+  exit 1
+fi
+
+service_order="$tmp/service-order"
+restore_platform_services() { printf 'platform\n' >>"$service_order"; }
+verify_api_snapshots_unchanged() { printf 'verify\n' >>"$service_order"; }
+restore_runner_service() { printf 'runner\n' >>"$service_order"; }
+restore_and_verify_services
+printf 'platform\nverify\nrunner\n' >"$tmp/expected-service-order"
+cmp -s "$tmp/expected-service-order" "$service_order"
+: >"$service_order"
+verify_api_snapshots_unchanged() { printf 'verify-failed\n' >>"$service_order"; return 1; }
+if restore_and_verify_services; then
+  printf 'service verification failure was accepted\n' >&2
+  exit 1
+fi
+printf 'platform\nverify-failed\n' >"$tmp/expected-service-order"
+cmp -s "$tmp/expected-service-order" "$service_order"
+
 platform_compose() {
   printf '%s\n' "$*" >"$tmp/pg-restore.args"
   head -c 1 >"$tmp/pg-restore.stdin-prefix"

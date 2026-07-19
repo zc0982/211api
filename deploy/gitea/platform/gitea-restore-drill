@@ -483,12 +483,89 @@ paginated_local_array() {
   printf ']\n'
 }
 
+paginated_local_action_runs() {
+  local page=1 body length page_total total_count=-1 emitted=0 first=1
+  printf '['
+  while ((page <= 1000)); do
+    body="$(api_local_get "/repos/211api/211api/actions/runs?page=$page&limit=50")"
+    jq -e '
+      type == "object"
+      and (.workflow_runs | type == "array")
+      and (.total_count | type == "number" and . >= 0 and floor == .)
+    ' <<<"$body" >/dev/null
+    page_total="$(jq -r '.total_count' <<<"$body")"
+    if ((total_count < 0)); then
+      total_count=$page_total
+    elif ((page_total != total_count)); then
+      return 1
+    fi
+    length="$(jq -r '.workflow_runs | length' <<<"$body")"
+    while IFS= read -r item; do
+      ((first)) || printf ','
+      first=0
+      emitted=$((emitted + 1))
+      printf '%s' "$item"
+    done < <(jq -c '.workflow_runs[]' <<<"$body")
+    ((emitted == total_count)) && break
+    ((length == 50)) || return 1
+    page=$((page + 1))
+  done
+  if ((page > 1000 || emitted != total_count)); then
+    return 1
+  fi
+  printf ']\n'
+}
+
 normalize_releases() {
   jq -S 'map({tag_name,target_commitish,name,draft,prerelease}) | sort_by(.tag_name)'
 }
 
 normalize_packages() {
   jq -S 'map({type,name,version}) | sort_by(.type,.name,.version)'
+}
+
+normalize_action_runs() {
+  jq -S -e '
+    def integer: type == "number" and floor == .;
+    def valid_actor:
+      . == null
+      or (type == "object"
+          and (.id | integer and . > 0)
+          and (.login | type == "string" and length > 0));
+    def normalized_actor:
+      if . == null then null else {id,login} end;
+    if type == "array" and all(.[];
+      (.id | integer and . > 0)
+      and (.repository_id | integer and . > 0)
+      and (.run_number | integer and . > 0)
+      and (.run_attempt | integer and . > 0)
+      and (.path | type == "string" and length > 0)
+      and (.event | type == "string" and length > 0)
+      and (.display_title | type == "string")
+      and (.status | type == "string" and length > 0)
+      and (.head_sha | type == "string" and test("^[0-9a-f]{40}$"))
+      and (.started_at == null or (.started_at | type == "string"))
+      and (.completed_at == null or (.completed_at | type == "string"))
+      and (.actor | valid_actor)
+      and (.trigger_actor | valid_actor))
+      and ((map(.id) | unique | length) == length)
+    then map({
+      id,
+      repository_id,
+      run_number,
+      run_attempt,
+      path,
+      event,
+      display_title,
+      status,
+      head_sha,
+      started_at,
+      completed_at,
+      actor:(.actor | normalized_actor),
+      trigger_actor:(.trigger_actor | normalized_actor)
+    }) | sort_by(.id,.run_attempt)
+    else error("invalid action run array") end
+  '
 }
 
 urlencode_segment() {
@@ -527,18 +604,24 @@ validate_container_manifest() {
 }
 
 verify_api_metadata() {
-  local expected_releases expected_packages actual_releases actual_packages
+  local expected_releases expected_packages expected_actions
+  local actual_releases actual_packages actual_actions
   local encoded_type encoded_name encoded_version registry_name
   expected_releases="$SCRATCH/expected-releases.json"
   expected_packages="$SCRATCH/expected-packages.json"
+  expected_actions="$SCRATCH/expected-actions.json"
   actual_releases="$SCRATCH/actual-releases.json"
   actual_packages="$SCRATCH/actual-packages.json"
+  actual_actions="$SCRATCH/actual-actions.json"
   decrypt_component releases.json.age | normalize_releases >"$expected_releases"
   decrypt_component packages.json.age | normalize_packages >"$expected_packages"
+  decrypt_component actions.json.age | normalize_action_runs >"$expected_actions"
   paginated_local_array /repos/211api/211api/releases | normalize_releases >"$actual_releases"
   paginated_local_array '/packages/211api?type=container' | normalize_packages >"$actual_packages"
+  paginated_local_action_runs | normalize_action_runs >"$actual_actions"
   cmp -s "$expected_releases" "$actual_releases"
   cmp -s "$expected_packages" "$actual_packages"
+  cmp -s "$expected_actions" "$actual_actions"
 
   while IFS=$'\t' read -r type name version; do
     [[ "$type" == container ]]

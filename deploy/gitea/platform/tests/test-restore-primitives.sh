@@ -30,6 +30,86 @@ fi
 [[ "$(urlencode_registry_path 'nested/image name')" == 'nested/image%20name' ]]
 [[ "$(urlencode_segment 'sha256:value')" == 'sha256%3Avalue' ]]
 
+make_action_page() {
+  local start=$1 end=$2 total=$3 base_url=$4
+  jq -nc \
+    --argjson start "$start" --argjson end "$end" --argjson total "$total" \
+    --arg base_url "$base_url" '
+      {
+        total_count:$total,
+        workflow_runs:[range($start;$end) | {
+          id:., repository_id:1, run_number:., run_attempt:1,
+          path:"ci.yml@refs/heads/feature", event:"push", display_title:"CI",
+          status:"completed", head_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          started_at:null, completed_at:null,
+          actor:null, trigger_actor:{id:2,login:"automation"},
+          url:($base_url + "/api/run"), html_url:($base_url + "/run")
+        }]
+      }
+    '
+}
+
+api_local_get() {
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 51 http://127.0.0.1:3000 ;;
+    *'page=2&limit=50'*) make_action_page 51 52 51 http://127.0.0.1:3000 ;;
+    *) return 1 ;;
+  esac
+}
+paginated_local_action_runs >"$tmp/restored-actions.json"
+[[ "$(jq -r 'length' "$tmp/restored-actions.json")" -eq 51 ]]
+normalize_action_runs <"$tmp/restored-actions.json" >"$tmp/restored-actions.normalized.json"
+make_action_page 1 52 51 https://git.211api.com | jq '.workflow_runs' |
+  normalize_action_runs >"$tmp/live-actions.normalized.json"
+cmp -s "$tmp/restored-actions.normalized.json" "$tmp/live-actions.normalized.json"
+jq '.[0].status = "cancelled"' "$tmp/restored-actions.json" |
+  normalize_action_runs >"$tmp/changed-actions.normalized.json"
+if cmp -s "$tmp/restored-actions.normalized.json" "$tmp/changed-actions.normalized.json"; then
+  printf 'Actions normalization ignored a stable field change\n' >&2
+  exit 1
+fi
+jq '.[0].trigger_actor = {id:"invalid",login:"automation"}' \
+  "$tmp/restored-actions.json" >"$tmp/invalid-actions.json"
+if normalize_action_runs <"$tmp/invalid-actions.json" >/dev/null 2>&1; then
+  printf 'Actions normalization accepted an invalid actor\n' >&2
+  exit 1
+fi
+
+full_page_calls="$tmp/restored-actions-full-page.calls"
+api_local_get() {
+  printf '%s\n' "$1" >>"$full_page_calls"
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 50 http://127.0.0.1:3000 ;;
+    *) return 1 ;;
+  esac
+}
+paginated_local_action_runs >"$tmp/restored-actions-full-page.json"
+[[ "$(jq -r 'length' "$tmp/restored-actions-full-page.json")" -eq 50 ]]
+[[ "$(wc -l <"$full_page_calls")" -eq 1 ]]
+
+api_local_get() {
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 52 http://127.0.0.1:3000 ;;
+    *'page=2&limit=50'*) make_action_page 51 52 52 http://127.0.0.1:3000 ;;
+    *) return 1 ;;
+  esac
+}
+if paginated_local_action_runs >"$tmp/restored-actions-count-mismatch.json"; then
+  printf 'Restored Actions pagination accepted a total_count mismatch\n' >&2
+  exit 1
+fi
+api_local_get() {
+  case "$1" in
+    *'page=1&limit=50'*) make_action_page 1 51 51 http://127.0.0.1:3000 ;;
+    *'page=2&limit=50'*) make_action_page 51 52 50 http://127.0.0.1:3000 ;;
+    *) return 1 ;;
+  esac
+}
+if paginated_local_action_runs >"$tmp/restored-actions-total-drift.json"; then
+  printf 'Restored Actions pagination accepted total_count drift\n' >&2
+  exit 1
+fi
+
 SCRATCH="$tmp/scratch"
 [[ "$(scratch_path_for_original /etc/gitea/db-password)" == "$SCRATCH/etc/gitea/db-password" ]]
 if scratch_path_for_original /etc/gitea/../shadow >/dev/null; then
