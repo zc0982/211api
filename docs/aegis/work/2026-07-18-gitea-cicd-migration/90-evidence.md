@@ -196,3 +196,13 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Verifier: Primary-agent syntax, fixture, admin-regression, ShellCheck, and diff-hygiene commands plus fresh specification and quality review loops
 - Runtime evidence: `test-immutable-tag-hook.sh` and `test-admin-primitives.sh` passed; Bash/POSIX syntax passed; production scripts passed ShellCheck; the fixture passed ShellCheck with only its intentional single-quoted generated-script/source-pattern literals excluded as `SC2016`.
 - Residual boundary: This is repository-local evidence only. The disposable repository, managed Gitea hook regeneration, real SSH positive/negative pushes, fresh API/database deletion guard, deletion, and checksum-record cleanup remain Task 11 live gates.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-import-identity
+- Type: approved credential bootstrap and fail-closed import checkpoint
+- Source: local dedicated SSH identity plus `root@37.221.194.27:4422` trusted administrator channel on 2026-07-19
+- Summary: Created a dedicated local Ed25519 identity, built strict Gitea known-hosts only from built-in public keys read through the trusted administrator channel, and added exactly its public key to `luoee` through the Gitea admin API. No key body, private material, password, token, or curl configuration was emitted.
+- Verifier: Local owner/mode/key-format checks, official Gitea v1.26.4 route/scope source, admin API response, and database owner/key-ID/title/SHA-256-fingerprint equality
+- Diagnostic evidence: A public user-key GET returned 403 because the control PAT intentionally has only `write:admin`, `write:organization`, and `write:repository`; the database remained at zero keys before the subsequent admin POST. The correction used the documented `write:admin` route and root-only database verification without widening or issuing a token.
+- Residual boundary: Strict live SSH authentication, temporary remote creation, GitHub ref fetch, atomic Gitea push, and exact ref-inventory equality remain unexecuted because the next process start was rejected by the approval service before execution.

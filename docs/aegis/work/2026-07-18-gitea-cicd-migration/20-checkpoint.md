@@ -461,3 +461,29 @@
 - The real Gitea receive path, human-maintainer negative test, owner/name/ID deletion guard, and checksum-record cleanup still require the later live smoke execution
 - The import credential write remains outside this slice until explicitly approved
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Prove the dedicated Gitea import SSH identity and atomically import exact old-GitHub refs
+- Active slice: Dedicated identity created; SSH verification/import process-start approval gate
+- Completed todos:
+- The operator explicitly approved creation of the dedicated Gitea import identity and addition of its public key to `luoee`
+- Revalidated zero canonical refs, zero Runner rows, zero pre-existing `luoee` public keys, the admin key-write API path, and trusted Gitea built-in SSH host-key availability before mutation
+- Created only the dedicated local Ed25519 identity and root-of-trust known-hosts file with exact local ownership/modes; key material and public-key bodies were not printed or recorded
+- The first admin-key attempt stopped before POST because the deliberately admin-only PAT cannot read the user-category public-key list; official Gitea v1.26.4 source and live status/database evidence proved the scope boundary
+- Retired that unauthorized GET check without broadening the PAT, then added the public key through the `write:admin` endpoint and verified one exact API response/database row by positive numeric ID, title, and SHA-256 fingerprint
+- A later command intended to add the temporary `gitea` remote and prove strict SSH authentication was rejected before process creation by the automatic approval service after a transport-review failure; local readback confirms only `origin` and `upstream` exist
+- Evidence refs:
+- official Gitea v1.26.4 `routers/api/v1/api.go` admin-scope middleware and `routers/api/v1/admin/user.go` public-key handler
+- task11-import-identity
+- Blocked on: explicit approval after the new approval-service rejection to run strict Gitea SSH authentication and the atomic exact-ref import; no `gitea` remote or Gitea refs exist
+- Next step: after approval, add the temporary SSH remote, require strict-known-host private-repository authentication with zero target refs, then run the reviewed atomic import and exact source/target inventory comparison
+
+## DriftCheckDraft
+
+- Scope status: the only external mutation was the explicitly approved single `luoee` import public key; repository refs, Runner, GitHub, and Gateway remain unchanged
+- Compatibility status: the existing admin PAT scopes remain unchanged; trusted host keys came only through the Netcup administrator channel; no SSH trust-on-first-use or alternate credential was introduced
+- Retirement status: the user-category GET preflight was removed from this execution path after its scope mismatch was proved; database identity/fingerprint verification is the root-only source of truth for this one administrator mutation
+- New risk signals:
+- The automatic approval transport failure prevented process creation for the next SSH/ref-import action and requires a fresh explicit approval before retry
+- Advisory decision: pause-for-user
