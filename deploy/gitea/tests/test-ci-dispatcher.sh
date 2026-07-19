@@ -28,6 +28,12 @@ printf '%s\n' \
   '  fi' \
   '  printf "|%s" "$argument" >>"$CI_TEST_LOG"' \
   'done' \
+  'if [[ "$command_name:$*" == "make:-C backend test-integration" && "${GITEA_CI:-}" == true ]]; then' \
+  '  printf "|tc-host=%s|tc-socket=%s" "$TESTCONTAINERS_HOST_OVERRIDE" "$TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE" >>"$CI_TEST_LOG"' \
+  'fi' \
+  'if [[ "$command_name:$*" == go:install\ github.com/golangci/golangci-lint/* ]]; then' \
+  '  printf "|gomaxprocs=%s" "${GOMAXPROCS:-}" >>"$CI_TEST_LOG"' \
+  'fi' \
   'printf "\\n" >>"$CI_TEST_LOG"' \
   'case "$command_name:$*" in' \
   '  "go:version") printf "%s\\n" "go version go1.26.5 linux/amd64" ;;' \
@@ -82,6 +88,48 @@ run_case backend-integration "$(printf '%s\n' \
   'go|<repo>|version' \
   'make|<repo>|-C|backend|test-integration')"
 
+: >"$COMMAND_LOG"
+GITEA_CI=true PATH="$FAKE_BIN:$PATH" /bin/bash "$DISPATCHER" backend-integration
+assert_log "$(printf '%s\n' \
+  'go|<repo>|version' \
+  'make|<repo>|-C|backend|test-integration|tc-host=docker|tc-socket=/run/user/1000/docker.sock')"
+
+: >"$COMMAND_LOG"
+set +e
+GITEA_CI=true TESTCONTAINERS_HOST_OVERRIDE=203.0.113.1 \
+  PATH="$FAKE_BIN:$PATH" /bin/bash "$DISPATCHER" backend-integration \
+  >"$TEST_ROOT/testcontainers-drift.out" 2>"$TEST_ROOT/testcontainers-drift.err"
+testcontainers_drift_status=$?
+set -e
+if [[ "$testcontainers_drift_status" -eq 0 ]]; then
+  printf 'Dispatcher accepted a drifting Testcontainers host override\n' >&2
+  exit 1
+fi
+assert_log 'go|<repo>|version'
+if ! grep -q 'does not match the isolated DinD service' "$TEST_ROOT/testcontainers-drift.err"; then
+  printf 'Dispatcher did not explain the Testcontainers host drift\n' >&2
+  exit 1
+fi
+
+: >"$COMMAND_LOG"
+set +e
+GITEA_CI=true TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock \
+  PATH="$FAKE_BIN:$PATH" /bin/bash "$DISPATCHER" backend-integration \
+  >"$TEST_ROOT/testcontainers-socket-drift.out" \
+  2>"$TEST_ROOT/testcontainers-socket-drift.err"
+testcontainers_socket_drift_status=$?
+set -e
+if [[ "$testcontainers_socket_drift_status" -eq 0 ]]; then
+  printf 'Dispatcher accepted a drifting Testcontainers socket override\n' >&2
+  exit 1
+fi
+assert_log 'go|<repo>|version'
+if ! grep -q 'does not match the isolated DinD socket' \
+  "$TEST_ROOT/testcontainers-socket-drift.err"; then
+  printf 'Dispatcher did not explain the Testcontainers socket drift\n' >&2
+  exit 1
+fi
+
 run_case frontend "$(printf '%s\n' \
   'node|<repo>|--version' \
   'corepack|<repo>|enable' \
@@ -91,7 +139,7 @@ run_case frontend "$(printf '%s\n' \
 
 run_case lint "$(printf '%s\n' \
   'go|<repo>|version' \
-  'go|<repo>|install|github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0' \
+  'go|<repo>|install|github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0|gomaxprocs=1' \
   'golangci-lint|<repo>/backend|run|--timeout=30m')"
 
 run_case security-backend "$(printf '%s\n' \

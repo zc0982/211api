@@ -418,12 +418,18 @@ replacement.
    and these commands:
 
    - `backend-unit`: assert `go1.26.5`; run `make -C backend test-unit`.
-   - `backend-integration`: assert `go1.26.5`; run
-     `make -C backend test-integration`.
+   - `backend-integration`: assert `go1.26.5`; when the Gitea workflow explicitly
+     passes the repository-owned `GITEA_CI=true` marker, export the stable outer
+     Compose service name `docker` as
+     `TESTCONTAINERS_HOST_OVERRIDE`, plus export the actual DinD-side socket
+     path `/run/user/1000/docker.sock` as
+     `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE`; reject conflicting preconfigured
+     values, keep Ryuk enabled, then run `make -C backend test-integration`.
    - `frontend`: assert Node major 20; enable Corepack; activate pnpm 9.15.9;
      run frozen install and `make test-frontend`.
-   - `lint`: install golangci-lint v2.9.0 into a temporary `GOBIN`; run from
-     `backend/` with `--timeout=30m`; remove the temp directory via trap.
+   - `lint`: install golangci-lint v2.9.0 into a temporary `GOBIN` with
+     `GOMAXPROCS=1` only for that source build; run from `backend/` with
+     `--timeout=30m`; remove the temp directory via trap.
    - `security-backend`: install govulncheck v1.6.0 into a temporary `GOBIN`;
      run `govulncheck ./...` from `backend/`.
    - `security-frontend`: activate pnpm 9.15.9, frozen install, write audit JSON
@@ -435,7 +441,8 @@ replacement.
 
 4. Add a fixture-driven test that stubs `go`, `node`, `corepack`, `pnpm`, `make`,
    and `python3`, then proves every allowed subcommand dispatches exactly the
-   expected command and an unknown command returns 64.
+   expected command and an unknown command returns 64. Prove Gitea-only
+   Testcontainers override injection and fail-closed override drift.
 
 5. Verify all public locked manifests still resolve and include `linux/amd64`.
    The private `GO_ACTIONS_CI_IMAGE` is intentionally excluded from this

@@ -39,9 +39,31 @@ run_backend_unit() {
   make -C backend test-unit
 }
 
+configure_testcontainers_for_gitea() {
+  local -r testcontainers_host=docker
+  local -r dind_socket=/run/user/1000/docker.sock
+
+  [[ "${GITEA_CI:-}" == true ]] || return 0
+
+  if [[ -n "${TESTCONTAINERS_HOST_OVERRIDE:-}" &&
+    "$TESTCONTAINERS_HOST_OVERRIDE" != "$testcontainers_host" ]]; then
+    printf 'Preconfigured Testcontainers host does not match the isolated DinD service\n' >&2
+    return 1
+  fi
+  if [[ -n "${TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE:-}" &&
+    "$TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE" != "$dind_socket" ]]; then
+    printf 'Preconfigured Testcontainers socket does not match the isolated DinD socket\n' >&2
+    return 1
+  fi
+
+  export TESTCONTAINERS_HOST_OVERRIDE="$testcontainers_host"
+  export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="$dind_socket"
+}
+
 run_backend_integration() (
   local docker_shim_dir
   assert_go_version
+  configure_testcontainers_for_gitea
   if ! command -v docker >/dev/null 2>&1; then
     command -v curl >/dev/null 2>&1
     docker_shim_dir="$(mktemp -d)"
@@ -67,7 +89,8 @@ run_lint() (
   assert_go_version
   tool_dir="$(mktemp -d)"
   trap 'rm -rf -- "$tool_dir"' EXIT
-  GOBIN="$tool_dir" go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+  GOMAXPROCS=1 GOBIN="$tool_dir" \
+    go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
   (
     cd backend
     "$tool_dir/golangci-lint" run --timeout=30m

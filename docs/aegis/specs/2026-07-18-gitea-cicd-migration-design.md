@@ -157,7 +157,21 @@ Directory: `/opt/gitea/runner`
   3 GiB. The host retained more than 6 GiB available after the failed run, so
   4 GiB is the smallest bounded correction rather than an unbounded daemon or
   business-code accommodation. Workflow commands remain canonical and Runner
-  capacity stays one.
+  capacity stays one. The fixed golangci-lint source build is the separate
+  compiler-internal peak: only its `go install` uses `GOMAXPROCS=1`. A cold
+  v2.9.0 build with Go 1.26.5 completed under the 4 GiB boundary without a new
+  OOM; linter execution and business test runtimes remain unchanged.
+- Gitea Runner places each job on an ephemeral user-defined inner Docker
+  network. Testcontainers' default remote-daemon host discovery resolves the
+  default `172.17.0.1` bridge, but RootlessKit publishes ports in DinD's parent
+  network namespace rather than either inner bridge gateway. For Gitea Actions
+  integration jobs only, the workflow explicitly supplies the repository-owned
+  `GITEA_CI=true` marker; the stable outer Compose service name `docker` is then
+  the fail-closed `TESTCONTAINERS_HOST_OVERRIDE`.
+  `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` is the distinct DinD-side
+  `/run/user/1000/docker.sock` path used by Ryuk. This keeps Ryuk enabled,
+  preserves per-job networks and the Unix-only Docker API, and leaves local
+  Testcontainers discovery unchanged.
 - The locked DinD entrypoint receives an explicit command beginning with
   `dockerd`, only the Unix `--host`, and `--group=root`; a leading option would
   cause that image to inject an unauthenticated TCP 2375 listener, while the

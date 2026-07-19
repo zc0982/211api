@@ -273,7 +273,22 @@ package build parallelism while leaving test semantics unchanged. Live cold
 builds proved that 3 GiB was insufficient even after serialization because the
 single `internal/service` compiler process crossed that cgroup; DinD therefore
 has a still-bounded 4 GiB limit. Runner capacity remains one, and no workflow or
-business package receives a resource-specific branch.
+business package receives a resource-specific branch. The separate cold source
+build of `golangci-lint` has a compiler-internal concurrency peak, so only that
+fixed-version `go install` runs with `GOMAXPROCS=1`. A live cold build of v2.9.0
+with Go 1.26.5 completed inside the 4 GiB boundary without increasing the OOM
+counter; the linter execution and all business tests keep their normal runtime.
+
+Testcontainers needs two explicit values only for Gitea Actions jobs. Rootless
+DinD publishes ports in its parent network namespace, not at either inner
+Docker bridge gateway. The Gitea workflows explicitly set `GITEA_CI=true` on
+the integration step; only under that repository-owned marker does the
+dispatcher export the stable outer Compose service name `docker` as
+`TESTCONTAINERS_HOST_OVERRIDE` and `/run/user/1000/docker.sock` as
+`TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE`, so Ryuk mounts the actual DinD-side
+socket. Existing conflicting overrides fail closed. Local runs retain
+Testcontainers' native discovery; Ryuk stays enabled, per-job networks stay
+isolated, and no Docker TCP endpoint is added.
 
 Runner project, container, volume, and network names are fixed in Compose so
 backup, inspection, and restore cannot drift through an environment override.
