@@ -247,8 +247,8 @@ team_id_by_name() {
 }
 
 ensure_team() {
-  local name=$1 template=$2 status id output="$runtime/team-$name.json" member
-  local expected_members
+  local name=$1 template=$2 status id member expected_members
+  local output="$runtime/team-$name.json"
   shift 2
   gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/orgs/$GITEA_ORG/teams" \
     "$runtime/teams.json" "$runtime" "teams-$name-before"
@@ -298,7 +298,8 @@ ensure_team() {
 }
 
 ensure_collaborator() {
-  local username=$1 permission=$2 status output="$runtime/collaborator-$username.json"
+  local username=$1 permission=$2 status
+  local output="$runtime/collaborator-$username.json"
   jq -cn --arg permission "$permission" '{permission:$permission}' \
     >"$runtime/collaborator-$username.body.json"
   status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" PUT \

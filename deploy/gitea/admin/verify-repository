@@ -132,7 +132,8 @@ verify_team package-readers "$SCRIPT_DIR/templates/team-package-readers.json" \
   svc-backup-read svc-deploy-read
 
 verify_collaborator() {
-  local username=$1 permission=$2 output="$runtime/collaborator-$username.json"
+  local username=$1 permission=$2
+  local output="$runtime/collaborator-$username.json"
   status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
     "/repos/$GITEA_ORG/$GITEA_REPO/collaborators/$username/permission" "$output") ||
     gitea_die "failed to inspect collaborator $username"

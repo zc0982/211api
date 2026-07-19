@@ -218,4 +218,20 @@ fi
 grep -F 'failed to retrieve deployed OpenAPI document' <<<"$openapi_error" >/dev/null ||
   fail 'OpenAPI validator still depends on a caller-global runtime path'
 
+command -v rg >/dev/null 2>&1 || fail 'rg is required for admin local-assignment scan'
+set +e
+rg -n -P \
+  '^\s*local\s+(?<first>[A-Za-z_][A-Za-z0-9_]*)=[^\s]+\s+.*\$(?:\{)?\k<first>(?:\}|[^A-Za-z0-9_])' \
+  "$ROOT/deploy/gitea/admin" >"$tmp/unsafe-local-assignments"
+unsafe_local_status=$?
+set -e
+case "$unsafe_local_status" in
+  0)
+    sed -n '1,20p' "$tmp/unsafe-local-assignments" >&2
+    fail 'admin script expands a local variable in its declaration statement'
+    ;;
+  1) ;;
+  *) fail 'admin local-assignment scan failed' ;;
+esac
+
 printf '%s\n' 'admin pagination, metadata, and protection primitives passed'

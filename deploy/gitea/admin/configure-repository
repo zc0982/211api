@@ -154,7 +154,8 @@ ensure_tag_protection() {
 }
 
 put_actions_secret() {
-  local name=$1 token_file=$2 output="$runtime/secret-$name.json" status
+  local name=$1 token_file=$2 status
+  local output="$runtime/secret-$name.json"
   gitea_require_root_secret "$token_file"
   jq -Rs '{data:(gsub("[\\r\\n]+$"; ""))}' <"$token_file" \
     >"$runtime/secret-$name.body.json"
