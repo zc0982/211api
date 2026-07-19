@@ -355,8 +355,8 @@ token_count=$(docker compose \
     FROM action_runner_token AS t
     JOIN repository AS r ON r.id = t.repo_id
     JOIN "user" AS u ON u.id = r.owner_id
-    WHERE u.lower_name = '\''211api'\''
-      AND r.lower_name = '\''211api'\''
+    WHERE u.lower_name = $$211api$$
+      AND r.lower_name = $$211api$$
   ')
 test "$token_count" -eq 0
 tmp=$(mktemp /etc/gitea/.runner-registration-token.XXXXXX)
@@ -385,8 +385,8 @@ token_state=$(docker compose \
     FROM action_runner_token AS t
     JOIN repository AS r ON r.id = t.repo_id
     JOIN "user" AS u ON u.id = r.owner_id
-    WHERE u.lower_name = '\''211api'\''
-      AND r.lower_name = '\''211api'\''
+    WHERE u.lower_name = $$211api$$
+      AND r.lower_name = $$211api$$
   ')
 test "$token_state" = '1|0'
 cmp "$tmp" <(
@@ -507,8 +507,8 @@ docker compose \
     FROM action_runner_token AS t
     JOIN repository AS r ON r.id = t.repo_id
     JOIN "user" AS u ON u.id = r.owner_id
-    WHERE u.lower_name = '\''211api'\''
-      AND r.lower_name = '\''211api'\''
+    WHERE u.lower_name = $$211api$$
+      AND r.lower_name = $$211api$$
   ' | grep -qx '1|1'
 rm -f -- "$source"
 test ! -e "$source"
