@@ -20,6 +20,8 @@ docker compose --env-file "$LOCK" -f "$COMPOSE" \
 jq -e '
   .name == "gitea-runner"
   and (.services | keys | sort) == ["docker", "runner"]
+  and .services.docker.container_name == "gitea-runner-docker"
+  and .services.runner.container_name == "gitea-runner"
   and .services.docker.user == "1000:1000"
   and .services.runner.user == "1000:1000"
   and .services.docker.privileged == true

@@ -8,6 +8,7 @@ x-local-logging: &local-logging
 
 services:
   docker:
+    container_name: gitea-runner-docker
     image: ${DIND_IMAGE:?DIND_IMAGE is required}
     user: "1000:1000"
     privileged: true
@@ -41,6 +42,7 @@ services:
     logging: *local-logging
 
   runner:
+    container_name: gitea-runner
     image: ${RUNNER_IMAGE:?RUNNER_IMAGE is required}
     user: "1000:1000"
     restart: unless-stopped

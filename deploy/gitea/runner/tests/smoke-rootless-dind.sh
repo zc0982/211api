@@ -15,6 +15,8 @@ export GITEA_RUNNER_SMOKE_DATA_VOLUME="$GITEA_RUNNER_SMOKE_PROJECT-data"
 export GITEA_RUNNER_SMOKE_DOCKER_DATA_VOLUME="$GITEA_RUNNER_SMOKE_PROJECT-docker-data"
 export GITEA_RUNNER_SMOKE_RUNTIME_VOLUME="$GITEA_RUNNER_SMOKE_PROJECT-runtime"
 export GITEA_RUNNER_SMOKE_NETWORK="$GITEA_RUNNER_SMOKE_PROJECT-network"
+export GITEA_RUNNER_SMOKE_DOCKER_CONTAINER="$GITEA_RUNNER_SMOKE_PROJECT-docker"
+export GITEA_RUNNER_SMOKE_RUNNER_CONTAINER="$GITEA_RUNNER_SMOKE_PROJECT-runner"
 
 set -a
 # shellcheck source=/dev/null
@@ -38,6 +40,13 @@ if docker ps -a --filter \
     "$GITEA_RUNNER_SMOKE_PROJECT" >&2
   exit 1
 fi
+for container in "$GITEA_RUNNER_SMOKE_DOCKER_CONTAINER" \
+  "$GITEA_RUNNER_SMOKE_RUNNER_CONTAINER"; do
+  if docker container inspect "$container" >/dev/null 2>&1; then
+    printf 'refusing pre-existing smoke container: %s\n' "$container" >&2
+    exit 1
+  fi
+done
 for volume in "$GITEA_RUNNER_SMOKE_DATA_VOLUME" \
   "$GITEA_RUNNER_SMOKE_DOCKER_DATA_VOLUME" \
   "$GITEA_RUNNER_SMOKE_RUNTIME_VOLUME"; do
@@ -54,6 +63,8 @@ docker run --rm --network none --read-only --cap-drop ALL \
 compose up -d docker >/dev/null
 container_id="$(compose ps -q docker)"
 test -n "$container_id"
+test "$(docker inspect -f '{{.Name}}' "$container_id")" = \
+  "/$GITEA_RUNNER_SMOKE_DOCKER_CONTAINER"
 
 ready=0
 for _attempt in $(seq 1 120); do
@@ -135,6 +146,8 @@ dind_cli run --rm --user 65534:65534 --read-only --cap-drop ALL \
 compose create runner >/dev/null
 runner_id="$(compose ps -aq runner)"
 test -n "$runner_id"
+test "$(docker inspect -f '{{.Name}}' "$runner_id")" = \
+  "/$GITEA_RUNNER_SMOKE_RUNNER_CONTAINER"
 jq -e --arg config "$ROOT/deploy/gitea/runner/config.yaml" '
   .[0].Config.User == "1000:1000"
   and .[0].HostConfig.Privileged == false

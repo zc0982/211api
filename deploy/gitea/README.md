@@ -260,9 +260,11 @@ entrypoint at `/usr/local/bin/dockerd-entrypoint.sh` is also treated as code:
 the disposable smoke inspects its effective command, rootless security option,
 socket, listeners, and mounts instead of relying on image documentation.
 
-Runner project, volume, and network names are fixed in Compose so backup and
-restore cannot drift through an environment override. No Runner environment
-file exists: the registration token and its source path stay outside Compose.
+Runner project, container, volume, and network names are fixed in Compose so
+backup, inspection, and restore cannot drift through an environment override.
+The exact container names are `gitea-runner` and `gitea-runner-docker`. No
+Runner environment file exists: the registration token and its source path stay
+outside Compose.
 Define a shell helper so every operation supplies the reviewed image lock. The
 lock is non-secret and root-owned; sourcing it makes the locked utility image
 available to the one-off volume operations below.
