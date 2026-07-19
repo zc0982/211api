@@ -541,3 +541,34 @@
 - New risk signals:
 - The SSH-only tag service identity, disposable real receive-path proof, password discard record, and checksum-record cleanup remain unverified
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Execute the prepared disposable repository's real SSH receive-path positive/negative proof and guarded deletion
+- Active slice: Service identity and smoke controls prepared; SSH test process-start approval gate
+- Completed todos:
+- The operator explicitly approved the dedicated `svc-release-tag` key, disposable Hook smoke, and guarded deletion
+- Proved the service account initially had zero SSH keys and zero PATs, its retained password was root-owned mode 0600, and canonical base/Hook verification remained green
+- Created a dedicated local Ed25519 service identity plus a byte-identical independent known-hosts file derived only from the administrator-trusted Gitea host keys; no key body was emitted
+- Added exactly the service public key through the `write:admin` API and verified the sole database row by numeric ID 2, title, and SHA-256 fingerprint; no PAT was created
+- Strict SSH authentication to the private canonical repository succeeded with 10 readable ref rows
+- Reverified key identity and PAT count zero, passed the final password-based base verifier, deleted only `/etc/gitea/bootstrap-credentials/svc-release-tag.password`, atomically published the root-owned mode-0600 SSH-only record, and passed the no-password base verifier
+- Official Gitea v1.26.4 source proved protected-tag allowlists have no site-admin/org-owner bypass, so the existing `luoee` SSH identity is a valid non-whitelisted writer actor without creating a disposable user
+- Created private `211api/hook-smoke-20260719t055854z-d8395467` with numeric repository ID 2 only after API 404/database-zero preconditions; API and database owner/name/ID/private state agreed
+- Granted only `svc-release-tag` direct write, installed the exact `v*` allowlist, regenerated managed hooks, and installed/verified the same immutable delegate through the bounded smoke mode
+- The real SSH test command was rejected before process creation by the automatic approval service after a transport-review failure; no smoke commit or tag was pushed, and the exact prepared repository remains for the approved test
+- Evidence refs:
+- task11-canonical-hook-controls
+- task11-release-tag-ssh-only
+- task11-hook-smoke-prepared
+- Blocked on: fresh explicit approval after the approval-service rejection to execute the already prepared real SSH positive/negative pushes and, only after evidence, the owner/name/ID-guarded deletion and checksum cleanup
+- Next step: run the exact real SSH smoke with the two dedicated identities, prove retained/absent refs, then delete only repository ID 2 and its exact checksum record after fresh API/database guards
+
+## DriftCheckDraft
+
+- Scope status: only the approved service public key, password retirement record, and one empty private smoke repository/control set were added; canonical refs, feature refs, Runner, GitHub, and Gateway remain unchanged
+- Compatibility status: the service account is now SSH-only with zero PATs; host trust remains administrator-sourced; the negative actor uses an existing non-whitelisted writer whose admin status cannot bypass the Gitea protected-tag model
+- Retirement status: the one-time service password is permanently removed after successful SSH authentication; no disposable user or alternate tag API test path was introduced
+- New risk signals:
+- Smoke repository ID 2 is intentionally retained because the required real SSH test process did not start; it must not be deleted before the approved evidence run or mistaken for canonical repository ID 1
+- Advisory decision: pause-for-user

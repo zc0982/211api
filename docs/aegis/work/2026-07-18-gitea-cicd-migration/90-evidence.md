@@ -227,3 +227,21 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Diagnostic evidence: A streamed remote Bash script lost its remaining stdin to nested Compose and stopped before Hook installation; independent readback exposed the missing Hook. After explicit stdin isolation, live verification exposed that the repository verifier wrote boolean `true` instead of the selected tag object. Commit `85fc2ad9c` retired that path with one shared extractor and exact negative tests.
 - Runtime evidence: `immutable v* tag hook verified`; `Gitea repository verification passed (base)`; installed file hashes matched the reviewed local artifacts; Gitea health returned 200; no task staging/backup directory remained.
 - Residual boundary: No canonical `v*` tag was created. The SSH-only service identity and disposable receive-path positive/negative proof remain the next Task 11 gate; Runner and feature refs remain absent.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-release-tag-ssh-only
+- Type: approved least-privilege service credential transition
+- Source: dedicated local key, Gitea admin API/database, strict SSH authentication, and root-only Netcup evidence on 2026-07-19
+- Summary: Added one dedicated SSH key to `svc-release-tag`, proved private canonical repository authentication, retained zero PATs, deleted the one-time password only after success, and atomically recorded the no-secret SSH-only state.
+- Verifier: Local mode/fingerprint checks, admin API response, database key/PAT equality, strict known-host SSH `ls-remote`, and base repository verifier both before and after password deletion
+- Residual boundary: The key has not yet created any tag. Actions secret installation remains Task 12; the private key and known-host bodies remain outside Git.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-hook-smoke-prepared
+- Type: disposable live-smoke setup; evidence incomplete
+- Source: private Gitea repository `211api/hook-smoke-20260719t055854z-d8395467`, numeric ID 2
+- Summary: Created one API/database identity-checked private repository, granted the SSH-only service writer access, installed the exact service-only `v*` tag protection, regenerated managed hooks, and installed/verified the bounded immutable delegate.
+- Verifier: API status/object checks, database owner/name/ID/private check, collaborator permission, exact tag-protection assertions, and smoke installer verification
+- Residual boundary: No Git commit/tag test ran because the approved local SSH process was rejected before creation by the approval service. Repository ID 2 and its checksum record are deliberately retained until the real receive-path evidence succeeds and fresh deletion guards pass.
