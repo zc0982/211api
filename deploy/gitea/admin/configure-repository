@@ -193,8 +193,8 @@ if [[ "$mode" == base ]]; then
 else
   gitea_require_root_secret "$context_evidence"
   cat >"$runtime/required-contexts.expected" <<'EOF'
-ci / required
-security / required
+ci / required (push)
+security / required (push)
 EOF
   cmp -- "$runtime/required-contexts.expected" "$context_evidence" >/dev/null ||
     gitea_die 'status-context evidence is not exactly the two reviewed Task 11 contexts'

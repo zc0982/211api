@@ -259,7 +259,7 @@ fi
 
 if [[ "$mode" == full ]]; then
   gitea_require_root_secret "$context_evidence"
-  printf '%s\n' 'ci / required' 'security / required' \
+  printf '%s\n' 'ci / required (push)' 'security / required (push)' \
     >"$runtime/required-contexts.expected"
   cmp -- "$runtime/required-contexts.expected" "$context_evidence" >/dev/null ||
     gitea_die 'status-context evidence is not the two reviewed Task 11 contexts'

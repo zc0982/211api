@@ -476,8 +476,8 @@ gitea_assert_release_protection() {
     and .enable_merge_whitelist == false
     and (.merge_whitelist_usernames | sort) == []
     and (.merge_whitelist_teams | sort) == []
-    and .enable_status_check == false
-    and (.status_check_contexts | sort) == []
+    and .enable_status_check == true
+    and (.status_check_contexts | sort) == ["ci / required (push)", "security / required (push)"]
     and .block_admin_merge_override == true
   ' "$file" >/dev/null ||
     gitea_die 'release/v* branch-protection settings drifted'
@@ -501,7 +501,7 @@ gitea_assert_main_protection() {
     and (.merge_whitelist_usernames | sort) == []
     and (.merge_whitelist_teams | sort) == ["maintainers"]
     and .enable_status_check == true
-    and (.status_check_contexts | sort) == ["ci / required", "security / required"]
+    and (.status_check_contexts | sort) == ["ci / required (push)", "security / required (push)"]
     and .block_admin_merge_override == true
   ' "$file" >/dev/null || gitea_die 'main branch-protection settings drifted'
 }
@@ -616,8 +616,8 @@ gitea_assert_required_statuses() {
       [ .[] | select(.context == $context) ]
       | sort_by(.created_at)
       | last;
-    (latest("ci / required")) as $ci
-    | (latest("security / required")) as $security
+    (latest("ci / required (push)")) as $ci
+    | (latest("security / required (push)")) as $security
     | $ci.status == "success"
     and $security.status == "success"
     and $ci.sha == $sha

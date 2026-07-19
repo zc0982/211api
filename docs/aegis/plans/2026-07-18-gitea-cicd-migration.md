@@ -513,13 +513,15 @@ only private fork delivery paths retire.
    invoking one dispatcher subcommand. Use runner labels `go-1.26.5`,
    `node-20.20.2`, or `linux-amd64`. Add aggregate job `required` with
    `if: always()`; it exits nonzero unless every required `needs.*.result` is
-   `success`. Its expected commit status is `ci / required`.
+   `success`. Its base job context is `ci / required`; Gitea persists the push
+   status as `ci / required (push)`.
 
 3. Create `security.yml` named `security`, triggered by legal `push` and
    `pull_request` event keys plus cron `0 3 * * 1`, with the same internal-PR
    guard. Use one Go and one Node job invoking the
-   security dispatcher cases, then aggregate job `required`. Expected status:
-   `security / required`.
+   security dispatcher cases, then aggregate job `required`. Its base context
+   is `security / required`; the persisted push status is
+   `security / required (push)`.
 
 4. Create `deploy.yml` triggered only by `main` push. Repeat the same dispatcher
    jobs inside this workflow and make the build job depend on all of them;
@@ -1672,8 +1674,9 @@ worktree remains unpushed to GitHub.
    workflows run; deploy does not run because the branch is not `main`.
 
 9. Query commit statuses through Gitea API. Require exact contexts
-   `ci / required` and `security / required`. If names differ, fix workflow/job
-   names in the branch and rerun; never configure a guessed or wildcard context.
+   `ci / required (push)` and `security / required (push)`. These event-qualified
+   names are live evidence from Gitea, not guesses; never configure a wildcard
+   context.
 
 10. Exercise every used Gitea compatibility surface: absolute pinned checkout,
    legal `push`/`pull_request` parsing and the same-repository PR guard,

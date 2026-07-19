@@ -230,7 +230,8 @@ Directory: `/opt/gitea/runner`
 - Do not configure an automatic push mirror back to GitHub.
 - Protect `main`: direct push, force push, and deletion are disabled; changes
   enter through an internal pull request; only the maintainer team may merge;
-  exact required statuses are `ci / required` and `security / required`.
+  exact required push statuses are `ci / required (push)` and
+  `security / required (push)`.
 - Protect `v*`: the release-maintainer team initiates creation through a
   protected `release/v*` request branch. Only the SSH-only `svc-release-tag`
   technical account is whitelisted to create the annotated tag. Gitea 1.26
@@ -244,10 +245,10 @@ Directory: `/opt/gitea/runner`
 - Branch and tag protection are proved with negative push/update/delete tests
   from a normal team account, not only by reading the settings UI.
 - Before protection becomes a cutover gate, a test pull request must produce the
-  actual Gitea commit-status list. The API must show contexts exactly named
-  `ci / required` and `security / required`; if Gitea renders a different name,
-  workflow/job names are corrected and retested rather than weakening or
-  guessing the required-status rule.
+  actual Gitea commit-status list. Live push evidence must show contexts exactly
+  named `ci / required (push)` and `security / required (push)`; the PR smoke
+  separately proves the event-qualified pull-request executions rather than
+  weakening or guessing the required-status rule.
 - Disable Actions in the old GitHub repository through the GitHub repository
   Actions-permissions API before activating Gitea deployment. Evidence includes
   `enabled=false`, no queued or in-progress old workflow run, and rejection of a
@@ -278,8 +279,9 @@ Triggers: `push`, internal `pull_request`.
 - Linux shell syntax checks.
 - No macOS runner and no Apple-container fixture job.
 - The aggregate `required` job depends on every item above and is the only
-  success context named `ci / required`. The commands live in reviewed project
-  scripts shared with the deployment verification job, preventing CI and deploy
+  base success context named `ci / required`; Gitea persists its push execution
+  as `ci / required (push)`. The commands live in reviewed project scripts
+  shared with the deployment verification job, preventing CI and deploy
   verification from drifting apart.
 
 ### 7.2 `security.yml`
@@ -292,9 +294,10 @@ and runner containers configured to UTC (Monday 03:00 UTC / 11:00 China time).
 - Audit-exception validation.
 - Move the exception source from `.github/audit-exceptions.yml` to
   `.gitea/audit-exceptions.yml`.
-- The aggregate context is exactly `security / required`. A scheduled failure
-  is visible in Gitea Actions and enters the operator's failure-notification
-  path; it must be acknowledged within one business day.
+- The aggregate base context is `security / required`, persisted for push as
+  `security / required (push)`. A scheduled failure is visible in Gitea Actions
+  and enters the operator's failure-notification path; it must be acknowledged
+  within one business day.
 
 ### 7.3 `deploy.yml`
 
@@ -758,9 +761,9 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
   fail; Git and API move/delete attempts prove existing `v*` refs immutable; the
   managed hook checksum is recorded and user custom hooks remain disabled.
 - Backend tests, frontend checks, lint, and security scan pass in Gitea.
-- Required contexts are exactly `ci / required` and `security / required`; the
-  Gitea compatibility smoke covers every context/secret/service/cache feature
-  used by active workflows.
+- Required push contexts are exactly `ci / required (push)` and
+  `security / required (push)`; the Gitea compatibility smoke covers every
+  context/secret/service/cache feature used by active workflows.
 - No active workflow remains under `.github/workflows/`.
 
 ### 14.3 Registry, deployment, and release

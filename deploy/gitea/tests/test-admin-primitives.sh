@@ -141,9 +141,9 @@ fi
 
 sha=0123456789abcdef0123456789abcdef01234567
 jq -n --arg sha "$sha" '[
-  {context:"ci / required",status:"failure",sha:$sha,created_at:"2026-07-18T00:00:00Z"},
-  {context:"ci / required",status:"success",sha:$sha,created_at:"2026-07-18T00:01:00Z"},
-  {context:"security / required",status:"success",sha:$sha,created_at:"2026-07-18T00:01:00Z"}
+  {context:"ci / required (push)",status:"failure",sha:$sha,created_at:"2026-07-18T00:00:00Z"},
+  {context:"ci / required (push)",status:"success",sha:$sha,created_at:"2026-07-18T00:01:00Z"},
+  {context:"security / required (push)",status:"success",sha:$sha,created_at:"2026-07-18T00:01:00Z"}
 ]' >"$tmp/statuses.json"
 gitea_assert_required_statuses "$tmp/statuses.json" "$sha"
 jq '.[2].status = "pending"' "$tmp/statuses.json" >"$tmp/statuses-pending.json"

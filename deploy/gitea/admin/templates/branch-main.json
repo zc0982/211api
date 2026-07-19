@@ -17,8 +17,8 @@
   ],
   "enable_status_check": true,
   "status_check_contexts": [
-    "ci / required",
-    "security / required"
+    "ci / required (push)",
+    "security / required (push)"
   ],
   "required_approvals": 0,
   "enable_approvals_whitelist": false,
