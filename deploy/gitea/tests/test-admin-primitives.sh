@@ -221,7 +221,7 @@ grep -F 'failed to retrieve deployed OpenAPI document' <<<"$openapi_error" >/dev
 command -v rg >/dev/null 2>&1 || fail 'rg is required for admin local-assignment scan'
 set +e
 rg -n -P \
-  '^\s*local\s+(?<first>[A-Za-z_][A-Za-z0-9_]*)=[^\s]+\s+.*\$(?:\{)?\k<first>(?:\}|[^A-Za-z0-9_])' \
+  '^\s*local\s+.*?\b(?<decl>[A-Za-z_][A-Za-z0-9_]*)=[^\s]+\s+.*\$(?:\{)?\k<decl>(?:\}|[^A-Za-z0-9_])' \
   "$ROOT/deploy/gitea/admin" >"$tmp/unsafe-local-assignments"
 unsafe_local_status=$?
 set -e

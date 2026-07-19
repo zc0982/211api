@@ -693,7 +693,8 @@ gitea_token_permission_probe() {
 }
 
 gitea_atomic_curl_config_from_token() {
-  local token_file=$1 target=$2 partial="${target}.partial"
+  local token_file=$1 target=$2
+  local partial="${target}.partial"
   [[ ! -L "$target" && ! -L "$partial" ]] ||
     gitea_die "refusing symlink curl-config target: $target"
   gitea_make_token_curl_config "$token_file" "$partial"
