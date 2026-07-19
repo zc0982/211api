@@ -171,10 +171,19 @@ rg -q 'status=in_progress' "$api_log"
 
 platform_compose() {
   printf '%s\n' "$*" >"$tmp/pg-restore.args"
-  cat >"$tmp/pg-restore.stdin"
+  head -c 1 >"$tmp/pg-restore.stdin-prefix"
+  printf 'validated database listing\n'
 }
-printf '%s' 'custom-format-dump-sentinel' | validate_database
+reset_component_set eeeeeeee
+set +e
+dd if=/dev/zero bs=1M count=8 status=none | validate_database >"$tmp/pg-restore.listing"
+database_status=("${PIPESTATUS[@]}")
+set -e
+[[ "${database_status[0]}" -eq 0 && "${database_status[1]}" -eq 0 ]]
 [[ "$(<"$tmp/pg-restore.args")" == 'exec -T postgres pg_restore --list' ]]
-[[ "$(<"$tmp/pg-restore.stdin")" == 'custom-format-dump-sentinel' ]]
+[[ "$(stat -c '%s' "$tmp/pg-restore.stdin-prefix")" == 1 ]]
+[[ "$(<"$tmp/pg-restore.listing")" == 'validated database listing' ]]
+[[ -z "$(find "$SET_PARTIAL" -mindepth 1 -maxdepth 1 -name '.postgres-validator.*' -print -quit)" ]]
+rm -rf -- "$SET_PARTIAL"
 
 printf 'backup primitive fault injections passed\n'
