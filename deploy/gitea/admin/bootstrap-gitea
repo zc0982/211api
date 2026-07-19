@@ -126,9 +126,10 @@ create_random_user "$BOOTSTRAP_ADMIN_USERNAME" "$BOOTSTRAP_ADMIN_EMAIL" \
 gitea_validate_cli_contract "$runtime"
 ensure_admin_curl_config
 
-status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET /user \
-  "$runtime/current-admin.json") || gitea_die 'administrator token validation failed'
-gitea_validate_bootstrap_admin_response "$status" "$runtime/current-admin.json" \
+status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
+  '/admin/users?page=1&limit=1' "$runtime/admin-gate.json") ||
+  gitea_die 'administrator token validation failed'
+gitea_validate_bootstrap_admin_gate_response "$status" "$runtime/admin-gate.json" \
   "$BOOTSTRAP_ADMIN_USERNAME" "$admin_password"
 
 gitea_validate_openapi "$runtime"

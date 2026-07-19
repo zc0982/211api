@@ -134,7 +134,7 @@ printf '%s\n' \
   '{"message":"You must change your password. Change it at: https://git.211api.com//user/change_password"}' \
   >"$tmp/admin-password-gate.json"
 if manual_gate_error=$(
-  (gitea_validate_bootstrap_admin_response 403 \
+  (gitea_validate_bootstrap_admin_gate_response 403 \
     "$tmp/admin-password-gate.json" luoee "$tmp/bootstrap-password") 2>&1
 ); then
   fail 'bootstrap administrator password-change gate was accepted as ready'
@@ -143,19 +143,19 @@ grep -F 'manual gate: change the bootstrap password and enable 2FA for luoee, th
   <<<"$manual_gate_error" >/dev/null ||
   fail 'bootstrap administrator password-change gate returned the wrong failure'
 
-printf '%s\n' '{"login":"luoee","is_admin":true}' >"$tmp/admin-ready.json"
-gitea_validate_bootstrap_admin_response 200 "$tmp/admin-ready.json" \
+printf '%s\n' '[]' >"$tmp/admin-ready.json"
+gitea_validate_bootstrap_admin_gate_response 200 "$tmp/admin-ready.json" \
   luoee "$tmp/bootstrap-password"
 
 printf '%s\n' '{"message":"token scope is insufficient"}' \
   >"$tmp/admin-unexpected-forbidden.json"
 if unexpected_forbidden_error=$(
-  (gitea_validate_bootstrap_admin_response 403 \
+  (gitea_validate_bootstrap_admin_gate_response 403 \
     "$tmp/admin-unexpected-forbidden.json" luoee "$tmp/bootstrap-password") 2>&1
 ); then
   fail 'unexpected administrator-token 403 was accepted as a manual gate'
 fi
-grep -F 'GET /user with bootstrap administrator token returned HTTP 403 (expected 200)' \
+grep -F 'GET /admin/users with bootstrap administrator token returned HTTP 403 (expected 200)' \
   <<<"$unexpected_forbidden_error" >/dev/null ||
   fail 'unexpected administrator-token 403 did not remain fail-closed'
 

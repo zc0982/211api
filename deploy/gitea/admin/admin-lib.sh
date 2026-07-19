@@ -177,7 +177,7 @@ gitea_expect_one_of_statuses() {
   gitea_die "$operation returned unexpected HTTP $actual"
 }
 
-gitea_validate_bootstrap_admin_response() {
+gitea_validate_bootstrap_admin_gate_response() {
   local status=$1 response=$2 username=$3 password_file=$4
   if [[ "$status" == 403 ]] && jq -e '
     (.message | type == "string")
@@ -188,11 +188,10 @@ gitea_validate_bootstrap_admin_response() {
     gitea_require_root_secret "$password_file"
     gitea_die "manual gate: change the bootstrap password and enable 2FA for $username, then rerun"
   fi
-  gitea_expect_status "$status" 200 'GET /user with bootstrap administrator token'
-  jq -e --arg username "$username" '
-    .login == $username and .is_admin == true
-  ' "$response" >/dev/null ||
-    gitea_die 'bootstrap token does not belong to the expected administrator'
+  gitea_expect_status "$status" 200 \
+    'GET /admin/users with bootstrap administrator token'
+  jq -e 'type == "array"' "$response" >/dev/null ||
+    gitea_die 'bootstrap administrator gate returned a non-array user list'
 }
 
 gitea_api_get_all() {
