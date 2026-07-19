@@ -176,3 +176,13 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Source: commit `af5b0cb6f`; `deploy/gitea/pipedream/gitea-backup-to-telegram.mjs` and `.test.mjs`
 - Summary: Versioned the copy-pasteable Pipedream Node adapter. `node --check` passed; `node --test` passed 8/8 both locally and in the digest-locked Node 20.20.2 image, covering silent preflight, invalid method/content/schema/field/timestamp/code/unit, success rendering, configuration failure, and Telegram HTTP, `ok:false`, malformed JSON, and network failures. Actual endpoint, chat ID, and bot token were absent.
 - Verifier: Primary agent fresh local Node 24.14.1 plus digest-locked Node 20.20.2 tests, diff, and secret-pattern checks on 2026-07-19
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-runner-token-lifecycle
+- Type: official-source contract verification and runbook hardening
+- Source: commit `a3e40bbae`; official Gitea v1.26.4 source tag at commit `95ba37d9af58db7d9163f9e92e07b5eb4f792bbc`
+- Summary: Locked repository-scoped Runner registration to one atomic root-only token creation, tmpfs-only staging, authenticated manual reset, exact active/inactive row proof, and deletion of the fixed source before normal backup. The runbook no longer claims that rerunning the CLI or calling the REST registration-token endpoint rotates a token.
+- Verifier: Primary-agent source inspection and shell syntax extraction plus fresh specification and quality reviews
+- Contract evidence: `cmd/actions.go` invokes the private generation route; `routers/private/actions.go` returns the latest active scope token unless none exists; `models/actions/runner_token.go` deactivates same-scope predecessors when a new token is inserted; `routers/web/shared/actions/runners.go` calls the new-token path from the authenticated CSRF-protected reset action.
+- Residual boundary: No live token was generated and no Runner was registered. Real registration, tmpfs staging/removal, web reset, database-state proof, socket injection, and backup exclusion remain Task 11 live gates.

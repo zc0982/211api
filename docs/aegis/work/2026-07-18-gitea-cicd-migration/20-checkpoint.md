@@ -407,3 +407,31 @@
 - The import identity is a credential-bearing write and cannot proceed until the user explicitly approves after the approval-service rejection
 - Existing backup/restore verification still needs Task 11 live evidence for Actions metadata and the candidate package manifest after those objects exist
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Establish the dedicated Gitea import SSH identity and atomically import exact old-GitHub refs
+- Active slice: Task 11 credential-write approval gate; Runner token lifecycle is locked but no token or Runner exists
+- Completed todos:
+- Reconfirmed the operator changed the `luoee` password, enabled TOTP, and retained recovery codes without disclosing any credential material; this is already covered by the completed Task 10 live gate
+- Confirmed from the official Gitea v1.26.4 source that `actions generate-runner-token` and the REST registration-token endpoint return the existing active token, while the authenticated CSRF-protected repository Settings reset route creates a replacement and deactivates its predecessor
+- Locked the repository-scoped one-time token procedure at `a3e40bbae`: fixed root-only lock, absent-source and zero-row preconditions, direct-to-file generation, exact shape/API equality checks, no-clobber publication, post-registration UI reset, `1|1` database-state proof, and fixed-source deletion before normal backup
+- Independent specification and quality reviews passed; both root-only shell blocks passed extraction-based `bash -n`
+- Rechecked the isolated worktree at `a3e40bbae`; only the three known derived untracked paths remain and no external state changed in this slice
+- Evidence refs:
+- 29ade5759
+- a3e40bbae
+- task11-local-runner-hook-preflight
+- task11-runner-token-lifecycle
+- Blocked on: explicit approval to create a dedicated local Gitea import private key and add only its public key to `luoee`; no credential write, Gitea ref import, Runner token generation, or Runner start has occurred
+- Next step: after approval, verify the trusted built-in SSH fingerprint over the Netcup admin channel, create/add the dedicated import key, prove SSH authentication, and execute the atomic exact-ref import before any feature-branch push
+
+## DriftCheckDraft
+
+- Scope status: the slice changed only the Task 11 runbook/plan/checkpoint; canonical Gitea refs remain empty and the Runner remains absent
+- Compatibility status: Gateway Los Angeles remains the sole production runtime; no Gateway, GitHub, DNS, Gitea repository, token, or Runner mutation occurred
+- Retirement status: ambiguous CLI-based Runner-token rotation is retired; the only accepted rotation owner is the locked Gitea v1.26.4 CSRF-protected web reset route
+- New risk signals:
+- The import identity still requires an explicitly approved credential-bearing write
+- The manual Runner-token reset will require the authenticated administrator only after successful Runner registration; it is not part of the current import-identity gate
+- Advisory decision: pause-for-user
