@@ -245,3 +245,13 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Summary: Created one API/database identity-checked private repository, granted the SSH-only service writer access, installed the exact service-only `v*` tag protection, regenerated managed hooks, and installed/verified the bounded immutable delegate.
 - Verifier: API status/object checks, database owner/name/ID/private check, collaborator permission, exact tag-protection assertions, and smoke installer verification
 - Residual boundary: No Git commit/tag test ran because the approved local SSH process was rejected before creation by the approval service. Repository ID 2 and its checksum record are deliberately retained until the real receive-path evidence succeeds and fresh deletion guards pass.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-real-ssh-hook-smoke
+- Type: live Gitea SSH receive-path authorization, immutability, and guarded cleanup proof
+- Source: disposable private repository `211api/hook-smoke-20260719t055854z-d8395467`, numeric ID 2, on 2026-07-19
+- Summary: Proved a non-whitelisted writer can update ordinary code but cannot create `v*`; proved the sole whitelisted SSH-only service can create one `v*` but cannot move or delete it; verified the immutable platform delegate produced the exact rejection while user hooks remained disabled.
+- Verifier: Strict known-host SSH pushes with `luoee` and `svc-release-tag`, exact negative statuses/messages, and final remote ref equality
+- Cleanup evidence: Fresh API/database owner/name/ID/private guards and canonical-ID inequality passed; only ID 2 was deleted; API returned 404 afterward, database and bare path were absent, the exact checksum record matched its reviewed source/target before removal, and canonical Hook/base verification remained green.
+- Residual boundary: No canonical test tag or feature ref was created. Runner, CI, Registry, and data-bearing restore remain the next Task 11 gates.

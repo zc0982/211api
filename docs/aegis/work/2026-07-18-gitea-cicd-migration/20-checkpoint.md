@@ -572,3 +572,31 @@
 - New risk signals:
 - Smoke repository ID 2 is intentionally retained because the required real SSH test process did not start; it must not be deleted before the approved evidence run or mistaken for canonical repository ID 1
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Register the isolated Runner, rotate its bootstrap token, and prove effective container boundaries
+- Active slice: Immutable-tag real SSH gate complete; Runner not started
+- Completed todos:
+- After fresh explicit approval, the prepared real SSH smoke ran through Gitea's port-2222 receive path with dedicated identities
+- The non-whitelisted `luoee` actor successfully pushed `main`, proving repository write; `svc-release-tag` successfully created the single allowed `v*` tag
+- The same whitelisted service actor's force-move and delete pushes both failed and emitted the exact platform Hook message `protected release tags are immutable`, proving the delegate executes while custom user hooks are disabled
+- The non-whitelisted maintainer's separate `v*` creation failed through tag protection; final remote state contained only `main` at commit two and the allowed tag at commit one
+- Before deletion, fresh API and database checks required private owner `211api`, exact repository name, numeric ID 2, and ID inequality with canonical repository ID; the smoke Hook and exact two-ref inventory were reverified
+- Deleted only repository ID 2 through the API, then required API 404, database zero rows, and absent bare path
+- Validated the unique root-owned checksum record against the reviewed Hook checksum and exact deleted target path, removed only that record through the locked networkless image, and reverified canonical Hook/base controls
+- Evidence refs:
+- task11-release-tag-ssh-only
+- task11-hook-smoke-prepared
+- task11-real-ssh-hook-smoke
+- Blocked on: none for the immutable-tag stage; Runner registration will stop at the authenticated manual token-reset gate after the Runner is online
+- Next step: revalidate zero Runner/token state and installed Runner manifests, generate the repository-scoped token once, start isolated rootless DinD/Runner, then request the UI reset before deleting the fixed token source
+
+## DriftCheckDraft
+
+- Scope status: the disposable smoke repository, its refs, collaborator relation, tag protection, bare data, and checksum record are gone; only the intended persistent service SSH identity/record and canonical controls remain
+- Compatibility status: no canonical `v*` tag was created, no API tag fallback was used, and both positive/negative evidence traversed the real SSH receive path
+- Retirement status: the disposable repository and checksum evidence were removed only after complete proof and fresh identity guards; the `svc-release-tag` password remains retired and no PAT exists
+- New risk signals:
+- The service private key and known-hosts remain operator-held outside Git for later Actions-secret installation; that installation is not part of the completed smoke stage
+- Advisory decision: continue
