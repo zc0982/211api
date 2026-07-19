@@ -498,7 +498,7 @@ produce_database() {
 }
 
 validate_database() {
-  platform_compose exec -T postgres pg_restore --list -
+  platform_compose exec -T postgres pg_restore --list
 }
 
 CURRENT_VOLUME=

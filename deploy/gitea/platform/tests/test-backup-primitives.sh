@@ -169,4 +169,12 @@ rg -q 'status=pending' "$api_log"
 rg -q 'status=queued' "$api_log"
 rg -q 'status=in_progress' "$api_log"
 
+platform_compose() {
+  printf '%s\n' "$*" >"$tmp/pg-restore.args"
+  cat >"$tmp/pg-restore.stdin"
+}
+printf '%s' 'custom-format-dump-sentinel' | validate_database
+[[ "$(<"$tmp/pg-restore.args")" == 'exec -T postgres pg_restore --list' ]]
+[[ "$(<"$tmp/pg-restore.stdin")" == 'custom-format-dump-sentinel' ]]
+
 printf 'backup primitive fault injections passed\n'
