@@ -38,9 +38,10 @@ make_action_page() {
       {
         total_count:$total,
         workflow_runs:[range($start;$end) | {
-          id:., repository_id:1, run_number:., run_attempt:1,
+          id:., repository_id:0, run_number:., run_attempt:0,
           path:"ci.yml@refs/heads/feature", event:"push", display_title:"CI",
-          status:"completed", head_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          status:"completed", conclusion:"success", head_branch:"feature",
+          head_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           started_at:null, completed_at:null,
           actor:null, trigger_actor:{id:2,login:"automation"},
           url:($base_url + "/api/run"), html_url:($base_url + "/run")
@@ -62,7 +63,18 @@ normalize_action_runs <"$tmp/restored-actions.json" >"$tmp/restored-actions.norm
 make_action_page 1 52 51 https://git.211api.com | jq '.workflow_runs' |
   normalize_action_runs >"$tmp/live-actions.normalized.json"
 cmp -s "$tmp/restored-actions.normalized.json" "$tmp/live-actions.normalized.json"
-jq '.[0].status = "cancelled"' "$tmp/restored-actions.json" |
+jq -e '
+  .[0].conclusion == "success"
+  and .[0].head_branch == "feature"
+  and (.[0] | has("repository_id") | not)
+  and (.[0] | has("run_attempt") | not)
+  and (.[0] | has("url") | not)
+  and (.[0] | has("html_url") | not)
+' "$tmp/restored-actions.normalized.json" >/dev/null
+jq '.[0].head_branch = null' "$tmp/restored-actions.json" |
+  normalize_action_runs >"$tmp/null-head-branch.normalized.json"
+jq -e '.[0].head_branch == null' "$tmp/null-head-branch.normalized.json" >/dev/null
+jq '.[0].conclusion = "cancelled"' "$tmp/restored-actions.json" |
   normalize_action_runs >"$tmp/changed-actions.normalized.json"
 if cmp -s "$tmp/restored-actions.normalized.json" "$tmp/changed-actions.normalized.json"; then
   printf 'Actions normalization ignored a stable field change\n' >&2
@@ -72,6 +84,16 @@ jq '.[0].trigger_actor = {id:"invalid",login:"automation"}' \
   "$tmp/restored-actions.json" >"$tmp/invalid-actions.json"
 if normalize_action_runs <"$tmp/invalid-actions.json" >/dev/null 2>&1; then
   printf 'Actions normalization accepted an invalid actor\n' >&2
+  exit 1
+fi
+jq '.[0].conclusion = null' "$tmp/restored-actions.json" >"$tmp/invalid-conclusion.json"
+if normalize_action_runs <"$tmp/invalid-conclusion.json" >/dev/null 2>&1; then
+  printf 'Actions normalization accepted an invalid conclusion\n' >&2
+  exit 1
+fi
+jq '.[0].head_branch = 42' "$tmp/restored-actions.json" >"$tmp/invalid-head-branch.json"
+if normalize_action_runs <"$tmp/invalid-head-branch.json" >/dev/null 2>&1; then
+  printf 'Actions normalization accepted an invalid head branch\n' >&2
   exit 1
 fi
 

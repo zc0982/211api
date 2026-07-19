@@ -175,9 +175,10 @@ make_action_page() {
     {
       total_count:$total,
       workflow_runs:[range($start;$end) | {
-        id:., repository_id:1, run_number:., run_attempt:1,
+        id:., repository_id:0, run_number:., run_attempt:0,
         path:"ci.yml@refs/heads/feature", event:"push", display_title:"CI",
-        status:"completed", head_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        status:"completed", conclusion:"success", head_branch:"feature",
+        head_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         started_at:null, completed_at:null, actor:null, trigger_actor:null,
         url:"https://live.example.invalid/unstable"
       }]
@@ -199,8 +200,15 @@ jq -e '
   length == 51
   and .[0].actor == null
   and .[0].completed_at == null
+  and .[0].conclusion == "success"
+  and .[0].head_branch == "feature"
+  and (.[0] | has("repository_id") | not)
+  and (.[0] | has("run_attempt") | not)
   and (.[0] | has("url") | not)
 ' "$tmp/actions.normalized.json" >/dev/null
+jq '.[0].head_branch = null' "$tmp/actions.json" |
+  normalize_action_run_array >"$tmp/actions-null-head-branch.normalized.json"
+jq -e '.[0].head_branch == null' "$tmp/actions-null-head-branch.normalized.json" >/dev/null
 
 full_page_calls="$tmp/actions-full-page.calls"
 api_get() {
@@ -246,6 +254,16 @@ if normalize_action_run_array <"$tmp/actions-duplicate.json" >/dev/null 2>&1; th
   printf 'Actions validator accepted duplicate run IDs\n' >&2
   exit 1
 fi
+jq '.[0].conclusion = null' "$tmp/actions.json" >"$tmp/actions-invalid-conclusion.json"
+if normalize_action_run_array <"$tmp/actions-invalid-conclusion.json" >/dev/null 2>&1; then
+  printf 'Actions validator accepted an invalid conclusion\n' >&2
+  exit 1
+fi
+jq '.[0].head_branch = 42' "$tmp/actions.json" >"$tmp/actions-invalid-head-branch.json"
+if normalize_action_run_array <"$tmp/actions-invalid-head-branch.json" >/dev/null 2>&1; then
+  printf 'Actions validator accepted an invalid head branch\n' >&2
+  exit 1
+fi
 
 produce_releases() { printf '[]\n'; }
 produce_packages() { printf '[]\n'; }
@@ -263,7 +281,7 @@ actions.json.age produce_action_runs normalize_action_run_array
 EOF
 verify_api_snapshots_unchanged
 produce_action_runs() {
-  make_action_page 1 2 1 | jq '.workflow_runs | .[0].status = "cancelled"'
+  make_action_page 1 2 1 | jq '.workflow_runs | .[0].conclusion = "failure"'
 }
 if verify_api_snapshots_unchanged 2>/dev/null; then
   printf 'Actions snapshot race was accepted\n' >&2
