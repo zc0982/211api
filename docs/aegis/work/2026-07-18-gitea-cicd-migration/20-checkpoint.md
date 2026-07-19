@@ -512,3 +512,32 @@
 - New risk signals:
 - The import command contains direct equality evidence, but the planned independent post-command reread is still missing because its process never started
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Create the SSH-only release-tag identity and execute the disposable real-SSH immutable-tag smoke
+- Active slice: Exact Git import and canonical Hook controls complete; stopped before the next credential write
+- Completed todos:
+- A fresh independent refs reread was twice rejected before process creation by the approval service; no alternate transport was used. The reviewed atomic import command itself already required byte-for-byte source/target inventory equality before success, so the planned import gate is complete without claiming the unavailable extra reread
+- Deployed the reviewed `f21194c62` Hook installer/source files by exact SHA-256, configured base repository controls, and regenerated Gitea managed hooks
+- The first SSH-streamed remote script stopped after base configuration because a nested `docker compose exec -T` consumed the remaining script stdin; independent Hook readback caught the missing delegate before any completion claim
+- Re-ran all stdin-capable commands with explicit `/dev/null`; managed-hook regeneration and canonical Hook install/verify then passed
+- Live verification exposed a pre-existing producer/consumer defect: `verify-repository` wrote the boolean result of a tag-rule predicate and then treated it as an object
+- Fixed the canonical verifier at `85fc2ad9c` with a shared unique-object extractor and regression coverage for the old boolean output plus duplicate rejection; local syntax, admin primitives, immutable-hook fixtures, ShellCheck boundary, diff hygiene, specification review, and quality review passed
+- Deployed only the reviewed verifier/library repair by exact SHA-256. Canonical Hook verification, base repository verification, exact managed/immutable hook owner-mode checks, `DISABLE_GIT_HOOKS=true`, and external health 200 all passed; exact staging/backups were removed
+- Evidence refs:
+- task11-atomic-ref-import
+- f21194c62
+- 85fc2ad9c
+- task11-canonical-hook-controls
+- Blocked on: explicit approval to create the `svc-release-tag` SSH-only key, add only its public key, prove authentication, discard its retained one-time password, and create/delete one exact disposable smoke repository
+- Next step: after approval, create the service SSH identity and trusted known-hosts, prove SSH-only authentication, then execute the owner/name/ID-guarded disposable tag-protection smoke without touching canonical tags
+
+## DriftCheckDraft
+
+- Scope status: Netcup changes are limited to exact imported Git refs, base repository protections, canonical managed Hook files, one import public key, and reviewed admin verifier/install files; Runner, feature refs, GitHub, and Gateway remain unchanged
+- Compatibility status: Gitea custom user hooks remain disabled; the platform-owned `update.d` delegate coexists with the regenerated Gitea hook and uses the reviewed checksum owner
+- Retirement status: the broken boolean tag-rule output path is removed; the remote stdin-consuming execution shape is retired in favor of explicit `/dev/null`; no fallback verifier or alternate Hook owner was added
+- New risk signals:
+- The SSH-only tag service identity, disposable real receive-path proof, password discard record, and checksum-record cleanup remain unverified
+- Advisory decision: pause-for-user

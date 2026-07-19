@@ -216,3 +216,14 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Verifier: Exact command-chain exit status plus local remote/namespace/worktree readback
 - Scope evidence: The refspec builder excludes only `refs/remotes/origin/HEAD`, never reads local `main` or `refs/tags/*`, and ran before any feature-branch push. The target was required empty twice: before SSH authentication proof and immediately before import.
 - Residual boundary: The command-internal equality comparison succeeded, but an independent fresh `ls-remote` reread was rejected before process creation by the approval service. Canonical Hook/protection, feature push, Runner, CI, Registry, and restore remain unexecuted.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-canonical-hook-controls
+- Type: live canonical immutable-tag control installation and verifier repair
+- Source: commits `f21194c62` and `85fc2ad9c`; installed `/opt/gitea/admin` owners and canonical Gitea bare repository on 2026-07-19
+- Summary: Configured the exact base branch/tag controls, regenerated Gitea's managed hooks, installed the platform-owned immutable `v*` delegate beside the managed hook, and verified the reviewed files/checksum/owner/mode while custom user hooks remained disabled.
+- Verifier: Local test/static/review gates plus live installer verify, repository base verifier, direct managed/immutable hook metadata checks, configuration assertion, and external health 200
+- Diagnostic evidence: A streamed remote Bash script lost its remaining stdin to nested Compose and stopped before Hook installation; independent readback exposed the missing Hook. After explicit stdin isolation, live verification exposed that the repository verifier wrote boolean `true` instead of the selected tag object. Commit `85fc2ad9c` retired that path with one shared extractor and exact negative tests.
+- Runtime evidence: `immutable v* tag hook verified`; `Gitea repository verification passed (base)`; installed file hashes matched the reviewed local artifacts; Gitea health returned 200; no task staging/backup directory remained.
+- Residual boundary: No canonical `v*` tag was created. The SSH-only service identity and disposable receive-path positive/negative proof remain the next Task 11 gate; Runner and feature refs remain absent.
