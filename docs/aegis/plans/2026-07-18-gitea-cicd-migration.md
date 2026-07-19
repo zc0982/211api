@@ -1618,9 +1618,11 @@ worktree remains unpushed to GitHub.
    token: in Gitea 1.26.4 the CLI and REST endpoint return an existing active
    token rather than rotating it. Verify exactly one active row and one inactive
    predecessor for the repository scope without reading either value, then
-   delete the fixed source before any normal backup. Prove socket owner/mode and
-   connect with the locked CLI before Runner registration; any fallback endpoint
-   or rootful daemon is a stop.
+   delete the fixed source before any normal backup. Before creating any Runner
+   resource, pull and inspect the two locked service images plus the locked
+   Docker CLI and Alpine utility images; Compose pull alone does not fetch those
+   utility images. Prove socket owner/mode and connect with the locked CLI before
+   Runner registration; any fallback endpoint or rootful daemon is a stop.
 
 7. Inspect effective containers:
 

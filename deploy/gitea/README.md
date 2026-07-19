@@ -279,7 +279,18 @@ set -a
 . /opt/gitea/images.lock.env
 set +a
 runner_compose config --quiet
+runner_compose pull docker runner
+sudo docker pull "$DOCKER_CLI_IMAGE"
+sudo docker pull "$APP_ALPINE_IMAGE"
+for image in "$DIND_IMAGE" "$RUNNER_IMAGE" "$DOCKER_CLI_IMAGE" \
+  "$APP_ALPINE_IMAGE"; do
+  sudo docker image inspect "$image" >/dev/null
+done
 ```
+
+Pull all four digest-locked images before creating any Runner resource. Compose
+pulls only the two service images; it does not fetch the Docker CLI and Alpine
+utility images used by volume initialization and socket verification.
 
 Initialize only the persistent Runner state volume. This utility container is
 networkless and non-privileged; it does not initialize DinD data or any host
