@@ -600,3 +600,34 @@
 - New risk signals:
 - The service private key and known-hosts remain operator-held outside Git for later Actions-secret installation; that installation is not part of the completed smoke stage
 - Advisory decision: continue
+
+## Checkpoint Update
+
+- Current todo: Rotate the live Runner registration token through the authenticated repository UI and remove the bootstrap source
+- Active slice: Repository-scoped Runner is online; manual CSRF-protected reset gate
+- Completed todos:
+- Revalidated zero pre-existing Runner resources, installed the reviewed fixed-name Runner Compose/configuration, and started the isolated rootless DinD daemon as the sole privileged container
+- A first live start exposed Compose-generated container names; commit `d7dcdbaf5` added the required fixed production names while preserving randomly named isolated smoke resources, and the repaired local rootless-DinD smoke plus fresh specification/quality reviews passed
+- Pulled all four digest-locked Runner/utility images before resource creation after the host lacked the Docker CLI utility image; commit `dfaed8ce3` records the fail-closed ordering
+- Generated exactly one repository-scoped registration token into `/etc/gitea/runner-registration-token` as root-owned mode 0600, compared CLI and authenticated REST results without emitting either value, and proved database state `1 active | 0 inactive`
+- Retired fragile multi-layer SQL quoting from the written runbook in commit `dd6623110`; both complete root heredocs pass `bash -n`, and the equivalent PostgreSQL dollar-quoted query was the successful live path
+- Staged the token only in the existing Runner tmpfs as UID/GID 1000 mode 0400, registered `netcup-amd64-1`, and immediately removed the staged copy; persistent `.runner` state remains in the dedicated Runner volume
+- Proved through API and database that exactly one repository-scoped Runner is enabled and idle; capacity is one
+- Proved the long-lived Runner is UID 1000, unprivileged, read-only, capability-free, `no-new-privileges`, has no host Docker socket/ports/devices/PID namespace, and mounts only its configuration; the rootless DinD socket is UID/GID 1000 mode 1660 with no TCP Docker listener
+- Evidence refs:
+- task11-runner-token-lifecycle
+- task11-runner-online
+- d7dcdbaf5
+- dfaed8ce3
+- dd6623110
+- Blocked on: operator must use the authenticated repository Settings -> Actions -> Runners page to reset the registration token; the token must not be copied, displayed, or sent
+- Next step: after operator confirmation, prove database state `1 active | 1 inactive` without reading values, delete only `/etc/gitea/runner-registration-token`, prove the tmpfs staged token remains absent and the Runner remains online, then begin the non-main feature-branch CI smoke
+
+## DriftCheckDraft
+
+- Scope status: Netcup now has the approved isolated Runner resources and one online repository-scoped Runner; no feature ref, Registry artifact, GitHub state, Gateway state, or canonical tag changed
+- Compatibility status: production remains on Gateway Los Angeles; Runner jobs have no host Docker socket and use only the dedicated rootless DinD Unix socket
+- Retirement status: the transient tmpfs token is absent; the fixed root-only bootstrap source remains only until the mandatory authenticated reset proves its predecessor inactive
+- New risk signals:
+- The UI reset is intentionally manual because Gitea 1.26.4 CLI/REST return the existing active token instead of rotating it; normal backup must not proceed until the source file is deleted
+- Advisory decision: pause-for-user

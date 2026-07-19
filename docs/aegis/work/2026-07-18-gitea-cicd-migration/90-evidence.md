@@ -255,3 +255,15 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Verifier: Strict known-host SSH pushes with `luoee` and `svc-release-tag`, exact negative statuses/messages, and final remote ref equality
 - Cleanup evidence: Fresh API/database owner/name/ID/private guards and canonical-ID inequality passed; only ID 2 was deleted; API returned 404 afterward, database and bare path were absent, the exact checksum record matched its reviewed source/target before removal, and canonical Hook/base verification remained green.
 - Residual boundary: No canonical test tag or feature ref was created. Runner, CI, Registry, and data-bearing restore remain the next Task 11 gates.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-runner-online
+- Type: live isolated Runner registration and effective-container boundary proof
+- Source: commits `d7dcdbaf5`, `dfaed8ce3`, and `dd6623110`; root-only Netcup registration path on 2026-07-19
+- Summary: Started the fixed-name rootless DinD and unprivileged Gitea Runner, created exactly one repository-scoped bootstrap token without disclosure, staged it only in tmpfs, registered `netcup-amd64-1`, removed the staged copy, and proved the Runner enabled and idle through both API and database state.
+- Verifier: Primary-agent local Compose/config/token-lifecycle/rootless-DinD tests, fresh specification and quality reviews for the fixed-name repair, and independent effective Docker/API/database assertions on Netcup
+- Isolation evidence: `gitea-runner-docker` is the sole privileged container and exposes only a UID/GID-1000 mode-1660 Unix socket; no Docker TCP listener or published port exists. `gitea-runner` runs as UID 1000 with read-only root, all capabilities dropped, `no-new-privileges`, no host socket, no devices/host PID, and only the exact read-only configuration bind.
+- Token evidence: The fixed source is root-owned mode 0600; database state is exactly one active and zero inactive repository token; CLI and authenticated REST returned the same 40-character value without either value entering terminal evidence. The tmpfs staging path was removed immediately after `.runner` appeared.
+- Diagnostic evidence: The first DinD attempt exposed unpinned Compose container names before any token or Runner state existed. The next attempt stopped before resource creation because the locked Docker CLI utility image was absent. A first token query stopped before generation because nested Shell quoting removed SQL string quotes; the runbook now uses PostgreSQL dollar quoting and both root heredocs pass syntax validation.
+- Residual boundary: The authenticated web reset remains mandatory. Until database state is exactly one active plus one inactive predecessor, `/etc/gitea/runner-registration-token` remains present and normal backup must not proceed. Feature-branch CI, context discovery, protected-main checks, Registry, and restore evidence remain unexecuted.
