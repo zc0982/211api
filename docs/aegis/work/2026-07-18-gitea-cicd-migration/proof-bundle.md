@@ -26,6 +26,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-pipedream-telegram-adapter-local.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-repo-ci-audit.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json
+- docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task10-platform-bootstrap.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json
 - docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task9-netcup-preflight.json
@@ -34,7 +35,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 
 ## Drift Check
 
-- Scope status: Task 9 is complete at the approved no-start boundary; only notification endpoint installation and verification changed external state
-- Compatibility status: Netcup still hosts no 211API business runtime; Gateway remains sole production; no Gitea/Runner/DNS/TLS state was activated
-- Retirement status: Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner
-- Advisory decision: pause-for-user
+- Scope status: Task 10 is complete: Netcup runs only the Gitea control plane and local encrypted backup owner; Runner, repository import, Gateway, GitHub external state, and cutover are untouched
+- Compatibility status: Gateway Los Angeles remains the sole production runtime; Netcup Gitea, PostgreSQL, Caddy, TLS, Fail2ban, firewall, backup timer, Hermes, Komari, Docker, and admin SSH are healthy
+- Retirement status: No fallback owner was added and no external delivery owner was cut over; Task 13 remains the fresh explicit cutover approval gate
+- Advisory decision: continue

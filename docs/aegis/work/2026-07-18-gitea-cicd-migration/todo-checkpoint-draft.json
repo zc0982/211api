@@ -1,18 +1,21 @@
 {
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
-  "currentTodo": "Prepare Task 10 DNS, TLS, Gitea bootstrap, and identity gate",
+  "currentTodo": "Begin Task 11 import and Runner proof only when explicitly resumed",
   "completedTodos": [
-    "Task 9 complete: Pipedream adapter af5b0cb6f tested 8/8 in locked Node 20; live preflight 200, invalid 400, notification-test 200, Telegram receipt confirmed",
-    "Netcup backup-notify-url is a regular root:root 0600 single-line file; remote preflight 200; zero containers/processes/new listeners; preserved services, Compose renders, Fail2ban, NTP, and firewall guard pass"
+    "Task 10 DNS/TLS/Gitea/Fail2ban bootstrap complete with the exact private empty organization, repository, teams, identities, and split credentials",
+    "The human password/TOTP/recovery-code gate passed without credential observation; the one-time human password was deleted",
+    "Validated nine-component age backup gitea-20260719T034037Z-561d9ad0 restored in isolated labelled resources and cleaned with zero residue",
+    "Daily backup timer enabled; production health HTTP 200; Runner/import/Gateway/GitHub/cutover remain untouched"
   ],
-  "activeSlice": "Task 9 evidence close; Task 10 not started",
+  "activeSlice": "Task 10 evidence close; stopped before Task 11",
   "evidenceRefs": [
-    "task9-netcup-preflight",
-    "pipedream-telegram-adapter-local",
-    "af5b0cb6f"
+    "task10-platform-bootstrap",
+    "8b0eb7f84",
+    "55e8d7a7f",
+    "5c0ccb47c"
   ],
-  "blockedOn": "Task 10 requires Cloudflare authority and bootstrap identities; these are not Task 9 completion blockers",
-  "nextStep": "Commit Task 9 close evidence, then request/validate only the Task 10 inputs before any DNS, TLS, Gitea, or Runner start",
+  "blockedOn": "none for Task 10; Task 11 has not started",
+  "nextStep": "After explicit continuation, execute Task 11 import and Runner non-main CI gates without touching Gateway production or cutover",
   "updatedAt": "2026-07-19"
 }

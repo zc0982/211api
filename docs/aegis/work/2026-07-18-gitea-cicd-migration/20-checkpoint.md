@@ -348,3 +348,35 @@
 - New risk signals:
 - The next step is intentionally human-only because password entry, TOTP enrollment, and recovery-code custody cannot be safely automated or observed by the agent
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Close Task 10 DNS, platform bootstrap, encrypted backup, and isolated restore evidence
+- Active slice: Task 10 completed; stopped before Task 11 import and Runner registration
+- Completed todos:
+- The operator changed the `luoee` password, enabled TOTP, and retained recovery codes without exposing any of those values; the locked local Gitea CLI reports 2FA enabled
+- Bootstrap phase two and an idempotent rerun created and verified seven users, the private `211api` organization, the private empty `211api/211api` repository, five exact teams, four direct collaborators, six least-privilege token files plus metadata, and no Runner or imported refs
+- Corrected the post-password administrator/TOTP gates and unsafe root-script local expansions at `22a4ade53`, `820a7b534`, `826479589`, and `f5a582e73`
+- Repaired streamed PostgreSQL validation at `8b0eb7f84`: `pg_restore --list` may close early, so a private FIFO plus a draining tee now preserves the full pg_dump/age stream without a complete plaintext file
+- Created validated age-encrypted bootstrap backup `gitea-20260719T034037Z-561d9ad0` with nine ciphertext components; the preceding fail-closed attempts restored service health and the successful run cleared the root-only FAILED marker
+- Repaired the installed restore-helper mode contract at `55e8d7a7f` and the Netcup Docker loopback-publication incompatibility at `5c0ccb47c` without changing daemon, NAT, sysctl, or production firewall state
+- The isolated restore verified PostgreSQL structure, the non-admin backup identity, empty clone/refs, releases, packages, and Registry metadata; run-labelled containers, volumes, network, scratch, proxy, lease, and operator tmpfs all had zero residue
+- Installed and enabled `gitea-backup.timer`; repository/remote unit hashes match and the next run is `2026-07-19T18:30:00Z`
+- Revalidated production PostgreSQL/Gitea/Caddy health, external HTTP 200, active Fail2ban/firewall owners, preserved Netcup services, zero Runner, and zero Gateway mutation
+- Evidence refs:
+- task10-platform-bootstrap
+- 8b0eb7f84
+- 55e8d7a7f
+- 5c0ccb47c
+- Blocked on: none for Task 10; Task 11 is a separate import/Runner execution slice and has not started
+- Next step: commit the completed Task 10 evidence, then stop at the Task 11 boundary for the next explicit continuation
+
+## DriftCheckDraft
+
+- Scope status: Netcup runs only the approved Gitea control plane and encrypted local backup owner; Gateway Los Angeles remains the sole production runtime
+- Compatibility status: DNS/TLS/SSH, Gitea, PostgreSQL, Caddy, Fail2ban, backup timer, Hermes, Komari, Docker, and admin SSH are healthy; no Docker daemon, NAT, sysctl, or Gateway mutation was introduced by the restore repair
+- Retirement status: no GitHub external state, Runner, repository import, release owner, deploy owner, or cutover state changed; Task 13 remains the explicit cutover approval gate
+- New risk signals:
+- Backups remain on the Netcup host only; total host/disk loss is the already accepted residual risk until a separate off-host destination is approved
+- Pipedream free-tier quota remains an external notification availability constraint; the local FAILED marker and systemd failure state remain the durable on-host signals
+- Advisory decision: continue to Task 11 only when explicitly resumed

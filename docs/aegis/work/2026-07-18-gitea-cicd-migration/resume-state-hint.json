@@ -2,10 +2,11 @@
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-18-gitea-cicd-migration",
   "lastCheckpointRef": "docs/aegis/work/2026-07-18-gitea-cicd-migration/todo-checkpoint-draft.json",
-  "resumeInstruction": "Resume at Task 10 input gate; do not repeat Task 9, expose notification credentials, touch Gateway, or cross Task 13 without fresh approval",
+  "resumeInstruction": "Resume at Task 11 import and Runner proof; do not repeat Task 10, expose credentials, mutate Gateway, disable GitHub, or cross Task 13 without fresh approval",
   "knownPartialWork": [
-    "Task 9 complete: Pipedream adapter af5b0cb6f tested 8/8 in locked Node 20; live preflight 200, invalid 400, notification-test 200, Telegram receipt confirmed",
-    "Netcup backup-notify-url is a regular root:root 0600 single-line file; remote preflight 200; zero containers/processes/new listeners; preserved services, Compose renders, Fail2ban, NTP, and firewall guard pass"
+    "Task 10 complete with converged DNS, valid TLS, private empty Gitea, TOTP-enabled human admin, service identities, active Fail2ban, and daily encrypted backup timer",
+    "Validated backup gitea-20260719T034037Z-561d9ad0 passed a zero-residue isolated restore drill",
+    "Runner, imported refs, release/package data, Gateway production, GitHub external state, and cutover are not started"
   ],
   "mustReadBeforeContinuing": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/10-intent.md",
@@ -13,6 +14,7 @@
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/todo-checkpoint-draft.json"
   ],
   "unsafeToAssume": [
-    "Task 9 notification success does not authorize DNS/Gitea startup, repository import, Gateway mutation, or cutover"
+    "Task 10 completion does not authorize Gateway mutation, GitHub disablement, or Task 13 cutover",
+    "The retained svc-release-tag password exists only for its Task 11 SSH-key gate and must be removed after that gate"
   ]
 }

@@ -6,11 +6,12 @@
     "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
     "docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md"
   ],
-  "scopeStatus": "Task 9 is complete at the approved no-start boundary; only notification endpoint installation and verification changed external state",
-  "compatStatus": "Netcup still hosts no 211API business runtime; Gateway remains sole production; no Gitea/Runner/DNS/TLS state was activated",
-  "retirementStatus": "Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner",
+  "scopeStatus": "Task 10 is complete: Netcup runs only the Gitea control plane and local encrypted backup owner; Runner, repository import, Gateway, GitHub external state, and cutover are untouched",
+  "compatStatus": "Gateway Los Angeles remains the sole production runtime; Netcup Gitea, PostgreSQL, Caddy, TLS, Fail2ban, firewall, backup timer, Hermes, Komari, Docker, and admin SSH are healthy",
+  "retirementStatus": "No fallback owner was added and no external delivery owner was cut over; Task 13 remains the fresh explicit cutover approval gate",
   "newRiskSignals": [
-    "Task 10 remains gated on Cloudflare authority and bootstrap identities; Task 13 still requires fresh explicit cutover approval"
+    "Validated backups remain on the Netcup host only until an off-host destination is separately approved",
+    "Pipedream free-tier quota is an external alert-availability constraint; the root-only FAILED marker and systemd state remain durable local signals"
   ],
-  "decision": "pause-for-user"
+  "decision": "continue"
 }

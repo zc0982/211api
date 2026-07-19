@@ -6,7 +6,7 @@
   ],
   "impactStatement": "docs/aegis/work/2026-07-18-gitea-cicd-migration/impact-statement-draft.json",
   "compatPlan": "应用内在线更新继续读取 Wei-Shaw/sub2api GitHub Releases；不形成 fork CI/CD 双 owner",
-  "retirementPlan": "Legacy release/deploy Telegram paths remain retired; Pipedream adapter af5b0cb6f is the sole backup-failure Telegram owner",
+  "retirementPlan": "No fallback owner was added and no external delivery owner was cut over; Task 13 remains the fresh explicit cutover approval gate",
   "evidenceBundle": [
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-design-self-review.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-gateway-host-inspection.json",
@@ -17,6 +17,7 @@
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-pipedream-telegram-adapter-local.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-repo-ci-audit.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task10-platform-bootstrap.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json",
     "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task9-netcup-preflight.json",
