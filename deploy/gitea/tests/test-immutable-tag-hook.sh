@@ -31,6 +31,12 @@ expect_failure() {
   fi
 }
 
+expect_message() {
+  local file=$1 message=$2
+  grep -F -- "$message" "$file" >/dev/null ||
+    fail "expected message not found in $file: $message"
+}
+
 make_managed_bare() {
   local repository=$1
   git init --bare -q "$repository"
@@ -61,6 +67,21 @@ fixture_verify() {
 
 [[ -x "$ENGINE" && -x "$HOOK_SOURCE" ]] ||
   fail 'reviewed installer and hook source must be executable'
+
+expect_failure smoke-missing-name "$ENGINE" --production-smoke-install
+expect_message "$tmp/smoke-missing-name.err" \
+  'production smoke mode requires one repository name'
+expect_failure smoke-arbitrary-name "$ENGINE" --production-smoke-install hook-smoke-current
+expect_message "$tmp/smoke-arbitrary-name.err" \
+  'production smoke repository name is outside the exact run-ID format'
+grep -F 'hook-smoke-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]t' "$ENGINE" >/dev/null ||
+  fail 'production smoke repository format guard is missing'
+grep -F 'production smoke installation is root-only' "$ENGINE" >/dev/null ||
+  fail 'production smoke root-only guard is missing'
+grep -F 'repository=/var/lib/gitea/git/repositories/211api/$smoke_repository.git' \
+  "$ENGINE" >/dev/null || fail 'production smoke repository path is not derived'
+grep -F 'checksum_record=/var/lib/gitea/.platform/$smoke_repository-immutable-v-tags.sha256' \
+  "$ENGINE" >/dev/null || fail 'production smoke checksum path is not derived'
 
 repository="$tmp/live.git"
 mkdir -m 0700 "$tmp/live-evidence"

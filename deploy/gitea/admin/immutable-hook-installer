@@ -97,9 +97,13 @@ install_hook() {
   target="$repository/hooks/update.d/immutable-v-tags"
   record_parent=$(dirname "$checksum_record")
 
-  if [ ! -e "$record_parent" ] && [ "$mode" = --production-install ]; then
-    mkdir -m 0700 "$record_parent"
-    chown "$record_uid:$record_gid" "$record_parent"
+  if [ ! -e "$record_parent" ]; then
+    case "$mode" in
+      --production-install|--production-smoke-install)
+        mkdir -m 0700 "$record_parent"
+        chown "$record_uid:$record_gid" "$record_parent"
+        ;;
+    esac
   fi
   [ -d "$record_parent" ] && [ ! -L "$record_parent" ] ||
     die 'checksum evidence directory is missing or is a symlink'
@@ -188,6 +192,24 @@ case "$mode" in
     record_uid=0
     record_gid=0
     ;;
+  --production-smoke-install|--production-smoke-verify)
+    [ "$#" -eq 2 ] ||
+      die 'production smoke mode requires one repository name'
+    smoke_repository=$2
+    case "$smoke_repository" in
+      hook-smoke-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]t[0-9][0-9][0-9][0-9][0-9][0-9]z-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+      *) die 'production smoke repository name is outside the exact run-ID format' ;;
+    esac
+    [ "$(id -u)" -eq 0 ] || die 'production smoke installation is root-only'
+    repository=/var/lib/gitea/git/repositories/211api/$smoke_repository.git
+    expected_repository=$repository
+    source_hook=/source/immutable-v-tags
+    checksum_record=/var/lib/gitea/.platform/$smoke_repository-immutable-v-tags.sha256
+    owner_uid=1000
+    owner_gid=1000
+    record_uid=0
+    record_gid=0
+    ;;
   --fixture-install|--fixture-verify)
     [ "${GITEA_HOOK_INSTALL_FIXTURE:-}" = 1 ] ||
       die 'fixture mode requires GITEA_HOOK_INSTALL_FIXTURE=1'
@@ -202,7 +224,7 @@ case "$mode" in
     record_uid=$(id -u)
     record_gid=$(id -g)
     ;;
-  *) die 'expected --production-install, --production-verify, --fixture-install, or --fixture-verify' ;;
+  *) die 'expected --production-install, --production-verify, --production-smoke-install, --production-smoke-verify, --fixture-install, or --fixture-verify' ;;
 esac
 
 for path in "$repository" "$expected_repository" "$source_hook" "$checksum_record"; do
@@ -215,8 +237,8 @@ done
 validate_source
 validate_repository
 case "$mode" in
-  --production-install|--fixture-install) install_hook ;;
-  --production-verify|--fixture-verify) validate_installed ;;
+  --production-install|--production-smoke-install|--fixture-install) install_hook ;;
+  --production-verify|--production-smoke-verify|--fixture-verify) validate_installed ;;
 esac
 
 printf '%s\n' 'immutable v* tag hook verified'

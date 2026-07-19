@@ -1587,14 +1587,20 @@ worktree remains unpushed to GitHub.
    their fingerprints there, and create `RELEASE_TAG_KNOWN_HOSTS`; do not use an
    unverified runtime `ssh-keyscan` result as trust.
 
-5. Create one explicitly disposable private Gitea repository named
-   `211api/hook-smoke-<run-id>`, install the same managed hook through the
-   root-only installer, and configure the same tag protection. Through the real
+5. Create one explicitly disposable private Gitea repository named with the
+   exact lower-case format
+   `211api/hook-smoke-YYYYMMDDtHHMMSSz-8hex`, capture its numeric ID, and require
+   the API and database to agree on owner, name, ID, and private state. Regenerate
+   its managed hooks, then install the same hook through the root-only
+   `--smoke-install` mode, which derives the exact bare path and a unique
+   root-only checksum record rather than accepting an operator path. Configure
+   the same tag protection. Through the real
    Gitea 1.26.4 SSH receive path, prove `svc-release-tag` can create one `v*` tag
    but cannot move or delete it, and a normal maintainer cannot create one.
    Verify the hook executes even with `DISABLE_GIT_HOOKS=true`. Delete only that
-   exact run-ID repository after evidence, with owner/name/id triple guards;
-   never use the canonical repository for a disposable immutable tag.
+   exact run-ID repository after evidence, with a fresh API/DB owner/name/id
+   triple guard and explicit canonical-repository exclusion; never use the
+   canonical repository for a disposable immutable tag.
 
 6. Generate a repository-scoped runner token exactly once with the pinned
    Gitea CLI using the atomic root-only procedure in the runbook; refuse a

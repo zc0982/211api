@@ -627,6 +627,27 @@ Gitea upgrade. The installer requires the exact bare path
 the Gitea-managed delegate, and matching recorded SHA-256. A symlink, wrong
 owner, missing managed hook, partial state, or checksum drift is a hard stop.
 
+Task 11's disposable receive-path proof must use a repository named exactly
+`hook-smoke-YYYYMMDDtHHMMSSz-8hex`. After the API-created repository has passed
+the owner/name/numeric-ID guards and Gitea has generated its managed hooks,
+install and verify the same reviewed delegate without accepting an operator
+supplied filesystem path:
+
+```bash
+smoke_repository=hook-smoke-20260719t120000z-0123abcd
+sudo /opt/gitea/admin/install-immutable-tag-hook \
+  --smoke-install "$smoke_repository"
+sudo /opt/gitea/admin/install-immutable-tag-hook \
+  --smoke-verify "$smoke_repository"
+```
+
+The installer derives both
+`/var/lib/gitea/git/repositories/211api/$smoke_repository.git` and the unique
+root-only checksum record under `/var/lib/gitea/.platform`; it rejects any
+other name or arbitrary path. These modes do not authorize repository deletion:
+the API/DB owner, name, and numeric ID must still match immediately before the
+single exact smoke repository is deleted. Never use them for `211api/211api`.
+
 Do not activate `main` protection from guessed check names. Task 11 must first
 produce a root-owned mode-0600 evidence file containing exactly:
 

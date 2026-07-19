@@ -14,14 +14,22 @@ die() {
 
 case ${1:-} in
   --install)
-    [[ $# -eq 1 ]] || die 'usage: install-immutable-tag-hook --install|--verify'
-    engine_mode=--production-install
+    [[ $# -eq 1 ]] || die 'usage: install-immutable-tag-hook --install|--verify|--smoke-install REPOSITORY|--smoke-verify REPOSITORY'
+    engine_args=(--production-install)
     ;;
   --verify)
-    [[ $# -eq 1 ]] || die 'usage: install-immutable-tag-hook --install|--verify'
-    engine_mode=--production-verify
+    [[ $# -eq 1 ]] || die 'usage: install-immutable-tag-hook --install|--verify|--smoke-install REPOSITORY|--smoke-verify REPOSITORY'
+    engine_args=(--production-verify)
     ;;
-  *) die 'usage: install-immutable-tag-hook --install|--verify' ;;
+  --smoke-install)
+    [[ $# -eq 2 ]] || die 'usage: install-immutable-tag-hook --install|--verify|--smoke-install REPOSITORY|--smoke-verify REPOSITORY'
+    engine_args=(--production-smoke-install "$2")
+    ;;
+  --smoke-verify)
+    [[ $# -eq 2 ]] || die 'usage: install-immutable-tag-hook --install|--verify|--smoke-install REPOSITORY|--smoke-verify REPOSITORY'
+    engine_args=(--production-smoke-verify "$2")
+    ;;
+  *) die 'usage: install-immutable-tag-hook --install|--verify|--smoke-install REPOSITORY|--smoke-verify REPOSITORY' ;;
 esac
 
 [[ ${EUID:-$(id -u)} -eq 0 ]] || die 'must run as root'
@@ -61,4 +69,4 @@ docker run --rm --pull=never \
   --mount "type=volume,src=$DATA_VOLUME,dst=/var/lib/gitea" \
   --mount "type=bind,src=$EXPECTED_ADMIN_DIR,dst=/source,readonly" \
   "$alpine_image" \
-  /source/immutable-hook-installer "$engine_mode"
+  /source/immutable-hook-installer "${engine_args[@]}"
