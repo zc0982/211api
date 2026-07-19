@@ -1501,26 +1501,78 @@ worktree remains unpushed to GitHub.
    git remote add gitea ssh://git@git.211api.com:2222/211api/211api.git
    ```
 
-2. Fetch old GitHub into remote-tracking refs, then push those exact refs rather
-   than local `main` (which already contains design/plan commits):
+2. Fetch old GitHub heads into remote-tracking refs and old GitHub tags into an
+   isolated import namespace, then push those exact refs rather than local
+   `main` or local `refs/tags/*` (both may already contain commits or tags that
+   do not belong to the old fork):
 
    ```bash
-   git fetch origin \
+   set -euo pipefail
+   import_tmp=$(mktemp -d)
+   source_inventory=$import_tmp/source.refs
+   target_inventory=$import_tmp/target.refs
+   cleanup_import_state() {
+     set +e
+     while IFS= read -r ref; do
+       git update-ref -d "$ref" || true
+     done < <(git for-each-ref --format='%(refname)' \
+       refs/import/github-tags/)
+     rm -rf -- "$import_tmp"
+     set -e
+   }
+   on_import_exit() {
+     status=$?
+     trap - EXIT HUP INT TERM
+     cleanup_import_state
+     exit "$status"
+   }
+   on_import_signal() {
+     status=$1
+     trap - EXIT HUP INT TERM
+     cleanup_import_state
+     exit "$status"
+   }
+   trap on_import_exit EXIT
+   trap 'on_import_signal 129' HUP
+   trap 'on_import_signal 130' INT
+   trap 'on_import_signal 143' TERM
+
+   gitea_before="$(git ls-remote gitea)"
+   test -z "$gitea_before"
+   test -z "$(git for-each-ref --format='%(refname)' refs/import/github-tags/)"
+   git fetch --prune origin \
      '+refs/heads/*:refs/remotes/origin/*' \
-     '+refs/tags/*:refs/tags/*'
+     '+refs/tags/*:refs/import/github-tags/*'
+   refspecs=()
    while IFS= read -r ref; do
-     case "$ref" in */HEAD) continue ;; esac
+     case "$ref" in refs/remotes/origin/HEAD) continue ;; esac
      branch=${ref#refs/remotes/origin/}
-     git push gitea "${ref}:refs/heads/${branch}"
+     refspecs+=("${ref}:refs/heads/${branch}")
    done < <(git for-each-ref --format='%(refname)' \
      refs/remotes/origin/)
-   git push gitea 'refs/tags/*:refs/tags/*'
+   while IFS= read -r ref; do
+     tag=${ref#refs/import/github-tags/}
+     refspecs+=("${ref}:refs/tags/${tag}")
+   done < <(git for-each-ref --format='%(refname)' \
+     refs/import/github-tags/)
+   ((${#refspecs[@]} > 0))
+   git push --atomic gitea "${refspecs[@]}"
+   git ls-remote --heads --tags origin | LC_ALL=C sort >"$source_inventory"
+   git ls-remote --heads --tags gitea | LC_ALL=C sort >"$target_inventory"
+   cmp "$source_inventory" "$target_inventory"
+   cleanup_import_state
+   trap - EXIT HUP INT TERM
+   unset -f cleanup_import_state on_import_exit on_import_signal
    ```
 
    Do this before the implementation branch or any Gitea-only commit. Capture
    `git ls-remote --heads --tags` from old GitHub and Gitea, normalize sorted
-   refs, and require exact object-ID equality including annotated tag objects.
-   This is import-equality evidence; later canonical divergence is expected.
+   refs, and require exact object-ID equality including both annotated tag
+   object rows and their `^{}` peeled rows. Refuse any nonempty Gitea target
+   before import; never prune or overwrite an unexpected remote ref. After
+   evidence, delete only the isolated local `refs/import/github-tags/*`
+   namespace. This is import-equality evidence; later canonical divergence is
+   expected.
 
 3. Install the root-managed immutable-tag hook in the bare repository's
    exact canonical path `hooks/update.d/immutable-v-tags`, record its checksum,
