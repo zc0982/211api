@@ -903,7 +903,11 @@ sudo /opt/gitea/platform/gitea-restore-drill \
 
 The script requires an interactive confirmation containing the exact backup ID,
 adds a bounded retention lease, creates only run-labelled temporary volumes and
-an internal network, and publishes Gitea only on a transient loopback port. It
+an internal network, and exposes the isolated Gitea only through a run-owned
+Python TCP proxy bound to a transient `127.0.0.1` port. This avoids changing
+host-wide Docker daemon, NAT, or `route_localnet` settings when Docker cannot
+materialize a loopback-only published port. The proxy accepts only loopback or
+RFC1918 targets and is stopped by the restore cleanup trap. The drill
 verifies PostgreSQL restore, the non-admin backup identity, exact heads/tags,
 release metadata, package metadata, and each OCI/Docker manifest through the
 isolated Registry endpoint, then removes only resources bearing its run
