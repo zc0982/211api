@@ -206,3 +206,13 @@ Evidence bundles recorded through the repository-only Task 8 gate follow.
 - Verifier: Local owner/mode/key-format checks, official Gitea v1.26.4 route/scope source, admin API response, and database owner/key-ID/title/SHA-256-fingerprint equality
 - Diagnostic evidence: A public user-key GET returned 403 because the control PAT intentionally has only `write:admin`, `write:organization`, and `write:repository`; the database remained at zero keys before the subsequent admin POST. The correction used the documented `write:admin` route and root-only database verification without widening or issuing a token.
 - Residual boundary: Strict live SSH authentication, temporary remote creation, GitHub ref fetch, atomic Gitea push, and exact ref-inventory equality remain unexecuted because the next process start was rejected by the approval service before execution.
+
+## EvidenceBundleDraft
+
+- Artifact key: task11-atomic-ref-import
+- Type: live private-repository Git-history import
+- Source: old GitHub `origin`, dedicated strict-SSH `gitea` remote, and the reviewed Task 11 atomic import script on 2026-07-19
+- Summary: Authenticated the private empty Gitea repository with the dedicated key, fetched old-GitHub heads and tags only into their reviewed namespaces, pushed the constructed refspec set in one atomic transaction, and required sorted full heads/tags inventories to compare byte-for-byte before cleaning the isolated local tag namespace.
+- Verifier: Exact command-chain exit status plus local remote/namespace/worktree readback
+- Scope evidence: The refspec builder excludes only `refs/remotes/origin/HEAD`, never reads local `main` or `refs/tags/*`, and ran before any feature-branch push. The target was required empty twice: before SSH authentication proof and immediately before import.
+- Residual boundary: The command-internal equality comparison succeeded, but an independent fresh `ls-remote` reread was rejected before process creation by the approval service. Canonical Hook/protection, feature push, Runner, CI, Registry, and restore remain unexecuted.

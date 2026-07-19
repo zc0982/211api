@@ -487,3 +487,28 @@
 - New risk signals:
 - The automatic approval transport failure prevented process creation for the next SSH/ref-import action and requires a fresh explicit approval before retry
 - Advisory decision: pause-for-user
+
+## Checkpoint Update
+
+- Current todo: Independently reverify imported refs, then install canonical immutable-tag controls
+- Active slice: Atomic import command succeeded; independent read-only verification process-start approval gate
+- Completed todos:
+- After explicit approval, strict SSH authentication through the dedicated `luoee` key and administrator-sourced known-hosts succeeded against the private empty repository; the temporary `gitea` remote now has the exact reviewed SSH URL
+- Executed the reviewed import script with a second empty-target precondition, fresh old-GitHub fetch into remote-tracking and isolated tag refs, one `git push --atomic`, sorted full source/target heads-and-tags inventories, byte-for-byte `cmp`, count equality, and isolated local-ref cleanup
+- The atomic import command exited successfully; every failure before or during push/comparison would have returned nonzero, and the local isolated tag namespace is empty afterward
+- Local readback confirms the feature worktree and tracked status are unchanged and the feature branch was not part of the source refspec construction
+- A separate fresh read-only `ls-remote` inventory comparison was rejected before process creation by another automatic approval transport-review failure; no alternate query was attempted
+- Evidence refs:
+- task11-import-identity
+- task11-atomic-ref-import
+- Blocked on: explicit approval after the new approval-service rejection to run the independent refs comparison and proceed with canonical hook/protection installation
+- Next step: rerun only the independent strict-SSH source/target inventory comparison; if equal, install and verify canonical managed hook and base tag protection without touching Runner or feature refs
+
+## DriftCheckDraft
+
+- Scope status: only exact old-GitHub refs were submitted to the empty private Gitea repository; the local feature branch, GitHub repository, Runner, and Gateway were not mutated
+- Compatibility status: import used the dedicated key and strict trusted host keys; no mirror, fallback remote, local-main refspec, or local-tag refspec was introduced
+- Retirement status: the isolated local GitHub-tag namespace was removed after the successful comparison; the temporary `gitea` remote remains intentionally for the rest of Task 11
+- New risk signals:
+- The import command contains direct equality evidence, but the planned independent post-command reread is still missing because its process never started
+- Advisory decision: pause-for-user
