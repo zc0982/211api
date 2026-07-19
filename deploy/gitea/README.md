@@ -312,10 +312,86 @@ sudo docker run --rm --network none --read-only --user 1000:1000 \
 Generate a repository- or organization-scoped registration token only after
 Gitea is ready. Write the command output directly to the fixed root-owned mode
 0600 source file; never put the value in a shell variable, Compose environment,
-command argument, terminal output, or Git. Before staging, verify the source
-metadata without reading it:
+command argument, terminal output, or Git. The locked Gitea 1.26.4 CLI returns
+the existing active token for the scope; it does not rotate one. Refuse any
+pre-existing source and create the first repository-scoped token atomically:
 
 ```bash
+sudo /bin/bash <<'ROOT'
+set -euo pipefail
+source=/etc/gitea/runner-registration-token
+lock=/run/lock/gitea-runner-registration-token.lock
+if test -e "$lock"; then
+  test -f "$lock"
+  test ! -L "$lock"
+  test "$(stat -c '%u' "$lock")" -eq 0
+fi
+exec 9>"$lock"
+chown root:root "$lock"
+chmod 0600 "$lock"
+test "$(stat -c '%u:%g %a' "$lock")" = '0:0 600'
+flock -n 9
+test ! -e "$source"
+test ! -L "$source"
+token_count=$(docker compose \
+  --env-file /opt/gitea/images.lock.env \
+  --env-file /etc/gitea/platform.env \
+  -f /opt/gitea/platform/compose.yaml \
+  exec -T postgres psql -U gitea -d gitea -Atqc '
+    SELECT count(*)
+    FROM action_runner_token AS t
+    JOIN repository AS r ON r.id = t.repo_id
+    JOIN "user" AS u ON u.id = r.owner_id
+    WHERE u.lower_name = '\''211api'\''
+      AND r.lower_name = '\''211api'\''
+  ')
+test "$token_count" -eq 0
+tmp=$(mktemp /etc/gitea/.runner-registration-token.XXXXXX)
+cleanup() { rm -f -- "$tmp"; }
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+docker compose \
+  --env-file /opt/gitea/images.lock.env \
+  --env-file /etc/gitea/platform.env \
+  -f /opt/gitea/platform/compose.yaml \
+  exec -T --user 1000:1000 gitea \
+  gitea actions generate-runner-token --scope 211api/211api \
+  </dev/null >"$tmp"
+test "$(wc -l <"$tmp")" -eq 1
+test "$(wc -c <"$tmp")" -eq 41
+token_state=$(docker compose \
+  --env-file /opt/gitea/images.lock.env \
+  --env-file /etc/gitea/platform.env \
+  -f /opt/gitea/platform/compose.yaml \
+  exec -T postgres psql -U gitea -d gitea -Atqc '
+    SELECT
+      count(*) FILTER (WHERE t.is_active),
+      count(*) FILTER (WHERE NOT t.is_active)
+    FROM action_runner_token AS t
+    JOIN repository AS r ON r.id = t.repo_id
+    JOIN "user" AS u ON u.id = r.owner_id
+    WHERE u.lower_name = '\''211api'\''
+      AND r.lower_name = '\''211api'\''
+  ')
+test "$token_state" = '1|0'
+cmp "$tmp" <(
+  curl --config /etc/gitea/admin-api.curl \
+    --silent --show-error --fail \
+    --request POST \
+    https://git.211api.com/api/v1/repos/211api/211api/actions/runners/registration-token \
+  | jq -er '.token | select(type == "string" and length == 40)'
+)
+chown root:root "$tmp"
+chmod 0600 "$tmp"
+ln -- "$tmp" "$source"
+rm -f -- "$tmp"
+test "$(stat -c '%u:%g %a' "$source")" = '0:0 600'
+trap - EXIT HUP INT TERM
+unset -f cleanup
+ROOT
+
 sudo test -f /etc/gitea/runner-registration-token
 sudo test ! -L /etc/gitea/runner-registration-token
 sudo test "$(sudo stat -c '%u:%g %a' \
@@ -392,11 +468,44 @@ finish_runner_registration
 unset -f finish_runner_registration
 ```
 
-After the Runner is online, rotate or revoke the bootstrap registration token
-in Gitea, then delete only `/etc/gitea/runner-registration-token`. Keeping the
-source outside `/opt/gitea/runner` prevents the host-manifest backup from
-capturing it during the short registration window. Subsequent Runner restarts
-use the persistent registration state and require no staged token.
+After the Runner is online, use the authenticated repository Settings ->
+Actions -> Runners page to reset the registration token. This is a manual
+administrator gate: Gitea 1.26.4 exposes reset only through the CSRF-protected
+web route, while the CLI and REST registration-token endpoint both return an
+existing active token. Verify without reading either token that the repository
+scope has exactly one active row and exactly one inactive predecessor, then
+delete only `/etc/gitea/runner-registration-token`:
+
+```bash
+sudo /bin/bash <<'ROOT'
+set -euo pipefail
+source=/etc/gitea/runner-registration-token
+test -f "$source"
+test ! -L "$source"
+test "$(stat -c '%u:%g %a' "$source")" = '0:0 600'
+docker compose \
+  --env-file /opt/gitea/images.lock.env \
+  --env-file /etc/gitea/platform.env \
+  -f /opt/gitea/platform/compose.yaml \
+  exec -T postgres psql -U gitea -d gitea -Atqc '
+    SELECT
+      count(*) FILTER (WHERE t.is_active),
+      count(*) FILTER (WHERE NOT t.is_active)
+    FROM action_runner_token AS t
+    JOIN repository AS r ON r.id = t.repo_id
+    JOIN "user" AS u ON u.id = r.owner_id
+    WHERE u.lower_name = '\''211api'\''
+      AND r.lower_name = '\''211api'\''
+  ' | grep -qx '1|1'
+rm -f -- "$source"
+test ! -e "$source"
+ROOT
+```
+
+Keeping the source outside `/opt/gitea/runner` prevents the host-manifest
+backup from capturing it during the short registration window. Subsequent
+Runner restarts use the persistent registration state and require no staged
+token.
 
 ## Repository bootstrap and controls
 

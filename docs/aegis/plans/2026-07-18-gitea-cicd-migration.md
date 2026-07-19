@@ -1596,19 +1596,25 @@ worktree remains unpushed to GitHub.
    exact run-ID repository after evidence, with owner/name/id triple guards;
    never use the canonical repository for a disposable immutable tag.
 
-6. Generate a repository/organization runner token with the pinned Gitea CLI;
-   write it to `/etc/gitea/runner-registration-token` mode 0600 so it cannot be
-   captured with the archived `/opt/gitea/runner` manifests. Initialize and
+6. Generate a repository-scoped runner token exactly once with the pinned
+   Gitea CLI using the atomic root-only procedure in the runbook; refuse a
+   pre-existing source and write it to
+   `/etc/gitea/runner-registration-token` mode 0600 so it cannot be captured
+   with the archived `/opt/gitea/runner` manifests. Initialize and
    chown only the Runner data volume with the locked utility image, start DinD,
    and wait with a finite deadline for rootless Unix-socket health. Stage the
    token into the runtime tmpfs with the reviewed one-off command, then start
    Runner and confirm effective UID 1000 and one online `linux/amd64` runner at
    capacity one. Once nonempty registration state exists, remove the staged
    token with the reviewed one-off command and prove it is absent without
-   printing either file. Rotate/revoke the registration token in Gitea and
-   delete that fixed source before any normal backup. Prove socket owner/mode
-   and connect with the locked CLI before Runner registration; any fallback
-   endpoint or rootful daemon is a stop.
+   printing either file. Use the authenticated, CSRF-protected repository
+   Settings -> Actions -> Runners reset control to rotate the registration
+   token: in Gitea 1.26.4 the CLI and REST endpoint return an existing active
+   token rather than rotating it. Verify exactly one active row and one inactive
+   predecessor for the repository scope without reading either value, then
+   delete the fixed source before any normal backup. Prove socket owner/mode and
+   connect with the locked CLI before Runner registration; any fallback endpoint
+   or rootful daemon is a stop.
 
 7. Inspect effective containers:
 
