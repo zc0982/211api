@@ -515,6 +515,19 @@ gitea_assert_tag_protection() {
   ' "$file" >/dev/null || gitea_die 'v* tag-protection settings drifted'
 }
 
+gitea_extract_only_tag_protection() {
+  local input=$1 output=$2
+  jq -e '
+    select(
+      type == "array"
+      and length == 1
+      and .[0].name_pattern == "v*"
+    )
+    | .[0]
+  ' "$input" >"$output" ||
+    gitea_die 'v* tag protection is missing, duplicated, or overlapped by another rule'
+}
+
 gitea_owner_team_id() {
   local teams_file=$1
   jq -er '

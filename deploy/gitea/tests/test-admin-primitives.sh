@@ -115,6 +115,30 @@ gitea_assert_release_protection \
 gitea_assert_main_protection "$ROOT/deploy/gitea/admin/templates/branch-main.json"
 gitea_assert_tag_protection "$ROOT/deploy/gitea/admin/templates/tag-v.json"
 
+jq -s '.' "$ROOT/deploy/gitea/admin/templates/tag-v.json" \
+  >"$tmp/tag-protections.json"
+gitea_extract_only_tag_protection \
+  "$tmp/tag-protections.json" "$tmp/tag-v-selected.json"
+jq -e 'type == "object" and .name_pattern == "v*"' \
+  "$tmp/tag-v-selected.json" >/dev/null ||
+  fail 'tag-protection extraction returned a boolean instead of the selected object'
+if (
+  printf '%s\n' '[true]' >"$tmp/tag-protections-boolean.json"
+  gitea_extract_only_tag_protection \
+    "$tmp/tag-protections-boolean.json" "$tmp/tag-v-boolean.json"
+) >/dev/null 2>&1; then
+  fail 'tag-protection extraction accepted a boolean row'
+fi
+jq -s '.[0] as $rule | [$rule, $rule]' \
+  "$ROOT/deploy/gitea/admin/templates/tag-v.json" \
+  >"$tmp/tag-protections-duplicate.json"
+if (
+  gitea_extract_only_tag_protection \
+    "$tmp/tag-protections-duplicate.json" "$tmp/tag-v-duplicate.json"
+) >/dev/null 2>&1; then
+  fail 'tag-protection extraction accepted duplicate rules'
+fi
+
 sha=0123456789abcdef0123456789abcdef01234567
 jq -n --arg sha "$sha" '[
   {context:"ci / required",status:"failure",sha:$sha,created_at:"2026-07-18T00:00:00Z"},

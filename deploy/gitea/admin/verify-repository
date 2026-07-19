@@ -190,9 +190,8 @@ fi
 gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
   "/repos/$GITEA_ORG/$GITEA_REPO/tag_protections" \
   "$runtime/tag-protections.json" "$runtime" tag-protections
-jq -e 'length == 1 and .[0].name_pattern == "v*"' \
-  "$runtime/tag-protections.json" >"$runtime/tag-v.json" ||
-  gitea_die 'v* tag protection is missing, duplicated, or overlapped by another rule'
+gitea_extract_only_tag_protection \
+  "$runtime/tag-protections.json" "$runtime/tag-v.json"
 gitea_assert_tag_protection "$runtime/tag-v.json"
 
 verify_token() {
