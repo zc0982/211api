@@ -35,7 +35,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 
 ## Drift Check
 
-- Scope status: Task 10 is complete: Netcup runs only the Gitea control plane and local encrypted backup owner; Runner, repository import, Gateway, GitHub external state, and cutover are untouched
+- Scope status: Task 11 preflight is active: only a local plan repair and disposable local Runner/hook tests completed; Gitea refs, Runner registration, Gateway, GitHub external state, and cutover remain untouched
 - Compatibility status: Gateway Los Angeles remains the sole production runtime; Netcup Gitea, PostgreSQL, Caddy, TLS, Fail2ban, firewall, backup timer, Hermes, Komari, Docker, and admin SSH are healthy
-- Retirement status: No fallback owner was added and no external delivery owner was cut over; Task 13 remains the fresh explicit cutover approval gate
-- Advisory decision: continue
+- Retirement status: The unsafe local refs/tags import path is retired in favor of an isolated atomic source-ref import; no fallback owner was added and Task 13 remains the fresh explicit cutover approval gate
+- Advisory decision: pause-for-user

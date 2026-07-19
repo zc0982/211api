@@ -380,3 +380,30 @@
 - Backups remain on the Netcup host only; total host/disk loss is the already accepted residual risk until a separate off-host destination is approved
 - Pipedream free-tier quota remains an external notification availability constraint; the local FAILED marker and systemd failure state remain the durable on-host signals
 - Advisory decision: continue to Task 11 only when explicitly resumed
+
+## Checkpoint Update
+
+- Current todo: Establish the dedicated Gitea import SSH identity and atomically import exact old-GitHub refs
+- Active slice: Task 11 preflight and credential-write approval gate; canonical Gitea repository still has zero refs
+- Completed todos:
+- Re-read the intent, baseline, Design Spec, Task 11 plan, checkpoint, resume hint, and Execution Readiness View; TDD remains off with proportional live verification
+- Proved the old GitHub fork currently exposes nine heads and zero tags while the local worktree contains 152 non-source tags, local `main` is two commits ahead, and the feature branch is 38 commits ahead of old `origin/main`
+- Repaired Task 11 Step 2 at `29ade5759` to use an isolated tag namespace, reject any nonempty Gitea target, perform one atomic push, compare sorted source/target inventories including peeled tag rows, and clean only local import refs
+- Two specification and two quality review rounds passed after fixing stale-target, legal `HEAD` branch, network failure, partial-push, signal, and cleanup hazards
+- Passed `test-admin-primitives.sh`, `test-immutable-tag-hook.sh`, Runner config/token lifecycle tests, and the real disposable rootless DinD smoke; socket was `1000:1000 1660`, the daemon reported rootless security, and all test resources were removed
+- Confirmed the locked Gitea 1.26.4 CLI provides `actions generate-runner-token --scope {owner}[/{repo}]`; no Runner or canonical repository refs were written
+- Evidence refs:
+- 29ade5759
+- task11-local-runner-hook-preflight
+- Blocked on: explicit approval to create a dedicated local Gitea import private key and add only its public key to `luoee`; the credential-write approval service rejected the first attempt and no workaround was attempted
+- Next step: after approval, verify the trusted built-in SSH fingerprint, create/add the dedicated key, prove SSH authentication, and execute the atomic exact-ref import before any feature-branch push
+
+## DriftCheckDraft
+
+- Scope status: Task 11 remains inside repository import/Runner/non-main CI; only local plan/test state changed and Gitea refs remain empty
+- Compatibility status: Gateway Los Angeles remains sole production; Netcup Gitea platform remains healthy and has no Runner
+- Retirement status: unsafe local-tag import is retired; no GitHub mirror, delivery fallback, host Docker socket, or public repository path was added
+- New risk signals:
+- The import identity is a credential-bearing write and cannot proceed until the user explicitly approves after the approval-service rejection
+- Existing backup/restore verification still needs Task 11 live evidence for Actions metadata and the candidate package manifest after those objects exist
+- Advisory decision: pause-for-user
