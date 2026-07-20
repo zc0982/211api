@@ -216,11 +216,7 @@ case "$name" in
         resource=${2:-}
         if [[ "$resource" == 211api-drill-* ]]; then
           [[ -f "$DOCKER_STATE/container-$resource" ]] || exit 1
-          suffix=${resource#211api-drill-}
-          volume="211api-drill-$suffix-data"
-          cat <<JSON
-[{"HostConfig":{"NetworkMode":"none","PortBindings":null},"Config":{"Labels":{"com.211api.restore-run":"restore-$suffix"}},"Mounts":[{"Type":"volume","Name":"$volume","Destination":"/var/lib/postgresql/data"}]}]
-JSON
+          cat "$DOCKER_STATE/container-$resource.inspect"
         else
           exit 1
         fi
@@ -261,16 +257,54 @@ JSON
     elif [[ "$1" == run && "$2" == -d ]]; then
       container=
       label=
+      network_mode=default
+      port_bindings=null
+      mounts='[]'
       for ((i = 1; i <= $#; i++)); do
         arg=${!i}
-        if [[ "$arg" == --name ]]; then j=$((i + 1)); container=${!j}; fi
-        if [[ "$arg" == --label ]]; then j=$((i + 1)); label=${!j}; fi
+        case "$arg" in
+          --name)
+            j=$((i + 1))
+            container=${!j}
+            ;;
+          --label)
+            j=$((i + 1))
+            label=${!j}
+            ;;
+          --network)
+            j=$((i + 1))
+            network_mode=${!j}
+            ;;
+          -p | --publish | -p=* | --publish=*)
+            port_bindings='{"fixture":{}}'
+            ;;
+          --mount)
+            j=$((i + 1))
+            mount_spec=${!j}
+            IFS=',' read -r mount_type mount_src mount_dst mount_extra <<<"$mount_spec"
+            [[ "$mount_type" == type=volume && "$mount_src" == src=* &&
+              "$mount_dst" == dst=* && -z "$mount_extra" ]]
+            mounts="$(jq -c --arg name "${mount_src#src=}" \
+              --arg destination "${mount_dst#dst=}" \
+              '. + [{Type:"volume",Name:$name,Destination:$destination}]' <<<"$mounts")"
+            ;;
+        esac
       done
       [[ -n "$container" && "$label" == com.211api.restore-run=* ]]
+      if [[ "${FAKE_DOCKER_EXTRA_ANONYMOUS_VOLUME:-0}" == 1 ]]; then
+        mounts="$(jq -c \
+          '. + [{Type:"volume",Name:"anonymous-parent-volume",Destination:"/var/lib/postgresql"}]' \
+          <<<"$mounts")"
+      fi
       printf '%s' "${label#*=}" >"$DOCKER_STATE/container-$container"
+      jq -n --arg network_mode "$network_mode" --arg run_id "${label#*=}" \
+        --argjson port_bindings "$port_bindings" --argjson mounts "$mounts" '
+        [{HostConfig:{NetworkMode:$network_mode,PortBindings:$port_bindings},
+          Config:{Labels:{"com.211api.restore-run":$run_id}},Mounts:$mounts}]
+      ' >"$DOCKER_STATE/container-$container.inspect"
       printf 'fake-container-id\n'
     elif [[ "$1" == rm && "$2" == -f ]]; then
-      rm -f -- "$DOCKER_STATE/container-$3"
+      rm -f -- "$DOCKER_STATE/container-$3" "$DOCKER_STATE/container-$3.inspect"
     else
       exit 64
     fi
@@ -647,9 +681,19 @@ jq -e '.schema == "211api-restore-drill-result.v1" and .tables == 12
   "$TEST_ROOT/restore-result.json" >/dev/null
 rg -q 'docker <run> <-d>.*<--network> <none>' "$COMMAND_LOG"
 ! rg -q 'docker <run>.*<-p>|docker <run>.*<--publish>' "$COMMAND_LOG"
+rg -q 'docker <run>.*<--mount> <type=volume,src=211api-drill-[^,]*-data,dst=/var/lib/postgresql>' "$COMMAND_LOG"
+! rg -q 'docker <run>.*<--mount> <type=volume,[^>]*dst=/var/lib/postgresql/data>' "$COMMAND_LOG"
 [[ -z "$(find "$DOCKER_STATE" -name 'container-*' -o -name 'volume-*')" ]]
 jq -e '.referenced_by == [] and .lease_until == null' "$backup_dir/manifest.json" >/dev/null
 expect_status 64 env "${base_env[@]}" "$RESTORE" --backup-id '../live' --identity "$identity"
+
+# Reproduce the PostgreSQL 18 parent-VOLUME failure class: any additional
+# anonymous mount must fail the isolation check and clean only drill resources.
+expect_failure env "${base_env[@]}" FAKE_DOCKER_EXTRA_ANONYMOUS_VOLUME=1 \
+  GATEWAY_DEPLOY_TEST_CONFIRM_RESTORE="RESTORE $backup_id" \
+  "$RESTORE" --backup-id "$backup_id" --identity "$identity"
+[[ -z "$(find "$DOCKER_STATE" \( -name 'container-211api-drill-*' -o -name 'volume-211api-drill-*' \) -print -quit)" ]]
+jq -e '.referenced_by == [] and .lease_until == null' "$backup_dir/manifest.json" >/dev/null
 
 printf 'preserve\n' >"$DOCKER_STATE/volume-production-sentinel"
 expect_failure env "${base_env[@]}" RESTORE_FAIL=1 \

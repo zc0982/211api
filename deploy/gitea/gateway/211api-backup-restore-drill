@@ -222,7 +222,7 @@ create_isolated_database() {
     --security-opt no-new-privileges \
     --pids-limit 512 \
     --memory 1g \
-    --mount "type=volume,src=$VOLUME,dst=/var/lib/postgresql/data" \
+    --mount "type=volume,src=$VOLUME,dst=/var/lib/postgresql" \
     --env POSTGRES_HOST_AUTH_METHOD=trust \
     --env POSTGRES_DB=restorecheck \
     "$POSTGRES_RESTORE_IMAGE" >/dev/null
@@ -234,7 +234,7 @@ create_isolated_database() {
     and (.[0].HostConfig.PortBindings == null or .[0].HostConfig.PortBindings == {})
     and .[0].Config.Labels["com.211api.restore-run"] == $run_id
     and ([.[0].Mounts[] | select(.Type == "volume" and .Name == $volume
-      and .Destination == "/var/lib/postgresql/data")] | length) == 1
+      and .Destination == "/var/lib/postgresql")] | length) == 1
     and (.[0].Mounts | length) == 1
   ' "$WORK_DIR/container.json" >/dev/null || gateway_die "restore container isolation check failed"
 }
