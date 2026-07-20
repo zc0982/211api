@@ -19,7 +19,7 @@ jobs:
         shell: sh
         run: apk add --no-cache bash curl jq git openssh-client
       - name: Checkout release request
-        uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 0
       - name: Validate request and create annotated tag over SSH
@@ -154,7 +154,7 @@ jobs:
         shell: sh
         run: apk add --no-cache bash curl jq git
       - name: Checkout protected tag
-        uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 0
       - name: Retag immutable digest and create Gitea Release

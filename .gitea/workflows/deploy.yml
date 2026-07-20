@@ -13,49 +13,49 @@ jobs:
     name: backend-unit
     runs-on: go-1.26.5
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh backend-unit
 
   backend_integration:
     name: backend-integration
     runs-on: go-1.26.5
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: GITEA_CI=true ./tools/gitea-ci.sh backend-integration
 
   frontend:
     name: frontend
     runs-on: node-20.20.2
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh frontend
 
   lint:
     name: lint
     runs-on: go-1.26.5
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh lint
 
   shell_syntax:
     name: shell-syntax
     runs-on: linux-amd64
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh shell-syntax
 
   security_backend:
     name: security-backend
     runs-on: go-1.26.5
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh security-backend
 
   security_frontend:
     name: security-frontend
     runs-on: node-20.20.2
     steps:
-      - uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh security-frontend
 
   verify:
@@ -103,7 +103,7 @@ jobs:
         shell: sh
         run: apk add --no-cache bash curl jq git openssh-client coreutils
       - name: Checkout exact main commit
-        uses: https://gitea.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 0
       - name: Publish immutable image and deploy Gateway
