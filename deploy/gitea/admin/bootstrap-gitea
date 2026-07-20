@@ -1,0 +1,472 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=admin-lib.sh
+source "$SCRIPT_DIR/admin-lib.sh"
+
+usage() {
+  printf 'Usage: %s\n' "$0" >&2
+  exit 2
+}
+
+[[ $# -eq 0 ]] || usage
+gitea_require_root
+gitea_require_commands docker curl jq awk sed grep stat install date
+gitea_require_root_file "$GITEA_IMAGE_LOCK" 644
+gitea_require_root_secret "$GITEA_PLATFORM_ENV"
+gitea_require_root_file "$GITEA_PLATFORM_COMPOSE" 644
+gitea_load_bootstrap_env "$GITEA_BOOTSTRAP_ENV"
+gitea_install_root_dir "$GITEA_CREDENTIAL_DIR"
+gitea_install_root_dir "$GITEA_TOKEN_DIR"
+gitea_install_root_dir "$GITEA_TOKEN_METADATA_DIR"
+
+runtime=$(gitea_make_runtime)
+cleanup() {
+  rm -rf -- "$runtime"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+create_random_user() {
+  local username=$1 email=$2 user_type=$3 must_change=$4 is_admin=$5 restricted=$6
+  local password_file=$7
+  local capture="$runtime/$username.create.out" error="$runtime/$username.create.err"
+  local partial="${password_file}.partial"
+  local -a args=(
+    admin user create
+    --username "$username"
+    --email "$email"
+    --user-type "$user_type"
+    --random-password
+    --random-password-length 32
+    --must-change-password="$must_change"
+  )
+
+  if gitea_cli_user_exists "$username"; then
+    return 0
+  fi
+  [[ ! -e "$password_file" && ! -L "$password_file" &&
+    ! -e "$partial" && ! -L "$partial" ]] ||
+    gitea_die "stale credential path exists for user $username"
+  [[ "$is_admin" == true ]] && args+=(--admin)
+  [[ "$restricted" == true ]] && args+=(--restricted)
+
+  if ! gitea_cli "${args[@]}" >"$capture" 2>"$error"; then
+    sed -E 's/[A-Za-z0-9]{24,}/[redacted]/g' "$error" >&2
+    gitea_die "failed to create user $username"
+  fi
+  sed -n "s/^generated random password is '\([A-Za-z0-9]*\)'$/\1/p" \
+    "$capture" >"$partial"
+  [[ $(wc -l <"$partial") -eq 1 ]] ||
+    gitea_die "Gitea did not return exactly one random password for $username"
+  grep -Eq '^[A-Za-z0-9]{32}$' "$partial" ||
+    gitea_die "Gitea returned an unexpected password format for $username"
+  chown root:root "$partial"
+  chmod 0600 "$partial"
+  mv -f -- "$partial" "$password_file"
+}
+
+ensure_admin_curl_config() {
+  local token_capture="$runtime/admin-token.raw"
+  local partial="${GITEA_ADMIN_CURL_CONFIG}.partial"
+  local metadata_partial="${GITEA_ADMIN_METADATA}.partial" created rotation
+  if [[ -e "$GITEA_ADMIN_CURL_CONFIG" || -L "$GITEA_ADMIN_CURL_CONFIG" ]]; then
+    gitea_validate_admin_control_record
+    return 0
+  fi
+  [[ ! -e "$GITEA_ADMIN_METADATA" && ! -L "$GITEA_ADMIN_METADATA" &&
+    ! -e "$metadata_partial" && ! -L "$metadata_partial" ]] ||
+    gitea_die 'administrator metadata exists without its curl config'
+  [[ ! -e "$partial" && ! -L "$partial" ]] ||
+    gitea_die "stale admin curl-config partial exists: $partial"
+  gitea_cli admin user generate-access-token \
+    --username "$BOOTSTRAP_ADMIN_USERNAME" \
+    --token-name bootstrap-admin-automation \
+    --raw \
+    --scopes write:admin,write:organization,write:repository \
+    >"$token_capture" 2>"$runtime/admin-token.err" ||
+    gitea_die 'failed to generate the bootstrap administrator token'
+  [[ $(wc -l <"$token_capture") -le 1 ]] ||
+    gitea_die 'Gitea returned an unexpected administrator-token response'
+  grep -Eq '^[A-Za-z0-9_]+$' "$token_capture" ||
+    gitea_die 'Gitea returned an unexpected administrator-token format'
+  gitea_make_token_curl_config "$token_capture" "$partial"
+  chown root:root "$partial"
+  chmod 0600 "$partial"
+  mv -f -- "$partial" "$GITEA_ADMIN_CURL_CONFIG"
+  created=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  rotation=$(date -u -d "$created + 30 days" '+%Y-%m-%dT%H:%M:%SZ')
+  jq -n \
+    --arg created_at "$created" \
+    --arg rotation_due "$rotation" '
+    {
+      token_name:"bootstrap-admin-automation",
+      token_id:null,
+      scopes:["write:admin", "write:organization", "write:repository"],
+      created_at:$created_at,
+      server_expiry:null,
+      rotation_due:$rotation_due,
+      revocation_procedure:"Log in as the 2FA bootstrap administrator, revoke bootstrap-admin-automation in Applications, then remove admin-api.curl and this metadata file."
+    }
+  ' >"$metadata_partial"
+  chown root:root "$metadata_partial"
+  chmod 0600 "$metadata_partial"
+  mv -f -- "$metadata_partial" "$GITEA_ADMIN_METADATA"
+  gitea_validate_admin_control_record
+}
+
+admin_password="$GITEA_CREDENTIAL_DIR/$BOOTSTRAP_ADMIN_USERNAME.password"
+create_random_user "$BOOTSTRAP_ADMIN_USERNAME" "$BOOTSTRAP_ADMIN_EMAIL" \
+  individual true true false "$admin_password"
+gitea_validate_cli_contract "$runtime"
+ensure_admin_curl_config
+
+status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
+  '/admin/users?page=1&limit=1' "$runtime/admin-gate.json") ||
+  gitea_die 'administrator token validation failed'
+gitea_validate_bootstrap_admin_gate_response "$status" "$runtime/admin-gate.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME" "$admin_password"
+
+gitea_validate_openapi "$runtime"
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" /admin/users \
+  "$runtime/admin-users.json" "$runtime" admin-users
+jq -e --arg username "$BOOTSTRAP_ADMIN_USERNAME" \
+  --arg email "$BOOTSTRAP_ADMIN_EMAIL" '
+  [.[] | select(.login == $username)] as $matches
+  | ($matches | length) == 1
+  and $matches[0].is_admin == true
+  and $matches[0].email == $email
+  and $matches[0].restricted == false
+' "$runtime/admin-users.json" >/dev/null ||
+  gitea_die 'bootstrap administrator identity or privilege drifted'
+gitea_cli_user_has_2fa "$BOOTSTRAP_ADMIN_USERNAME" ||
+  gitea_die "manual gate: change the bootstrap password and enable 2FA for $BOOTSTRAP_ADMIN_USERNAME, then rerun"
+if [[ -e "$admin_password" || -L "$admin_password" ]]; then
+  gitea_require_root_secret "$admin_password"
+  rm -f -- "$admin_password"
+fi
+
+declare -a service_users=(
+  svc-build
+  svc-backup-read
+  svc-release-package
+  svc-release-record
+  svc-release-tag
+  svc-deploy-read
+)
+
+for username in "${service_users[@]}"; do
+  create_random_user "$username" "$username@211api.invalid" individual false false true \
+    "$GITEA_CREDENTIAL_DIR/$username.password"
+done
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" /admin/users \
+  "$runtime/all-users.json" "$runtime" all-users
+for username in "${service_users[@]}"; do
+  jq -e --arg username "$username" --arg email "$username@211api.invalid" '
+    [.[] | select(.login == $username)] as $matches
+    | ($matches | length) == 1
+    and $matches[0].is_admin == false
+    and $matches[0].email == $email
+    and $matches[0].active == true
+    and $matches[0].restricted == true
+  ' "$runtime/all-users.json" >/dev/null ||
+    gitea_die "service account identity or privilege drifted: $username"
+done
+
+ensure_org() {
+  local output="$runtime/org.json" create_output="$runtime/org-create.json"
+  local status owner_team_id
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET "/orgs/$GITEA_ORG" \
+    "$output") || gitea_die 'failed to inspect organization'
+  case "$status" in
+    200) ;;
+    404)
+      status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" POST \
+        "/admin/users/$BOOTSTRAP_ADMIN_USERNAME/orgs" "$create_output" \
+        "$SCRIPT_DIR/templates/create-org.json") ||
+        gitea_die 'failed to create organization'
+      gitea_expect_status "$status" 201 'POST bootstrap organization'
+      ;;
+    *) gitea_die "organization lookup returned HTTP $status" ;;
+  esac
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET "/orgs/$GITEA_ORG" \
+    "$output") || gitea_die 'failed to re-read organization'
+  gitea_expect_status "$status" 200 'GET bootstrap organization'
+  gitea_assert_organization_shape "$output"
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/orgs/$GITEA_ORG/teams" \
+    "$runtime/owner-teams.json" "$runtime" owner-teams
+  owner_team_id=$(gitea_owner_team_id "$runtime/owner-teams.json") ||
+    gitea_die 'organization Owners team settings drifted'
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/teams/$owner_team_id/members" \
+    "$runtime/owner-members.json" "$runtime" owner-members
+  gitea_assert_only_owner_member "$runtime/owner-members.json" \
+    "$BOOTSTRAP_ADMIN_USERNAME"
+}
+
+ensure_repo() {
+  local output="$runtime/repo.json" created="$runtime/repo-create.json" status
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
+    "/repos/$GITEA_ORG/$GITEA_REPO" "$output") ||
+    gitea_die 'failed to inspect canonical repository'
+  case "$status" in
+    200) ;;
+    404)
+      status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" POST \
+        "/orgs/$GITEA_ORG/repos" "$created" \
+        "$SCRIPT_DIR/templates/create-repo.json") ||
+        gitea_die 'failed to create canonical repository'
+      gitea_expect_status "$status" 201 'POST canonical repository'
+      jq -e '.empty == true' "$created" >/dev/null ||
+        gitea_die 'new canonical repository was not empty'
+      ;;
+    *) gitea_die "repository lookup returned HTTP $status" ;;
+  esac
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" PATCH \
+    "/repos/$GITEA_ORG/$GITEA_REPO" "$runtime/repo-patch.json" \
+    "$SCRIPT_DIR/templates/repository-settings.json") ||
+    gitea_die 'failed to enforce repository units'
+  gitea_expect_status "$status" 200 'PATCH canonical repository settings'
+  gitea_assert_repository_shape "$runtime/repo-patch.json"
+}
+
+team_id_by_name() {
+  local name=$1
+  jq -er --arg name "$name" '
+    [.[] | select(.name == $name)]
+    | select(length == 1)
+    | .[0].id
+    | select(type == "number" and . > 0)
+  ' "$runtime/teams.json"
+}
+
+ensure_team() {
+  local name=$1 template=$2 status id member expected_members
+  local output="$runtime/team-$name.json"
+  shift 2
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/orgs/$GITEA_ORG/teams" \
+    "$runtime/teams.json" "$runtime" "teams-$name-before"
+  if ! id=$(team_id_by_name "$name" 2>/dev/null); then
+    status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" POST \
+      "/orgs/$GITEA_ORG/teams" "$output" "$template") ||
+      gitea_die "failed to create team $name"
+    gitea_expect_status "$status" 201 "POST team $name"
+    gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/orgs/$GITEA_ORG/teams" \
+      "$runtime/teams.json" "$runtime" "teams-$name-after"
+    id=$(team_id_by_name "$name") || gitea_die "created team is unavailable: $name"
+  fi
+  # Gitea 1.26.4 reports aggregate permission "none" when granular units_map
+  # is in use; the exact map below is the authoritative permission boundary.
+  jq -e --arg name "$name" --argjson id "$id" --slurpfile expected "$template" '
+    [.[] | select(.id == $id and .name == $name)] as $matches
+    | ($matches | length) == 1
+    and $matches[0].permission == "none"
+    and $matches[0].description == $expected[0].description
+    and $matches[0].can_create_org_repo == false
+    and $matches[0].includes_all_repositories == false
+    and ($matches[0].units_map == $expected[0].units_map)
+  ' "$runtime/teams.json" >/dev/null || gitea_die "team settings drifted: $name"
+
+  for member in "$@"; do
+    status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" PUT \
+      "/teams/$id/members/$member" "$output") ||
+      gitea_die "failed to add $member to $name"
+    gitea_expect_status "$status" 204 "PUT $member into team $name"
+  done
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" PUT \
+    "/teams/$id/repos/$GITEA_ORG/$GITEA_REPO" "$output") ||
+    gitea_die "failed to attach repository to $name"
+  gitea_expect_status "$status" 204 "PUT repository into team $name"
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/teams/$id/members" \
+    "$runtime/team-$name-members.json" "$runtime" "team-$name-members"
+  expected_members=$(printf '%s\n' "$@" | jq -Rsc 'split("\n")[:-1] | sort')
+  jq -e --argjson expected "$expected_members" \
+    '(map(.login) | sort) == $expected' "$runtime/team-$name-members.json" >/dev/null ||
+    gitea_die "team $name has an unreviewed or missing member"
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/teams/$id/repos" \
+    "$runtime/team-$name-repos.json" "$runtime" "team-$name-repos"
+  jq -e --arg full_name "$GITEA_ORG/$GITEA_REPO" '
+    (map(.full_name) | sort) == [$full_name]
+  ' "$runtime/team-$name-repos.json" >/dev/null ||
+    gitea_die "team $name has an unreviewed or missing repository"
+}
+
+ensure_collaborator() {
+  local username=$1 permission=$2 status
+  local output="$runtime/collaborator-$username.json"
+  jq -cn --arg permission "$permission" '{permission:$permission}' \
+    >"$runtime/collaborator-$username.body.json"
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" PUT \
+    "/repos/$GITEA_ORG/$GITEA_REPO/collaborators/$username" "$output" \
+    "$runtime/collaborator-$username.body.json") ||
+    gitea_die "failed to add repository collaborator $username"
+  gitea_expect_status "$status" 204 "PUT repository collaborator $username"
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
+    "/repos/$GITEA_ORG/$GITEA_REPO/collaborators/$username/permission" "$output") ||
+    gitea_die "failed to verify repository collaborator $username"
+  gitea_expect_status "$status" 200 "GET repository permission for $username"
+  jq -e --arg permission "$permission" '.permission == $permission' "$output" >/dev/null ||
+    gitea_die "repository permission drifted for $username"
+}
+
+ensure_org
+ensure_repo
+ensure_team maintainers "$SCRIPT_DIR/templates/team-maintainers.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME"
+ensure_team release-maintainers "$SCRIPT_DIR/templates/team-release-maintainers.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME"
+ensure_team package-publishers "$SCRIPT_DIR/templates/team-package-publishers.json" \
+  svc-build svc-release-package
+ensure_team package-readers "$SCRIPT_DIR/templates/team-package-readers.json" \
+  svc-backup-read svc-deploy-read
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/orgs/$GITEA_ORG/teams" \
+  "$runtime/final-teams.json" "$runtime" final-teams
+jq -e '
+  (map(.name) | sort) ==
+    (["Owners", "maintainers", "package-publishers", "package-readers", "release-maintainers"] | sort)
+' "$runtime/final-teams.json" >/dev/null ||
+  gitea_die 'organization has an unreviewed or missing team'
+
+ensure_collaborator svc-backup-read read
+ensure_collaborator svc-release-record write
+ensure_collaborator svc-release-tag write
+ensure_collaborator svc-deploy-read read
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+  "/repos/$GITEA_ORG/$GITEA_REPO/collaborators" \
+  "$runtime/collaborators.json" "$runtime" collaborators
+jq -e '
+  (map(.login) | sort) ==
+    (["svc-backup-read", "svc-deploy-read", "svc-release-record", "svc-release-tag"] | sort)
+' "$runtime/collaborators.json" >/dev/null ||
+  gitea_die 'canonical repository has an unreviewed or missing direct collaborator'
+
+write_token_metadata() {
+  local response=$1 account=$2 token_name=$3 scopes=$4 metadata=$5
+  local created rotation id scope_json partial="${metadata}.partial"
+  id=$(jq -er '.id | select(type == "number" and . > 0)' "$response") ||
+    gitea_die "token response for $account has no valid ID"
+  created=$(jq -er '
+    .created_at
+    | select(type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))
+    | select(startswith("0001-") | not)
+  ' "$response") ||
+    gitea_die "token response for $account has no creation time"
+  rotation=$(date -u -d "$created + 90 days" '+%Y-%m-%dT%H:%M:%SZ') ||
+    gitea_die "cannot calculate token rotation deadline for $account"
+  scope_json=$(gitea_scope_json "$scopes")
+  jq -n \
+    --argjson token_id "$id" \
+    --arg account "$account" \
+    --arg token_name "$token_name" \
+    --argjson scopes "$scope_json" \
+    --arg created_at "$created" \
+    --arg rotation_due "$rotation" \
+    --arg revocation_procedure \
+      "With the root-only admin API config, PATCH /api/v1/admin/users/$account to set a new random one-time password; authenticate as $account and DELETE /api/v1/users/$account/tokens/$id; discard that password and remove or rotate the dependent host/Actions secret." \
+    '{
+      token_id:$token_id,
+      account:$account,
+      token_name:$token_name,
+      scopes:$scopes,
+      created_at:$created_at,
+      server_expiry:null,
+      rotation_due:$rotation_due,
+      revocation_procedure:$revocation_procedure
+    }' >"$partial"
+  chown root:root "$partial"
+  chmod 0600 "$partial"
+  mv -f -- "$partial" "$metadata"
+}
+
+ensure_service_token() {
+  local account=$1 token_name=$2 scopes=$3 token_file=$4 positive_kind=$5 label=$6
+  local metadata="$GITEA_TOKEN_METADATA_DIR/$label.json"
+  local password="$GITEA_CREDENTIAL_DIR/$account.password"
+  local basic="$runtime/$label.basic.curl" list="$runtime/$label.tokens.json"
+  local body="$runtime/$label.create.json" response="$runtime/$label.response.json"
+  local partial="${token_file}.partial" status scope_json token_id
+
+  if [[ -e "$token_file" || -L "$token_file" ]]; then
+    gitea_validate_token_record "$token_file" "$metadata" "$account" "$token_name" "$scopes"
+    gitea_token_permission_probe "$token_file" "$positive_kind" "$runtime" "$label"
+    return 0
+  fi
+  [[ ! -e "$metadata" && ! -L "$metadata" && ! -e "$partial" && ! -L "$partial" ]] ||
+    gitea_die "partial or unrecoverable token state exists for $account/$token_name"
+
+  gitea_make_basic_curl_config "$account" "$password" "$basic"
+  gitea_api_get_all "$basic" "/users/$account/tokens" "$list" "$runtime" \
+    "$label-tokens-before"
+  jq -e --arg name "$token_name" 'all(.[]; .name != $name)' "$list" >/dev/null ||
+    gitea_die "server already has unrecoverable token $account/$token_name"
+
+  scope_json=$(gitea_scope_json "$scopes")
+  jq -n --arg name "$token_name" --argjson scopes "$scope_json" \
+    '{name:$name, scopes:$scopes}' >"$body"
+  status=$(gitea_api_status "$basic" POST "/users/$account/tokens" "$response" "$body") ||
+    gitea_die "failed to create token for $account"
+  gitea_expect_status "$status" 201 "POST token for $account"
+  jq -e --arg name "$token_name" --argjson scopes "$scope_json" '
+    .name == $name
+    and (.scopes | sort) == ($scopes | sort)
+    and (.sha1 | type == "string" and test("^[A-Za-z0-9_]+$"))
+  ' "$response" >/dev/null ||
+    gitea_die "new token response has unexpected identity or scopes for $account"
+  jq -er '.sha1' "$response" >"$partial"
+  chown root:root "$partial"
+  chmod 0600 "$partial"
+  mv -f -- "$partial" "$token_file"
+
+  gitea_api_get_all "$basic" "/users/$account/tokens" "$list" "$runtime" \
+    "$label-tokens-after"
+  token_id=$(jq -er '.id' "$response")
+  jq -e --argjson id "$token_id" --arg name "$token_name" --argjson scopes "$scope_json" '
+    [.[] | select(.id == $id and .name == $name)] as $matches
+    | ($matches | length) == 1
+    and ($matches[0].scopes | sort) == ($scopes | sort)
+  ' "$list" >/dev/null ||
+    gitea_die "server token metadata drifted immediately after creation for $account"
+  jq -e --argjson id "$token_id" --arg name "$token_name" \
+    '.[] | select(.id == $id and .name == $name)' "$list" \
+    >"$runtime/$label.server-token.json"
+  write_token_metadata "$runtime/$label.server-token.json" \
+    "$account" "$token_name" "$scopes" "$metadata"
+  gitea_validate_token_record "$token_file" "$metadata" "$account" "$token_name" "$scopes"
+  gitea_token_permission_probe "$token_file" "$positive_kind" "$runtime" "$label"
+}
+
+ensure_service_token svc-build svc-build-registry write:package \
+  "$GITEA_TOKEN_DIR/registry-build.token" package registry-build
+ensure_service_token svc-backup-read svc-backup-reader \
+  read:user,read:repository,read:package \
+  "$GITEA_TOKEN_DIR/backup-reader.token" repository-package backup-reader
+ensure_service_token svc-release-package svc-release-registry write:package \
+  "$GITEA_TOKEN_DIR/registry-release.token" package registry-release
+ensure_service_token svc-release-record svc-release-record write:repository \
+  "$GITEA_TOKEN_DIR/release-record.token" release release-record
+ensure_service_token svc-deploy-read svc-deploy-head read:repository \
+  "$GITEA_TOKEN_DIR/deploy-head.token" repository deploy-head
+ensure_service_token svc-deploy-read svc-deploy-registry read:package \
+  "$GITEA_TOKEN_DIR/deploy-registry.token" package deploy-registry
+
+gitea_atomic_curl_config_from_token "$GITEA_TOKEN_DIR/backup-reader.token" \
+  /etc/gitea/backup-api.curl
+
+for username in svc-build svc-backup-read svc-release-package svc-release-record svc-deploy-read; do
+  password="$GITEA_CREDENTIAL_DIR/$username.password"
+  if [[ -e "$password" || -L "$password" ]]; then
+    gitea_require_root_secret "$password"
+    rm -f -- "$password"
+  fi
+done
+gitea_require_root_secret "$GITEA_CREDENTIAL_DIR/svc-release-tag.password"
+
+printf '%s\n' \
+  'Gitea bootstrap controls passed. The svc-release-tag password remains only until its SSH key gate succeeds.'

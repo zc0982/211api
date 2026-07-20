@@ -1,0 +1,340 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ "${GATEWAY_DEPLOY_TESTING:-0}" == 1 && -n "${GATEWAY_DEPLOY_TEST_ROOT:-}" ]]; then
+  RUNTIME_LIBRARY="$SCRIPT_DIR/gateway-runtime.sh"
+else
+  RUNTIME_LIBRARY=/etc/211api-deploy/gateway-runtime.sh
+  [[ -f "$RUNTIME_LIBRARY" && ! -L "$RUNTIME_LIBRARY" &&
+    "$(stat -c '%u:%g:%a' "$RUNTIME_LIBRARY")" == 0:0:600 ]] || {
+    printf '211api-backup-restore-drill: unsafe runtime library\n' >&2
+    exit 1
+  }
+fi
+# shellcheck source=gateway-runtime.sh
+source "$RUNTIME_LIBRARY"
+gateway_runtime_init
+
+if [[ "$GATEWAY_TEST_MODE" == 1 ]]; then
+  TEST_BIN=${GATEWAY_DEPLOY_TEST_BIN:-}
+  [[ "$TEST_BIN" == "$GATEWAY_ROOT"/* && -d "$TEST_BIN" && ! -L "$TEST_BIN" ]] ||
+    gateway_die "test bin must be a real directory below the test root"
+  PATH="$TEST_BIN:/usr/sbin:/usr/bin:/sbin:/bin"
+  export PATH
+fi
+export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
+
+BACKUP_ID=
+IDENTITY_SOURCE=
+BACKUP_DIR=
+MANIFEST=
+WORK_DIR=
+RUN_ID=
+CONTAINER=
+VOLUME=
+DEPLOY_FD=
+LEASED=0
+CONTAINER_CREATED=0
+VOLUME_CREATED=0
+
+usage() {
+  printf 'Usage: 211api-backup-restore-drill --backup-id ID --identity TMPFS_KEY\n' >&2
+  return 64
+}
+
+release_lease() {
+  local partial
+  ((LEASED)) || return 0
+  gateway_require_regular "$MANIFEST" 600
+  partial="$BACKUP_DIR/.manifest.release.$$.partial"
+  jq --arg run_id "$RUN_ID" '
+    .referenced_by = [.referenced_by[] | select(. != $run_id)]
+    | .lease_until = (if (.referenced_by | length) == 0 then null else .lease_until end)
+  ' "$MANIFEST" >"$partial"
+  gateway_atomic_json_replace "$partial" "$MANIFEST"
+  LEASED=0
+}
+
+owned_container_matches() {
+  [[ -n "$CONTAINER" ]] || return 1
+  [[ "$(docker inspect --format '{{index .Config.Labels "com.211api.restore-run"}}' \
+    "$CONTAINER" 2>/dev/null || true)" == "$RUN_ID" ]]
+}
+
+owned_volume_matches() {
+  [[ -n "$VOLUME" ]] || return 1
+  [[ "$(docker volume inspect --format '{{index .Labels "com.211api.restore-run"}}' \
+    "$VOLUME" 2>/dev/null || true)" == "$RUN_ID" ]]
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  set +e
+  if ((CONTAINER_CREATED)); then
+    if owned_container_matches; then
+      docker rm -f "$CONTAINER" >/dev/null 2>&1 || status=1
+    else
+      status=1
+    fi
+  fi
+  if ((VOLUME_CREATED)); then
+    if owned_volume_matches; then
+      docker volume rm "$VOLUME" >/dev/null 2>&1 || status=1
+    else
+      status=1
+    fi
+  fi
+  release_lease || status=1
+  if [[ -n "$WORK_DIR" && -d "$WORK_DIR" && ! -L "$WORK_DIR" ]]; then
+    case "$WORK_DIR" in
+      "$RUNTIME_ROOT"/restore.[A-Za-z0-9]*) rm -rf -- "$WORK_DIR" ;;
+    esac
+  fi
+  if [[ -n "$RUN_ID" ]]; then
+    if ((status == 0)); then
+      gateway_audit_event restore-drill success verified record >/dev/null 2>&1 || status=1
+    else
+      gateway_audit_event restore-drill failed aborted record >/dev/null 2>&1 || true
+    fi
+  fi
+  exit "$status"
+}
+
+on_signal() {
+  exit "$1"
+}
+
+trap cleanup EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+
+validate_backup_set() {
+  local expected="$WORK_DIR/expected-entries" actual="$WORK_DIR/actual-entries"
+  local component name checksum size path
+  gateway_require_directory "$BACKUP_DIR" 700
+  gateway_require_regular "$MANIFEST" 600
+  jq -e --arg backup_id "$BACKUP_ID" '
+    .schema == "211api-predeploy-backup.v1"
+    and .backup_id == $backup_id
+    and .role == "pre-deploy"
+    and (.target.commit | type == "string" and test("^[0-9a-f]{40}$"))
+    and (.target.digest | type == "string" and test("^sha256:[0-9a-f]{64}$"))
+    and (.recipient_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.components | type == "array" and length >= 5)
+    and (.referenced_by | type == "array")
+  ' "$MANIFEST" >/dev/null || gateway_die "backup manifest is invalid"
+  jq -r '.components[].name, "manifest.json"' "$MANIFEST" | sort >"$expected"
+  find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort >"$actual"
+  cmp -s "$expected" "$actual" || gateway_die "backup set contains unclassified entries"
+
+  while IFS= read -r component; do
+    name="$(jq -er '.name | select(type == "string" and test("^[a-z0-9][a-z0-9.-]{0,63}$"))' <<<"$component")"
+    checksum="$(jq -er '.sha256 | select(type == "string" and test("^[0-9a-f]{64}$"))' <<<"$component")"
+    size="$(jq -er '.size | select(type == "number" and . >= 1 and floor == .)' <<<"$component")"
+    path="$BACKUP_DIR/$name"
+    gateway_require_regular "$path" 600
+    [[ "$(stat -c '%s' "$path")" == "$size" && "$(gateway_hash_file "$path")" == "$checksum" ]] ||
+      gateway_die "backup component verification failed: $name"
+  done < <(jq -c '.components[]' "$MANIFEST")
+  jq -e '[.components[].name] | index("database.dump.age") != null' "$MANIFEST" >/dev/null ||
+    gateway_die "backup has no encrypted database component"
+}
+
+validate_identity() {
+  local filesystem recipient recipient_sha manifest_sha
+  [[ "$IDENTITY_SOURCE" == /* ]] || gateway_die "identity path must be absolute"
+  gateway_require_regular "$IDENTITY_SOURCE" 600
+  filesystem="$(findmnt -no FSTYPE --target "$IDENTITY_SOURCE" 2>/dev/null || true)"
+  [[ "$filesystem" == tmpfs || "$filesystem" == ramfs ]] ||
+    gateway_die "age identity must be supplied from root-owned tmpfs"
+  gateway_require_command age-keygen
+  recipient="$(age-keygen -y "$IDENTITY_SOURCE")"
+  [[ "$recipient" =~ ^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$ ]] ||
+    gateway_die "unable to derive the age recipient"
+  recipient_sha="$(printf '%s' "$recipient" | sha256sum | awk '{print $1}')"
+  manifest_sha="$(jq -r '.recipient_sha256' "$MANIFEST")"
+  [[ "$recipient_sha" == "$manifest_sha" ]] ||
+    gateway_die "age identity does not match backup custody metadata"
+  gateway_validate_key_metadata_sha "$recipient_sha"
+}
+
+confirm_restore() {
+  local expected="RESTORE $BACKUP_ID" answer
+  [[ "${GATEWAY_DEPLOY_DISPATCH:-0}" != 1 && -z "${SSH_ORIGINAL_COMMAND:-}" &&
+    "${CI:-false}" != true && "${GITEA_ACTIONS:-false}" != true ]] ||
+    gateway_die "restore drill is unavailable through the CI forced command"
+  if [[ "$GATEWAY_TEST_MODE" == 1 ]]; then
+    [[ "${GATEWAY_DEPLOY_TEST_CONFIRM_RESTORE:-}" == "$expected" ]] ||
+      gateway_die "test restore confirmation is missing"
+    return 0
+  fi
+  [[ -t 0 && -t 1 ]] || gateway_die "restore drill requires an interactive TTY"
+  printf 'This restores %s only into an isolated disposable PostgreSQL.\n' "$BACKUP_ID"
+  printf 'Type exactly: %s\n> ' "$expected"
+  IFS= read -r answer
+  [[ "$answer" == "$expected" ]] || gateway_die "restore confirmation did not match"
+}
+
+acquire_lease() {
+  local partial expiry
+  expiry="$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)"
+  partial="$BACKUP_DIR/.manifest.lease.$$.partial"
+  jq --arg run_id "$RUN_ID" --arg expiry "$expiry" '
+    if (.referenced_by | index($run_id)) != null then error("duplicate lease") else . end
+    | .referenced_by += [$run_id]
+    | .lease_until = $expiry
+  ' "$MANIFEST" >"$partial"
+  gateway_atomic_json_replace "$partial" "$MANIFEST"
+  LEASED=1
+}
+
+create_isolated_database() {
+  docker image inspect "$POSTGRES_RESTORE_IMAGE" >/dev/null 2>&1 ||
+    gateway_die "locked PostgreSQL restore image is not present"
+  docker inspect "$CONTAINER" >/dev/null 2>&1 && gateway_die "restore container already exists"
+  docker volume inspect "$VOLUME" >/dev/null 2>&1 && gateway_die "restore volume already exists"
+  case "$CONTAINER:$VOLUME" in
+    *sub2api* | *postgres_data* | *redis_data*) gateway_die "restore resource name overlaps a live target" ;;
+  esac
+  docker volume create --label "com.211api.restore-run=$RUN_ID" "$VOLUME" >/dev/null
+  VOLUME_CREATED=1
+  docker run -d \
+    --pull never \
+    --name "$CONTAINER" \
+    --hostname restore-postgres \
+    --label "com.211api.restore-run=$RUN_ID" \
+    --network none \
+    --read-only \
+    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --tmpfs /run/postgresql:rw,noexec,nosuid,nodev,size=16m \
+    --cap-drop ALL \
+    --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
+    --cap-add SETGID --cap-add SETUID \
+    --security-opt no-new-privileges \
+    --pids-limit 512 \
+    --memory 1g \
+    --mount "type=volume,src=$VOLUME,dst=/var/lib/postgresql" \
+    --env POSTGRES_HOST_AUTH_METHOD=trust \
+    --env POSTGRES_DB=restorecheck \
+    "$POSTGRES_RESTORE_IMAGE" >/dev/null
+  CONTAINER_CREATED=1
+  docker inspect "$CONTAINER" >"$WORK_DIR/container.json"
+  jq -e --arg volume "$VOLUME" --arg run_id "$RUN_ID" '
+    length == 1
+    and .[0].HostConfig.NetworkMode == "none"
+    and (.[0].HostConfig.PortBindings == null or .[0].HostConfig.PortBindings == {})
+    and .[0].Config.Labels["com.211api.restore-run"] == $run_id
+    and ([.[0].Mounts[] | select(.Type == "volume" and .Name == $volume
+      and .Destination == "/var/lib/postgresql")] | length) == 1
+    and (.[0].Mounts | length) == 1
+  ' "$WORK_DIR/container.json" >/dev/null || gateway_die "restore container isolation check failed"
+}
+
+wait_for_postgres() {
+  local attempt
+  for attempt in $(seq 1 60); do
+    if docker exec "$CONTAINER" pg_isready \
+      --username postgres --dbname restorecheck >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  gateway_die "isolated PostgreSQL did not become ready"
+}
+
+restore_database() {
+  local -a pipeline_status
+  set +e
+  age --decrypt --identity "$IDENTITY_SOURCE" "$BACKUP_DIR/database.dump.age" |
+    docker exec -i "$CONTAINER" pg_restore \
+      --exit-on-error --single-transaction --no-owner --no-privileges \
+      --username postgres --dbname restorecheck
+  pipeline_status=("${PIPESTATUS[@]}")
+  set -e
+  [[ "${pipeline_status[0]}" == 0 && "${pipeline_status[1]}" == 0 ]] ||
+    gateway_die "streamed restore failed"
+}
+
+verify_restored_database() {
+  local table_count constraint_count row_counts counts_json
+  table_count="$(docker exec "$CONTAINER" psql --no-psqlrc --tuples-only --no-align \
+    --username postgres --dbname restorecheck --command \
+    "SELECT count(*) FROM pg_catalog.pg_class WHERE relkind='r' AND relnamespace NOT IN (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname LIKE 'pg_%' OR nspname='information_schema');" |
+    tr -d '[:space:]')"
+  constraint_count="$(docker exec "$CONTAINER" psql --no-psqlrc --tuples-only --no-align \
+    --username postgres --dbname restorecheck --command \
+    "SELECT count(*) FROM pg_catalog.pg_constraint WHERE connamespace NOT IN (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname LIKE 'pg_%' OR nspname='information_schema');" |
+    tr -d '[:space:]')"
+  [[ "$table_count" =~ ^[1-9][0-9]*$ && "$constraint_count" =~ ^[1-9][0-9]*$ ]] ||
+    gateway_die "restored schema or constraints are missing"
+  row_counts="$(docker exec "$CONTAINER" psql --no-psqlrc --tuples-only --no-align \
+    --username postgres --dbname restorecheck --command \
+    "SELECT count(*) FROM users; SELECT count(*) FROM api_keys; SELECT count(*) FROM schema_migrations;")"
+  [[ "$(grep -Ec '^[[:space:]]*[0-9]+[[:space:]]*$' <<<"$row_counts")" == 3 ]] ||
+    gateway_die "representative row-count checks failed"
+  counts_json="$(awk 'NF {gsub(/[[:space:]]/, ""); print}' <<<"$row_counts" |
+    jq -Rsc 'split("\n") | map(select(length > 0) | tonumber)
+      | {users:.[0],api_keys:.[1],schema_migrations:.[2]}')"
+  jq -n \
+    --arg schema 211api-restore-drill-result.v1 \
+    --arg backup_id "$BACKUP_ID" \
+    --arg run_id "$RUN_ID" \
+    --argjson tables "$table_count" \
+    --argjson constraints "$constraint_count" \
+    --argjson rows "$counts_json" \
+    '{schema:$schema,backup_id:$backup_id,run_id:$run_id,
+      tables:$tables,constraints:$constraints,representative_rows:$rows}'
+}
+
+[[ $# == 4 && "$1" == --backup-id && "$3" == --identity ]] || usage
+BACKUP_ID=$2
+IDENTITY_SOURCE=$4
+[[ "$BACKUP_ID" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{40}$ ]] || usage
+
+for command in age cmp curl date docker find findmnt flock jq openssl python3 sha256sum sort stat; do
+  gateway_require_command "$command"
+done
+gateway_require_host_directory "$DEPLOY_DIR"
+gateway_require_directory "$CONFIG_ROOT" 700
+gateway_require_directory "$BACKUP_ROOT" 700
+gateway_require_directory "$AUDIT_DIR" 700
+gateway_require_host_directory "$LOCK_ROOT"
+gateway_prepare_ephemeral_runtime
+gateway_require_regular "$AUDIT_FILE" 600
+gateway_require_regular "$STATE_FILE" 600
+gateway_validate_state
+gateway_require_directory "$DOCKER_CONFIG_DIR" 700
+gateway_require_regular "$DOCKER_CONFIG_DIR/config.json" 600
+
+BACKUP_DIR="$BACKUP_ROOT/$BACKUP_ID"
+MANIFEST="$BACKUP_DIR/manifest.json"
+WORK_DIR="$(mktemp -d "$RUNTIME_ROOT/restore.XXXXXXXX")"
+chmod 0700 "$WORK_DIR"
+validate_backup_set
+validate_identity
+confirm_restore
+
+exec {DEPLOY_FD}>"$DEPLOY_LOCK"
+flock -n "$DEPLOY_FD" || exit 75
+RUN_ID="restore-$(openssl rand -hex 4)"
+[[ "$RUN_ID" =~ ^restore-[0-9a-f]{8}$ ]] || gateway_die "unable to generate restore run id"
+CONTAINER="211api-drill-${RUN_ID#restore-}"
+VOLUME="211api-drill-${RUN_ID#restore-}-data"
+GATEWAY_CURRENT_COMMIT="$(jq -r '.target.commit' "$MANIFEST")"
+GATEWAY_CURRENT_DIGEST="$(jq -r '.target.digest' "$MANIFEST")"
+gateway_audit_event restore-drill start isolated record ||
+  gateway_die "unable to persist restore start audit"
+acquire_lease
+create_isolated_database
+wait_for_postgres
+restore_database
+verify_restored_database

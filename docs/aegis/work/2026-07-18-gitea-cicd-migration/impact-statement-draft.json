@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "affectedLayers": [
+    "repository hosting; CI; release; registry; deployment; infrastructure; operations"
+  ],
+  "owners": [
+    "Gitea 是 fork 交付唯一 owner；Gateway 是 211API 生产运行 owner；GitHub 是公开上游更新来源"
+  ],
+  "invariants": [
+    "Netcup 不承载 211API 业务服务或业务数据；Gateway 洛杉矶继续承载主生产"
+  ],
+  "compatBoundary": "应用内在线更新继续读取 Wei-Shaw/sub2api GitHub Releases；不形成 fork CI/CD 双 owner",
+  "nonGoals": [
+    "不迁移业务 PostgreSQL/Redis/配置；不公开仓库；不保留 DockerHub/Telegram/多架构发布；不删除旧 GitHub 仓库"
+  ]
+}

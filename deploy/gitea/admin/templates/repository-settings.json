@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "archived": false,
+  "default_branch": "main",
+  "has_code": true,
+  "has_issues": false,
+  "has_projects": false,
+  "has_pull_requests": true,
+  "has_wiki": false,
+  "has_releases": true,
+  "has_packages": true,
+  "has_actions": true
+}

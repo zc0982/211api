@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-18-gitea-cicd-migration",
+  "taskIntentRef": "docs/aegis/work/2026-07-18-gitea-cicd-migration/task-intent-draft.json",
+  "baselineRefs": [
+    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
+    "docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md"
+  ],
+  "scopeStatus": "Task 11 preflight is active: only a local plan repair and disposable local Runner/hook tests completed; Gitea refs, Runner registration, Gateway, GitHub external state, and cutover remain untouched",
+  "compatStatus": "Gateway Los Angeles remains the sole production runtime; Netcup Gitea, PostgreSQL, Caddy, TLS, Fail2ban, firewall, backup timer, Hermes, Komari, Docker, and admin SSH are healthy",
+  "retirementStatus": "The unsafe local refs/tags import path is retired in favor of an isolated atomic source-ref import; no fallback owner was added and Task 13 remains the fresh explicit cutover approval gate",
+  "newRiskSignals": [
+    "Validated backups remain on the Netcup host only until an off-host destination is separately approved",
+    "Pipedream free-tier quota is an external alert-availability constraint; the root-only FAILED marker and systemd state remain durable local signals"
+  ],
+  "decision": "pause-for-user"
+}

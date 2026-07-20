@@ -1,0 +1,7 @@
+{
+  "name_pattern": "v*",
+  "whitelist_usernames": [
+    "svc-release-tag"
+  ],
+  "whitelist_teams": []
+}

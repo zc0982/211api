@@ -1,0 +1,298 @@
+name: deploy
+
+"on":
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend_unit:
+    name: backend-unit
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh backend-unit
+
+  backend_integration:
+    name: backend-integration
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: GITEA_CI=true ./tools/gitea-ci.sh backend-integration
+
+  frontend:
+    name: frontend
+    runs-on: node-20.20.2
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh frontend
+
+  lint:
+    name: lint
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh lint
+
+  shell_syntax:
+    name: shell-syntax
+    runs-on: linux-amd64
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh shell-syntax
+
+  security_backend:
+    name: security-backend
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh security-backend
+
+  security_frontend:
+    name: security-frontend
+    runs-on: node-20.20.2
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh security-frontend
+
+  verify:
+    name: verify
+    if: always()
+    needs:
+      - backend_unit
+      - backend_integration
+      - frontend
+      - lint
+      - shell_syntax
+      - security_backend
+      - security_frontend
+    runs-on: linux-amd64
+    steps:
+      - name: Require every verification job to succeed
+        env:
+          BACKEND_UNIT_RESULT: ${{ needs.backend_unit.result }}
+          BACKEND_INTEGRATION_RESULT: ${{ needs.backend_integration.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          SHELL_SYNTAX_RESULT: ${{ needs.shell_syntax.result }}
+          SECURITY_BACKEND_RESULT: ${{ needs.security_backend.result }}
+          SECURITY_FRONTEND_RESULT: ${{ needs.security_frontend.result }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$BACKEND_UNIT_RESULT" \
+            "$BACKEND_INTEGRATION_RESULT" \
+            "$FRONTEND_RESULT" \
+            "$LINT_RESULT" \
+            "$SHELL_SYNTAX_RESULT" \
+            "$SECURITY_BACKEND_RESULT" \
+            "$SECURITY_FRONTEND_RESULT"; do
+            [[ "$result" == success ]]
+          done
+
+  build_deploy:
+    name: build-and-deploy
+    needs:
+      - verify
+    runs-on: docker-29.6.1
+    steps:
+      - name: Install locked-job helper commands
+        shell: sh
+        run: apk add --no-cache bash curl jq git openssh-client coreutils
+      - name: Checkout exact main commit
+        uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 0
+      - name: Publish immutable image and deploy Gateway
+        shell: bash
+        env:
+          EVENT_SHA: ${{ gitea.sha }}
+          EVENT_REF: ${{ gitea.ref }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          REGISTRY_BUILD_TOKEN: ${{ secrets.REGISTRY_BUILD_TOKEN }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+
+          readonly api_url=https://git.211api.com/api/v1
+          readonly image=git.211api.com/211api/211api
+          readonly expected_ref=refs/heads/main
+          readonly zero_sha=0000000000000000000000000000000000000000
+          readonly sha_pattern='^[0-9a-f]{40}$'
+          readonly digest_pattern='^sha256:[0-9a-f]{64}$'
+
+          [[ "$EVENT_REF" == "$expected_ref" ]]
+          [[ "$EVENT_SHA" =~ $sha_pattern && "$EVENT_SHA" != "$zero_sha" ]]
+          : "${GITEA_TOKEN:?missing Gitea Actions token}"
+          : "${REGISTRY_BUILD_TOKEN:?missing REGISTRY_BUILD_TOKEN}"
+          : "${DEPLOY_SSH_KEY:?missing DEPLOY_SSH_KEY}"
+          : "${DEPLOY_KNOWN_HOSTS:?missing DEPLOY_KNOWN_HOSTS}"
+
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+          trap 'exit 129' HUP
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          export DOCKER_CONFIG="$work_dir/docker-config"
+          mkdir -m 0700 "$DOCKER_CONFIG"
+
+          api_config="$work_dir/gitea-api.curl"
+          printf 'header = "Authorization: token %s"\n' "$GITEA_TOKEN" >"$api_config"
+          chmod 0600 "$api_config"
+          unset GITEA_TOKEN
+
+          get_main_head() {
+            curl --config "$api_config" \
+              --silent --show-error --fail \
+              --connect-timeout 5 --max-time 20 \
+              "$api_url/repos/211api/211api/branches/main" |
+              jq -er '
+                select(.protected == true)
+                | .commit.id
+                | select(type == "string" and test("^[0-9a-f]{40}$"))
+              '
+          }
+
+          inspect_digest() {
+            local reference=$1
+            local output=$2
+            docker buildx imagetools inspect "$reference" >"$output"
+            awk '$1 == "Digest:" && $2 ~ /^sha256:[0-9a-f]{64}$/ { print $2; exit }' "$output"
+          }
+
+          validate_remote_image() {
+            local reference=$1
+            local expected_digest=$2
+            local prefix=$3
+            local actual_digest
+
+            docker buildx imagetools inspect --raw "$reference" >"${prefix}.manifest.json"
+            jq -e '
+              (.mediaType == "application/vnd.oci.image.manifest.v1+json"
+               or .mediaType == "application/vnd.docker.distribution.manifest.v2+json")
+              and (has("manifests") | not)
+            ' "${prefix}.manifest.json" >/dev/null
+            docker buildx imagetools inspect --format '{{json .Image}}' "$reference" \
+              >"${prefix}.image.json"
+            jq -e --arg sha "$EVENT_SHA" '
+              .os == "linux"
+              and .architecture == "amd64"
+              and .config.Labels["org.opencontainers.image.revision"] == $sha
+            ' "${prefix}.image.json" >/dev/null
+            actual_digest="$(inspect_digest "$reference" "${prefix}.inspect")"
+            [[ "$actual_digest" == "$expected_digest" ]]
+          }
+
+          source deploy/gitea/images.lock.env
+          version="$(tr -d '\r\n' <backend/cmd/server/VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          commit_date="$(git show -s --format=%cI "$EVENT_SHA")"
+          [[ -n "$commit_date" ]]
+          sha_ref="$image:$EVENT_SHA"
+          metadata_file="$work_dir/build-metadata.json"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --sbom=false \
+            --load \
+            --metadata-file "$metadata_file" \
+            --tag "$sha_ref" \
+            --build-arg "NODE_IMAGE=$APP_NODE_IMAGE" \
+            --build-arg "GOLANG_IMAGE=$APP_GO_IMAGE" \
+            --build-arg "ALPINE_IMAGE=$APP_ALPINE_IMAGE" \
+            --build-arg "POSTGRES_IMAGE=$APP_POSTGRES_IMAGE" \
+            --build-arg "VERSION=$version" \
+            --build-arg "COMMIT=$EVENT_SHA" \
+            --build-arg "DATE=$commit_date" \
+            --label org.opencontainers.image.source=https://git.211api.com/211api/211api \
+            --label "org.opencontainers.image.revision=$EVENT_SHA" \
+            --label "org.opencontainers.image.version=$EVENT_SHA" \
+            --label "org.opencontainers.image.created=$commit_date" \
+            .
+
+          candidate_digest="$(jq -er '
+            .["containerimage.digest"]
+            | select(type == "string" and test("^sha256:[0-9a-f]{64}$"))
+          ' "$metadata_file")"
+          [[ "$candidate_digest" =~ $digest_pattern ]]
+
+          current_head="$(get_main_head)"
+          if [[ "$current_head" != "$EVENT_SHA" ]]; then
+            printf 'Superseded before Registry publication: %s is now main.\n' "$current_head"
+            exit 0
+          fi
+
+          printf '%s' "$REGISTRY_BUILD_TOKEN" |
+            docker login git.211api.com --username svc-build --password-stdin
+          unset REGISTRY_BUILD_TOKEN
+
+          existing_inspect="$work_dir/existing.inspect"
+          existing_error="$work_dir/existing.error"
+          if docker buildx imagetools inspect "$sha_ref" >"$existing_inspect" 2>"$existing_error"; then
+            existing_digest="$(awk '
+              $1 == "Digest:" && $2 ~ /^sha256:[0-9a-f]{64}$/ { print $2; exit }
+            ' "$existing_inspect")"
+            [[ "$existing_digest" =~ $digest_pattern ]]
+            if [[ "$existing_digest" != "$candidate_digest" ]]; then
+              printf 'Refusing conflicting immutable SHA tag %s.\n' "$sha_ref" >&2
+              exit 1
+            fi
+          elif grep -Eiq 'manifest unknown|not found' "$existing_error"; then
+            docker push "$sha_ref"
+          else
+            printf 'Unable to determine whether immutable SHA tag exists.\n' >&2
+            sed -n '1,20p' "$existing_error" >&2
+            exit 1
+          fi
+
+          validate_remote_image "$sha_ref" "$candidate_digest" "$work_dir/sha"
+
+          current_head="$(get_main_head)"
+          if [[ "$current_head" != "$EVENT_SHA" ]]; then
+            printf 'Superseded after immutable publication; leaving only %s.\n' "$sha_ref"
+            exit 0
+          fi
+
+          key_file="$work_dir/deploy-key"
+          known_hosts_file="$work_dir/deploy-known-hosts"
+          printf '%s\n' "$DEPLOY_SSH_KEY" >"$key_file"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$known_hosts_file"
+          chmod 0600 "$key_file" "$known_hosts_file"
+          unset DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS
+
+          ssh -F /dev/null \
+            -i "$key_file" \
+            -p 4422 \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$known_hosts_file" \
+            root@157.254.234.244 \
+            "deploy --commit $EVENT_SHA --digest $candidate_digest"
+
+          current_head="$(get_main_head)"
+          if [[ "$current_head" != "$EVENT_SHA" ]]; then
+            printf 'Main advanced after Gateway health; a newer job will converge it.\n'
+            exit 0
+          fi
+
+          docker buildx imagetools create \
+            --prefer-index=false \
+            --tag "$image:main" \
+            "$image@$candidate_digest"
+          main_digest="$(inspect_digest "$image:main" "$work_dir/main.inspect")"
+          [[ "$main_digest" == "$candidate_digest" ]]
+          post_tag_head="$(get_main_head)"
+          if [[ "$post_tag_head" != "$EVENT_SHA" ]]; then
+            # Do not roll the pointer back: the serialized newer job is the safe
+            # convergence path for this acknowledged cross-host race.
+            printf 'Main advanced during pointer update; queued head %s must converge it.\n' \
+              "$post_tag_head"
+          fi

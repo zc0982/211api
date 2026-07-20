@@ -1,0 +1,11 @@
+{
+  "name": "maintainers",
+  "description": "May review and merge protected main changes",
+  "permission": "write",
+  "can_create_org_repo": false,
+  "includes_all_repositories": false,
+  "units_map": {
+    "repo.code": "write",
+    "repo.pulls": "write"
+  }
+}

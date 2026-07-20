@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "baselineRefs": [
+    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
+    "docs/aegis/plans/2026-07-19-pipedream-telegram-backup-notification.md"
+  ],
+  "impactStatement": "docs/aegis/work/2026-07-18-gitea-cicd-migration/impact-statement-draft.json",
+  "compatPlan": "应用内在线更新继续读取 Wei-Shaw/sub2api GitHub Releases；不形成 fork CI/CD 双 owner",
+  "retirementPlan": "The unsafe local refs/tags import path is retired in favor of an isolated atomic source-ref import; no fallback owner was added and Task 13 remains the fresh explicit cutover approval gate",
+  "evidenceBundle": [
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-design-self-review.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-gateway-host-inspection.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-gitea-official-docs.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-implementation-plan-review.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-independent-design-review.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-netcup-host-inspection.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-pipedream-telegram-adapter-local.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-repo-ci-audit.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task1-preflight.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task10-platform-bootstrap.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task2-3-repository-ci.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task8-repository-gate.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-task9-netcup-preflight.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-user-design-decisions.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/evidence-bundle-draft-written-design-approval.json"
+  ]
+}

@@ -1,0 +1,753 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ "${GATEWAY_DEPLOY_TESTING:-0}" == 1 && -n "${GATEWAY_DEPLOY_TEST_ROOT:-}" ]]; then
+  RUNTIME_LIBRARY="$SCRIPT_DIR/gateway-runtime.sh"
+else
+  RUNTIME_LIBRARY=/etc/211api-deploy/gateway-runtime.sh
+  [[ -f "$RUNTIME_LIBRARY" && ! -L "$RUNTIME_LIBRARY" ]] || {
+    printf '211api-deploy: unsafe or missing runtime library\n' >&2
+    exit 1
+  }
+  [[ "$(stat -c '%u:%g:%a' "$RUNTIME_LIBRARY")" == 0:0:600 ]] || {
+    printf '211api-deploy: runtime library must be root:root mode 0600\n' >&2
+    exit 1
+  }
+fi
+# shellcheck source=gateway-runtime.sh
+source "$RUNTIME_LIBRARY"
+gateway_runtime_init
+
+if [[ "$GATEWAY_TEST_MODE" == 1 ]]; then
+  TEST_BIN=${GATEWAY_DEPLOY_TEST_BIN:-}
+  [[ "$TEST_BIN" == "$GATEWAY_ROOT"/* && -d "$TEST_BIN" && ! -L "$TEST_BIN" ]] ||
+    gateway_die "test bin must be a real directory below the test root"
+  PATH="$TEST_BIN:/usr/sbin:/usr/bin:/sbin:/bin"
+  export PATH
+fi
+export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
+
+WORK_DIR=
+DEPLOY_FD=
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  211api-deploy status
+  211api-deploy approve-migration --commit 40_HEX --digest sha256:64_HEX --expires-in 30m
+  211api-deploy deploy --commit 40_HEX --digest sha256:64_HEX
+  211api-deploy deploy --record-baseline --commit 40_HEX --digest sha256:64_HEX
+EOF
+  return 64
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  set +e
+  gateway_remove_owned_partial
+  if [[ -n "$WORK_DIR" && -d "$WORK_DIR" && ! -L "$WORK_DIR" ]]; then
+    case "$WORK_DIR" in
+      "$RUNTIME_ROOT"/run.[A-Za-z0-9]*) rm -rf -- "$WORK_DIR" ;;
+    esac
+  fi
+  exit "$status"
+}
+
+on_signal() {
+  exit "$1"
+}
+
+trap cleanup EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+
+prepare_common_layout() {
+  gateway_require_command jq
+  gateway_require_command python3
+  gateway_require_command flock
+  gateway_require_command sha256sum
+  gateway_require_host_directory "$DEPLOY_DIR"
+  gateway_require_directory "$CONFIG_ROOT" 700
+  gateway_require_directory "$BACKUP_ROOT" 700
+  gateway_require_directory "$AUDIT_DIR" 700
+  gateway_require_host_directory "$LOCK_ROOT"
+  gateway_prepare_ephemeral_runtime
+  gateway_require_regular "$AUDIT_FILE" 600
+  gateway_require_regular "$STATE_FILE" 600
+  gateway_validate_state
+}
+
+validate_deploy_configuration() {
+  local command
+  for command in age curl date df docker du find grep sed sort stat tar tee; do
+    gateway_require_command "$command"
+  done
+  gateway_require_host_file "$COMPOSE_FILE"
+  gateway_require_regular "$ENV_FILE" 600
+  gateway_require_directory "$DOCKER_CONFIG_DIR" 700
+  gateway_require_regular "$DOCKER_CONFIG_DIR/config.json" 600
+  gateway_require_directory "$ACTIVE_APPROVAL_DIR" 700
+  gateway_require_directory "$CONSUMED_APPROVAL_DIR" 700
+  gateway_require_regular "$ARCHIVE_VALIDATOR" 600
+  gateway_require_regular "$RETENTION_PROGRAM" 600
+  gateway_validate_api_config
+  gateway_load_recipient
+}
+
+prepare_deploy_layout() {
+  prepare_common_layout
+  validate_deploy_configuration
+  WORK_DIR="$(mktemp -d "$RUNTIME_ROOT/run.XXXXXXXX")"
+  chmod 0700 "$WORK_DIR"
+}
+
+prepare_approval_layout() {
+  prepare_common_layout
+  gateway_require_command curl
+  gateway_require_command date
+  gateway_require_command openssl
+  gateway_require_host_file "$COMPOSE_FILE"
+  gateway_require_regular "$ENV_FILE" 600
+  gateway_require_directory "$ACTIVE_APPROVAL_DIR" 700
+  gateway_require_directory "$CONSUMED_APPROVAL_DIR" 700
+  gateway_validate_api_config
+  WORK_DIR="$(mktemp -d "$RUNTIME_ROOT/run.XXXXXXXX")"
+  chmod 0700 "$WORK_DIR"
+}
+
+gateway_compose() {
+  (
+    cd "$DEPLOY_DIR"
+    docker compose \
+      --project-directory "$DEPLOY_DIR" \
+      --env-file "$ENV_FILE" \
+      -f "$COMPOSE_FILE" \
+      "$@"
+  )
+}
+
+status_command() {
+  local ready=true lock_available=false api_ready=false registry_ready=false
+  local health=false head=null state_json current_image=null state_image=
+  local state_env_consistent=null lock_fd
+  if ! prepare_common_layout >/dev/null 2>&1 ||
+    ! validate_deploy_configuration >/dev/null 2>&1; then
+    ready=false
+  fi
+  if [[ "$ready" == true ]]; then
+    if gateway_prepare_lock_file "$DEPLOY_LOCK" >/dev/null 2>&1; then
+      exec {lock_fd}>"$DEPLOY_LOCK"
+      if flock -n "$lock_fd"; then
+        lock_available=true
+        flock -u "$lock_fd"
+      fi
+      exec {lock_fd}>&-
+    fi
+    if gateway_validate_api_config >/dev/null 2>&1; then
+      api_ready=true
+      set +e
+      head="$(gateway_get_main_head 2>/dev/null)"
+      [[ "$head" =~ ^[0-9a-f]{40}$ ]] || head=null
+      set -e
+    fi
+    if [[ -d "$DOCKER_CONFIG_DIR" && ! -L "$DOCKER_CONFIG_DIR" &&
+      -f "$DOCKER_CONFIG_DIR/config.json" && ! -L "$DOCKER_CONFIG_DIR/config.json" ]] &&
+      gateway_require_directory "$DOCKER_CONFIG_DIR" 700 >/dev/null 2>&1 &&
+      gateway_require_regular "$DOCKER_CONFIG_DIR/config.json" 600 >/dev/null 2>&1; then
+      registry_ready=true
+    fi
+    set +e
+    curl --silent --show-error --fail --connect-timeout 2 --max-time 4 \
+      --noproxy '*' "$HEALTH_URL" >/dev/null 2>&1 && health=true
+    set -e
+    state_json="$(jq -c '{commit,digest,image,backup_id,deployed_at}' "$STATE_FILE")"
+    state_image="$(jq -r '.image // empty' "$STATE_FILE")"
+    if [[ -f "$ENV_FILE" && ! -L "$ENV_FILE" ]]; then
+      set +e
+      current_image="$(gateway_current_env_image 2>/dev/null)"
+      set -e
+      [[ -n "$current_image" ]] || current_image=null
+    fi
+    if [[ "$current_image" != null && -n "$state_image" ]]; then
+      if [[ "$current_image" == "$state_image" ]]; then
+        state_env_consistent=true
+      else
+        state_env_consistent=false
+      fi
+    fi
+  else
+    state_json='{"commit":null,"digest":null,"image":null,"backup_id":null,"deployed_at":null}'
+  fi
+  jq -n \
+    --arg schema 211api-deploy-status.v1 \
+    --arg repository "$GITEA_REPOSITORY" \
+    --arg registry "$REGISTRY_IMAGE" \
+    --arg deploy_dir /opt/211api/deploy \
+    --argjson ready "$ready" \
+    --argjson lock_available "$lock_available" \
+    --argjson api_ready "$api_ready" \
+    --argjson registry_ready "$registry_ready" \
+    --argjson health "$health" \
+    --arg head "$head" \
+    --arg current_image "$current_image" \
+    --argjson state_env_consistent "$state_env_consistent" \
+    --argjson state "$state_json" '
+      {
+        schema:$schema,repository:$repository,registry:$registry,
+        deploy_dir:$deploy_dir,ready:$ready,lock_available:$lock_available,
+        gitea_head_api_ready:$api_ready,registry_credentials_ready:$registry_ready,
+        health:$health,main_head:(if $head=="null" then null else $head end),
+        current_image:(if $current_image=="null" then null else $current_image end),
+        state_env_consistent:$state_env_consistent,
+        intervention_required:($state_env_consistent == false),
+        state:$state
+      }
+    '
+  [[ "$ready" == true ]]
+}
+
+approval_record_path() {
+  local commit=$1 digest=$2
+  printf '%s/%s-%s.json\n' "$ACTIVE_APPROVAL_DIR" "$commit" "${digest#sha256:}"
+}
+
+validate_approval_record() {
+  local path=$1 commit=$2 digest=$3 expected_paths_sha=${4:-}
+  local now created expires nonce consumed
+  gateway_require_regular "$path" 600 || return 78
+  jq -e --arg commit "$commit" --arg digest "$digest" --arg paths_sha "$expected_paths_sha" '
+    .schema == "211api-migration-approval.v1"
+    and .commit == $commit and .digest == $digest
+    and (.nonce | type == "string" and test("^[0-9a-f]{32}$"))
+    and (.operator | type == "string" and test("^[A-Za-z0-9._-]{1,64}$"))
+    and (.created_at | type == "string")
+    and (.expires_at | type == "string")
+    and (.sensitive_paths_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and ($paths_sha == "" or .sensitive_paths_sha256 == $paths_sha)
+  ' "$path" >/dev/null || gateway_die "migration approval record is invalid" 78
+  nonce="$(jq -r '.nonce' "$path")"
+  consumed="$CONSUMED_APPROVAL_DIR/$nonce-$commit-${digest#sha256:}.json"
+  [[ ! -e "$consumed" ]] || gateway_die "migration approval nonce was already consumed" 78
+  now="$(date -u +%s)"
+  created="$(date -u -d "$(jq -r '.created_at' "$path")" +%s 2>/dev/null || true)"
+  expires="$(date -u -d "$(jq -r '.expires_at' "$path")" +%s 2>/dev/null || true)"
+  [[ "$created" =~ ^[0-9]+$ && "$expires" =~ ^[0-9]+$ &&
+    "$created" -le $((now + 60)) && "$expires" -gt "$now" &&
+    $((expires - created)) -eq 1800 ]] ||
+    gateway_die "migration approval is expired" 78
+}
+
+archive_expired_approval() {
+  local path=$1 expires now nonce destination
+  [[ -e "$path" ]] || return 0
+  gateway_require_regular "$path" 600
+  expires="$(date -u -d "$(jq -r '.expires_at // empty' "$path")" +%s 2>/dev/null || true)"
+  now="$(date -u +%s)"
+  [[ "$expires" =~ ^[0-9]+$ && "$expires" -le "$now" ]] ||
+    gateway_die "an active approval already exists" 78
+  nonce="$(jq -er '.nonce | select(type == "string" and test("^[0-9a-f]{32}$"))' "$path")"
+  destination="$CONSUMED_APPROVAL_DIR/expired-$nonce.json"
+  [[ ! -e "$destination" ]] || gateway_die "expired approval archive conflicts" 78
+  gateway_audit_event approval-expire success expired "$nonce" ||
+    gateway_die "unable to persist approval expiry audit" 78
+  mv -- "$path" "$destination"
+  gateway_fsync_path "$ACTIVE_APPROVAL_DIR"
+  gateway_fsync_path "$CONSUMED_APPROVAL_DIR"
+}
+
+changed_paths_for_target() {
+  local previous_commit=$1 target=$2 output=$3
+  if [[ -z "$previous_commit" ]]; then
+    printf '[initial-deployment]\n' >"$output"
+  else
+    gateway_get_changed_paths "$previous_commit" "$target" >"$output"
+  fi
+  chmod 0600 "$output"
+}
+
+approve_migration_command() {
+  local commit=$1 digest=$2 expires_in=$3 previous_commit paths sensitive_paths
+  local phrase answer nonce now expires operator record partial
+  [[ "${GATEWAY_DEPLOY_DISPATCH:-0}" != 1 && -z "${SSH_ORIGINAL_COMMAND:-}" &&
+    "${CI:-false}" != true && "${GITEA_ACTIONS:-false}" != true ]] || {
+    gateway_audit_event approval-reject denied ci-path none >/dev/null 2>&1 || true
+    gateway_die "migration approval is unavailable through the CI forced command" 78
+  }
+  [[ -t 0 && -t 1 ]] || {
+    gateway_audit_event approval-reject denied non-tty none >/dev/null 2>&1 || true
+    gateway_die "migration approval requires an interactive TTY" 78
+  }
+  [[ "$expires_in" == 30m ]] || gateway_die "migration approval expiry must be exactly 30m" 78
+  prepare_approval_layout
+  GATEWAY_CURRENT_COMMIT=$commit
+  GATEWAY_CURRENT_DIGEST=$digest
+  exec {DEPLOY_FD}>"$DEPLOY_LOCK"
+  flock -n "$DEPLOY_FD" || return 75
+  previous_commit="$(jq -r '.commit // empty' "$STATE_FILE")"
+  paths="$WORK_DIR/changed-paths"
+  changed_paths_for_target "$previous_commit" "$commit" "$paths"
+  sensitive_paths="$WORK_DIR/sensitive-paths"
+  if [[ -z "$previous_commit" ]]; then
+    cp -- "$paths" "$sensitive_paths"
+  else
+    gateway_sensitive_paths <"$paths" >"$sensitive_paths"
+  fi
+  [[ -s "$sensitive_paths" ]] || gateway_die "target has no migration-sensitive changes" 78
+
+  printf 'Migration-sensitive paths for %s @ %s:\n' "$commit" "$digest"
+  sed 's/^/  - /' "$sensitive_paths"
+  phrase="APPROVE $commit $digest"
+  printf 'Type exactly: %s\n> ' "$phrase"
+  IFS= read -r answer
+  [[ "$answer" == "$phrase" ]] || {
+    gateway_audit_event approval-reject denied confirmation-mismatch none >/dev/null 2>&1 || true
+    gateway_die "migration approval confirmation did not match" 78
+  }
+
+  nonce="$(openssl rand -hex 16)"
+  [[ "$nonce" =~ ^[0-9a-f]{32}$ ]] || gateway_die "unable to generate approval nonce" 78
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  expires="$(date -u -d '+30 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+  operator=${SUDO_USER:-${USER:-root}}
+  [[ "$operator" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || operator="uid-$EUID"
+  record="$(approval_record_path "$commit" "$digest")"
+  archive_expired_approval "$record"
+  [[ ! -e "$record" ]] || gateway_die "approval path already exists" 78
+  partial="$ACTIVE_APPROVAL_DIR/.approval.$$.partial"
+  local sensitive_paths_sha256
+  sensitive_paths_sha256="$(gateway_hash_file "$sensitive_paths")"
+  jq -n \
+    --arg schema 211api-migration-approval.v1 \
+    --arg commit "$commit" --arg digest "$digest" --arg nonce "$nonce" \
+    --arg operator "$operator" --arg created_at "$now" --arg expires_at "$expires" \
+    --arg sensitive_paths_sha256 "$sensitive_paths_sha256" '
+      {
+        schema:$schema,commit:$commit,digest:$digest,nonce:$nonce,
+        operator:$operator,created_at:$created_at,expires_at:$expires_at,
+        sensitive_paths_sha256:$sensitive_paths_sha256
+      }
+    ' >"$partial"
+  chmod 0600 "$partial"
+  gateway_audit_event approval-create start pending record ||
+    gateway_die "unable to persist pre-approval audit" 78
+  gateway_fsync_path "$partial"
+  mv -- "$partial" "$record"
+  gateway_fsync_path "$ACTIVE_APPROVAL_DIR"
+  gateway_audit_event approval-create success created record ||
+    gateway_die "unable to persist approval completion audit" 78
+  printf 'Approval nonce: %s\nExpires at: %s\n' "$nonce" "$expires"
+}
+
+consume_approval_record() {
+  local path=$1 commit=$2 digest=$3 expected_paths_sha=$4 nonce destination
+  validate_approval_record "$path" "$commit" "$digest" "$expected_paths_sha"
+  nonce="$(jq -r '.nonce' "$path")"
+  destination="$CONSUMED_APPROVAL_DIR/$nonce-$commit-${digest#sha256:}.json"
+  [[ ! -e "$destination" ]] || gateway_die "migration approval was already consumed" 78
+  gateway_audit_event approval-consume start pending record ||
+    gateway_die "unable to persist pre-consumption audit" 78
+  mv -- "$path" "$destination"
+  gateway_fsync_path "$ACTIVE_APPROVAL_DIR"
+  gateway_fsync_path "$CONSUMED_APPROVAL_DIR"
+  gateway_audit_event approval-consume success consumed record ||
+    gateway_die "unable to persist approval consumption audit" 78
+}
+
+validate_registry_manifest() {
+  local commit=$1 digest=$2 reference raw image inspect actual
+  reference="$REGISTRY_IMAGE:$commit@$digest"
+  raw="$WORK_DIR/candidate-manifest.json"
+  image="$WORK_DIR/candidate-image.json"
+  inspect="$WORK_DIR/candidate-inspect.txt"
+  docker buildx imagetools inspect --raw "$reference" >"$raw"
+  jq -e '
+    (.mediaType == "application/vnd.oci.image.manifest.v1+json"
+      or .mediaType == "application/vnd.docker.distribution.manifest.v2+json")
+    and (has("manifests") | not)
+  ' "$raw" >/dev/null || gateway_die "candidate is not a single-platform manifest"
+  docker buildx imagetools inspect --format '{{json .Image}}' "$reference" >"$image"
+  jq -e --arg commit "$commit" '
+    .os == "linux" and .architecture == "amd64"
+    and .config.Labels["org.opencontainers.image.revision"] == $commit
+  ' "$image" >/dev/null || gateway_die "candidate platform or OCI revision is invalid"
+  docker buildx imagetools inspect "$reference" >"$inspect"
+  actual="$(awk '$1 == "Digest:" && $2 ~ /^sha256:[0-9a-f]{64}$/ {print $2; exit}' "$inspect")"
+  [[ "$actual" == "$digest" ]] || gateway_die "candidate digest does not match"
+}
+
+replace_env_image() {
+  local target=$1 expected_full_hash=$2 expected_other_hash=$3
+  python3 -c '
+import hashlib, os, pathlib, stat, sys
+path = pathlib.Path(sys.argv[1])
+target = sys.argv[2]
+expected_full = sys.argv[3]
+expected_other = sys.argv[4]
+expected_uid = int(sys.argv[5])
+expected_gid = int(sys.argv[6])
+fail_write = sys.argv[7] == "1"
+info = path.lstat()
+if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+    raise SystemExit("unsafe env file")
+if info.st_uid != expected_uid or info.st_gid != expected_gid or stat.S_IMODE(info.st_mode) != 0o600:
+    raise SystemExit("unsafe env ownership or mode")
+data = path.read_bytes()
+if hashlib.sha256(data).hexdigest() != expected_full:
+    raise SystemExit("env changed during backup")
+lines = data.splitlines(keepends=True)
+indexes = [index for index, line in enumerate(lines) if line.startswith(b"SUB2API_IMAGE=")]
+if len(indexes) != 1:
+    raise SystemExit("expected exactly one SUB2API_IMAGE line")
+other = b"".join(line for line in lines if not line.startswith(b"SUB2API_IMAGE="))
+if hashlib.sha256(other).hexdigest() != expected_other:
+    raise SystemExit("non-image env content changed")
+ending = b"\n" if lines[indexes[0]].endswith(b"\n") else b""
+lines[indexes[0]] = b"SUB2API_IMAGE=" + target.encode("ascii") + ending
+new_data = b"".join(lines)
+tmp = path.with_name(f".{path.name}.211api-deploy-{os.getpid()}.partial")
+tmp_created = False
+try:
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    tmp_created = True
+    try:
+        os.fchmod(fd, 0o600)
+        os.fchown(fd, info.st_uid, info.st_gid)
+        if fail_write:
+            raise OSError("injected env write failure")
+        written = 0
+        while written < len(new_data):
+            written += os.write(fd, new_data[written:])
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, path)
+    tmp_created = False
+    parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
+    verify = path.read_bytes().splitlines(keepends=True)
+    verify_other = b"".join(line for line in verify if not line.startswith(b"SUB2API_IMAGE="))
+    if hashlib.sha256(verify_other).hexdigest() != expected_other:
+        raise SystemExit("post-replacement env verification failed")
+except BaseException:
+    if tmp_created:
+        try:
+            tmp_info = tmp.lstat()
+            if (stat.S_ISREG(tmp_info.st_mode) and not stat.S_ISLNK(tmp_info.st_mode)
+                    and tmp_info.st_uid == expected_uid and tmp_info.st_gid == expected_gid):
+                tmp.unlink()
+        except FileNotFoundError:
+            pass
+    raise
+' "$ENV_FILE" "$target" "$expected_full_hash" "$expected_other_hash" \
+  "$EXPECTED_OWNER" "$EXPECTED_GROUP" \
+  "$([[ "$GATEWAY_TEST_MODE" == 1 ]] && printf '%s' "${GATEWAY_DEPLOY_TEST_FAIL_ENV_WRITE:-0}" || printf '0')"
+}
+
+wait_for_health() {
+  local sensitive=$1 attempts interval attempt
+  if [[ "$sensitive" == true ]]; then
+    attempts=144
+  else
+    attempts=60
+  fi
+  interval=5
+  if [[ "$GATEWAY_TEST_MODE" == 1 ]]; then
+    attempts=${GATEWAY_DEPLOY_TEST_HEALTH_ATTEMPTS:-$attempts}
+    interval=${GATEWAY_DEPLOY_TEST_HEALTH_INTERVAL:-0}
+    [[ "$attempts" =~ ^[1-9][0-9]?$ && "$interval" =~ ^[0-9]$ ]] ||
+      gateway_die "invalid test health timing"
+  fi
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    if curl --silent --show-error --fail --connect-timeout 2 --max-time 4 \
+      --noproxy '*' "$HEALTH_URL" >/dev/null; then
+      return 0
+    fi
+    ((attempt == attempts)) || sleep "$interval"
+  done
+  return 1
+}
+
+capture_failure_evidence() {
+  local backup_dir=$1 backup_id partial final
+  backup_id="$(basename "$backup_dir")"
+  partial="$AUDIT_DIR/.failure-$backup_id.log.partial"
+  final="$AUDIT_DIR/failure.log"
+  set +e
+  {
+    gateway_compose ps
+    gateway_compose logs --no-color --tail 200 sub2api
+  } 2>&1 | python3 -c '
+import re, sys
+data = sys.stdin.buffer.read(131072).decode("utf-8", "replace")
+data = re.sub(r"(?i)(password|token|secret|authorization|cookie|database_url)(\s*[:=]\s*)\S+", r"\1\2<redacted>", data)
+data = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~-]{16,}", "Bearer <redacted>", data)
+data = re.sub(r"[A-Za-z0-9_~-]{32,}", "<redacted-token>", data)
+data = re.sub(r"-----BEGIN [^-]+ PRIVATE KEY-----.*?-----END [^-]+ PRIVATE KEY-----", "<redacted-private-key>", data, flags=re.S)
+sys.stdout.write(data[:65536])
+' >"$partial"
+  local status=$?
+  set -e
+  chmod 0600 "$partial"
+  gateway_fsync_path "$partial" || status=1
+  mv -f -- "$partial" "$final" || status=1
+  gateway_fsync_path "$AUDIT_DIR" || status=1
+  return "$status"
+}
+
+verify_running_image() {
+  local commit=$1 digest=$2 target=$3 container_id config_image revision image_id repo_digests
+  container_id="$(docker inspect --format '{{.Image}}' "$APPLICATION_CONTAINER")"
+  config_image="$(docker inspect --format '{{.Config.Image}}' "$APPLICATION_CONTAINER")"
+  revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$APPLICATION_CONTAINER")"
+  image_id="$(docker image inspect --format '{{.Id}}' "$target")"
+  repo_digests="$(docker image inspect --format '{{json .RepoDigests}}' "$target")"
+  [[ "$container_id" == "$image_id" && "$config_image" == "$target" && "$revision" == "$commit" ]] ||
+    gateway_die "running container does not match the target image and revision"
+  jq -e --arg expected "$REGISTRY_IMAGE@$digest" 'index($expected) != null' <<<"$repo_digests" >/dev/null ||
+    gateway_die "local image does not contain the expected Registry digest"
+}
+
+verify_existing_baseline() {
+  local commit=$1 digest=$2 current_image container_id config_image revision image_id repo_digests repo_tags
+  current_image="$(gateway_current_env_image)"
+  container_id="$(docker inspect --format '{{.Image}}' "$APPLICATION_CONTAINER")"
+  config_image="$(docker inspect --format '{{.Config.Image}}' "$APPLICATION_CONTAINER")"
+  revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+    "$APPLICATION_CONTAINER" 2>/dev/null || true)"
+  image_id="$(docker image inspect --format '{{.Id}}' "$config_image")"
+  repo_digests="$(docker image inspect --format '{{json .RepoDigests}}' "$config_image")"
+  repo_tags="$(docker image inspect --format '{{json .RepoTags}}' "$config_image")"
+  [[ "$current_image" == "$config_image" && "$container_id" == "$image_id" ]] ||
+    gateway_die "running image does not match the current environment"
+  jq -e --arg suffix "@$digest" 'any(.[]; endswith($suffix))' <<<"$repo_digests" >/dev/null ||
+    gateway_die "running image does not expose the asserted manifest digest"
+  if [[ -n "$revision" ]]; then
+    [[ "$revision" == "$commit" ]] || gateway_die "running OCI revision differs from the asserted baseline"
+  else
+    jq -e --arg commit "$commit" '
+      any(.[];
+        (split("/") | last | split(":")) as $parts
+        | ($parts | length) == 2 and $parts[1] == $commit)
+    ' <<<"$repo_tags" >/dev/null ||
+      gateway_die "baseline commit is not an exact image tag"
+  fi
+  BASELINE_CURRENT_IMAGE=$current_image
+}
+
+write_deployment_state() {
+  local commit=$1 digest=$2 target=$3 backup_id=$4
+  local previous_commit=$5 previous_digest=$6 previous_backup_id=$7 now partial
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  partial="$DEPLOY_DIR/.deployment-state.json.partial.$$"
+  jq -n \
+    --arg schema 211api-deployment-state.v1 \
+    --arg commit "$commit" --arg digest "$digest" --arg image "$target" \
+    --arg backup_id "$backup_id" --arg deployed_at "$now" \
+    --arg previous_commit "$previous_commit" --arg previous_digest "$previous_digest" \
+    --arg previous_backup_id "$previous_backup_id" '
+      {
+        schema:$schema,commit:$commit,digest:$digest,image:$image,
+        backup_id:$backup_id,deployed_at:$deployed_at,
+        previous_commit:(if $previous_commit=="" then null else $previous_commit end),
+        previous_digest:(if $previous_digest=="" then null else $previous_digest end),
+        predecessor_backup_id:(if $previous_backup_id=="" then null else $previous_backup_id end),
+        known_good_backup_id:$backup_id
+      }
+    ' >"$partial"
+  gateway_atomic_json_replace "$partial" "$STATE_FILE"
+  gateway_validate_state
+}
+
+record_baseline_command() {
+  local commit=$1 digest=$2 expected answer backup_dir backup_id previous_backup_id
+  [[ "${GATEWAY_DEPLOY_DISPATCH:-0}" != 1 && -z "${SSH_ORIGINAL_COMMAND:-}" &&
+    "${CI:-false}" != true && "${GITEA_ACTIONS:-false}" != true ]] ||
+    gateway_die "baseline recording is unavailable through the CI forced command" 64
+  expected="BACKUP BASELINE $commit $digest"
+  if [[ "$GATEWAY_TEST_MODE" == 1 ]]; then
+    [[ "${GATEWAY_DEPLOY_TEST_CONFIRM_BASELINE:-}" == "$expected" ]] ||
+      gateway_die "test baseline confirmation is missing" 64
+  else
+    [[ -t 0 && -t 1 ]] || gateway_die "baseline recording requires an interactive TTY" 64
+    printf 'This records the current image and creates a backup without changing production.\n'
+    printf 'Type exactly: %s\n> ' "$expected"
+    IFS= read -r answer
+    [[ "$answer" == "$expected" ]] || gateway_die "baseline confirmation did not match" 64
+  fi
+  prepare_deploy_layout
+  GATEWAY_CURRENT_COMMIT=$commit
+  GATEWAY_CURRENT_DIGEST=$digest
+  exec {DEPLOY_FD}>"$DEPLOY_LOCK"
+  flock -n "$DEPLOY_FD" || return 75
+  gateway_audit_event baseline-start start verified none ||
+    gateway_die "unable to persist baseline start audit"
+  verify_existing_baseline "$commit" "$digest"
+  previous_backup_id="$(jq -r '.backup_id // empty' "$STATE_FILE")"
+  gateway_audit_event backup-start start baseline none ||
+    gateway_die "unable to persist baseline backup audit"
+  gateway_backup_create "$commit" "$digest" false \
+    "$commit" "$digest" "$BASELINE_CURRENT_IMAGE" "$previous_backup_id" >/dev/null
+  backup_dir=$GATEWAY_LAST_BACKUP
+  backup_id="$(basename "$backup_dir")"
+  gateway_audit_event state-write start baseline "$backup_id" ||
+    gateway_die "unable to persist baseline state audit"
+  write_deployment_state "$commit" "$digest" "$BASELINE_CURRENT_IMAGE" "$backup_id" \
+    "" "" "$previous_backup_id"
+  gateway_audit_event baseline-complete success recorded "$backup_id" ||
+    gateway_die "unable to persist baseline completion audit"
+  printf 'Recorded current production baseline %s at %s with backup %s\n' \
+    "$commit" "$digest" "$backup_id"
+}
+
+deploy_command() {
+  local commit=$1 digest=$2 target first_head second_head
+  local previous_commit previous_digest previous_image previous_backup_id current_env_image
+  local paths sensitive_paths sensitive_paths_sha migration_sensitive=false approval=
+  local env_hash env_other_hash compose_hash backup_dir backup_id
+
+  prepare_deploy_layout
+  GATEWAY_CURRENT_COMMIT=$commit
+  GATEWAY_CURRENT_DIGEST=$digest
+  exec {DEPLOY_FD}>"$DEPLOY_LOCK"
+  if ! flock -n "$DEPLOY_FD"; then
+    gateway_audit_event deploy-reject denied lock-held none >/dev/null 2>&1 || true
+    return 75
+  fi
+  gateway_audit_event deploy-start start accepted none ||
+    gateway_die "unable to persist deployment start audit"
+
+  target="$REGISTRY_IMAGE:$commit@$digest"
+  validate_registry_manifest "$commit" "$digest"
+  first_head="$(gateway_get_main_head)"
+  [[ "$first_head" == "$commit" ]] || {
+    gateway_audit_event deploy-stale denied pre-backup none >/dev/null 2>&1 || true
+    gateway_die "target is no longer protected main before backup" 76
+  }
+
+  current_env_image="$(gateway_current_env_image)"
+  previous_commit="$(jq -r '.commit // empty' "$STATE_FILE")"
+  previous_digest="$(jq -r '.digest // empty' "$STATE_FILE")"
+  previous_image="$(jq -r '.image // empty' "$STATE_FILE")"
+  previous_backup_id="$(jq -r '.backup_id // empty' "$STATE_FILE")"
+  if [[ -n "$previous_image" && "$previous_image" != "$current_env_image" ]]; then
+    gateway_die "deployment state image differs from the current environment"
+  fi
+  [[ -n "$previous_image" ]] || previous_image=$current_env_image
+  if [[ -z "$previous_digest" && "$previous_image" =~ @(sha256:[0-9a-f]{64})$ ]]; then
+    previous_digest=${BASH_REMATCH[1]}
+  fi
+
+  paths="$WORK_DIR/changed-paths"
+  sensitive_paths="$WORK_DIR/sensitive-paths"
+  changed_paths_for_target "$previous_commit" "$commit" "$paths"
+  if [[ -z "$previous_commit" ]]; then
+    cp -- "$paths" "$sensitive_paths"
+  else
+    gateway_sensitive_paths <"$paths" >"$sensitive_paths"
+  fi
+  if [[ -s "$sensitive_paths" ]]; then
+    migration_sensitive=true
+    sensitive_paths_sha="$(gateway_hash_file "$sensitive_paths")"
+    approval="$(approval_record_path "$commit" "$digest")"
+    validate_approval_record "$approval" "$commit" "$digest" "$sensitive_paths_sha"
+  fi
+
+  env_hash="$(gateway_hash_file "$ENV_FILE")"
+  env_other_hash="$(gateway_other_env_hash)"
+  compose_hash="$(gateway_hash_file "$COMPOSE_FILE")"
+  gateway_audit_event backup-start start predeploy none ||
+    gateway_die "unable to persist pre-backup audit"
+  gateway_backup_create "$commit" "$digest" "$migration_sensitive" \
+    "$previous_commit" "$previous_digest" "$previous_image" "$previous_backup_id" >/dev/null
+  backup_dir=$GATEWAY_LAST_BACKUP
+  backup_id="$(basename "$backup_dir")"
+  gateway_audit_event backup-complete success validated "$backup_id" ||
+    gateway_die "unable to persist backup completion audit"
+
+  second_head="$(gateway_get_main_head)"
+  [[ "$second_head" == "$commit" ]] || {
+    gateway_audit_event deploy-stale denied post-backup "$backup_id" >/dev/null 2>&1 || true
+    gateway_die "protected main advanced during backup; validated set retained" 76
+  }
+  [[ "$(gateway_hash_file "$ENV_FILE")" == "$env_hash" &&
+    "$(gateway_hash_file "$COMPOSE_FILE")" == "$compose_hash" ]] ||
+    gateway_die "Compose or environment changed during backup"
+  if [[ "$migration_sensitive" == true ]]; then
+    consume_approval_record "$approval" "$commit" "$digest" "$sensitive_paths_sha"
+  fi
+
+  gateway_audit_event env-replace start mutation "$backup_id" ||
+    gateway_die "unable to persist pre-mutation audit"
+  replace_env_image "$target" "$env_hash" "$env_other_hash"
+  gateway_audit_event compose-pull start mutation "$backup_id" ||
+    gateway_die "unable to persist pre-pull audit"
+  if ! gateway_compose pull sub2api; then
+    capture_failure_evidence "$backup_dir" || true
+    gateway_audit_event compose-pull failed command "$backup_id" >/dev/null 2>&1 || true
+    gateway_die "Compose pull failed; evidence retained and no restore was attempted"
+  fi
+  gateway_audit_event compose-up start mutation "$backup_id" ||
+    gateway_die "unable to persist pre-start audit"
+  if ! gateway_compose up -d; then
+    capture_failure_evidence "$backup_dir" || true
+    gateway_audit_event compose-up failed command "$backup_id" >/dev/null 2>&1 || true
+    gateway_die "Compose start failed; evidence retained and no restore was attempted"
+  fi
+
+  if ! wait_for_health "$migration_sensitive"; then
+    capture_failure_evidence "$backup_dir" || true
+    gateway_audit_event deploy-health failed unhealthy "$backup_id" >/dev/null 2>&1 || true
+    gateway_die "health deadline expired; evidence retained and no restore was attempted"
+  fi
+  verify_running_image "$commit" "$digest" "$target"
+  gateway_audit_event state-write start mutation "$backup_id" ||
+    gateway_die "unable to persist pre-state audit"
+  write_deployment_state "$commit" "$digest" "$target" "$backup_id" \
+    "$previous_commit" "$previous_digest" "$previous_backup_id"
+  gateway_run_retention
+  gateway_audit_event deploy-complete success healthy "$backup_id" ||
+    gateway_die "unable to persist deployment completion audit"
+  printf 'Deployed %s at %s with backup %s\n' "$commit" "$digest" "$backup_id"
+}
+
+[[ $# -ge 1 ]] || usage
+command=$1
+shift
+case "$command" in
+  status)
+    (($# == 0)) || usage
+    status_command
+    ;;
+  approve-migration)
+    (($# == 6)) || usage
+    [[ "$1" == --commit && "$3" == --digest && "$5" == --expires-in ]] || usage
+    [[ "$2" =~ ^[0-9a-f]{40}$ && "$4" =~ ^sha256:[0-9a-f]{64}$ ]] || usage
+    approve_migration_command "$2" "$4" "$6"
+    ;;
+  deploy)
+    if (($# == 5)) && [[ "$1" == --record-baseline && "$2" == --commit && "$4" == --digest ]]; then
+      [[ "$3" =~ ^[0-9a-f]{40}$ && "$5" =~ ^sha256:[0-9a-f]{64}$ ]] || usage
+      record_baseline_command "$3" "$5"
+    else
+      (($# == 4)) || usage
+      [[ "$1" == --commit && "$3" == --digest ]] || usage
+      [[ "$2" =~ ^[0-9a-f]{40}$ && "$4" =~ ^sha256:[0-9a-f]{64}$ ]] || usage
+      deploy_command "$2" "$4"
+    fi
+    ;;
+  *)
+    usage
+    ;;
+esac

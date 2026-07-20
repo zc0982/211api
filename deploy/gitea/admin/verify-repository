@@ -1,0 +1,275 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=admin-lib.sh
+source "$SCRIPT_DIR/admin-lib.sh"
+
+usage() {
+  printf 'Usage: %s --base | --full STATUS_CONTEXT_EVIDENCE COMMIT_SHA\n' "$0" >&2
+  exit 2
+}
+
+mode=
+context_evidence=
+status_sha=
+case ${1:-} in
+  --base)
+    [[ $# -eq 1 ]] || usage
+    mode=base
+    ;;
+  --full)
+    [[ $# -eq 3 ]] || usage
+    mode=full
+    context_evidence=$2
+    status_sha=$3
+    [[ "$status_sha" =~ ^[0-9a-f]{40}$ ]] ||
+      gitea_die 'full verification requires one exact SHA-1 commit ID'
+    ;;
+  *) usage ;;
+esac
+
+gitea_require_root
+gitea_require_commands docker curl jq grep stat cmp
+gitea_require_root_file "$GITEA_IMAGE_LOCK" 644
+gitea_require_root_secret "$GITEA_PLATFORM_ENV"
+gitea_require_root_file "$GITEA_PLATFORM_COMPOSE" 644
+gitea_validate_admin_control_record
+gitea_load_bootstrap_env "$GITEA_BOOTSTRAP_ENV"
+
+runtime=$(gitea_make_runtime)
+cleanup() {
+  rm -rf -- "$runtime"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+gitea_validate_cli_contract "$runtime"
+gitea_validate_openapi "$runtime"
+
+gitea_compose exec -T gitea /bin/sh -ec '
+  test "${GITEA__service__DISABLE_REGISTRATION:-}" = true
+  test "${GITEA__service__REQUIRE_SIGNIN_VIEW:-}" = true
+  test "${GITEA__security__DISABLE_GIT_HOOKS:-}" = true
+  test "${GITEA__api__MAX_RESPONSE_ITEMS:-}" = 50
+' || gitea_die 'registration, private visibility, API pagination, or managed-hook environment drifted'
+
+status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
+  "/repos/$GITEA_ORG/$GITEA_REPO" "$runtime/repository.json") ||
+  gitea_die 'failed to inspect canonical repository'
+gitea_expect_status "$status" 200 'GET canonical repository'
+gitea_assert_repository_shape "$runtime/repository.json"
+
+status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET "/orgs/$GITEA_ORG" \
+  "$runtime/organization.json") || gitea_die 'failed to inspect organization'
+gitea_expect_status "$status" 200 'GET organization'
+gitea_assert_organization_shape "$runtime/organization.json"
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+  "/repos/$GITEA_ORG/$GITEA_REPO/push_mirrors" \
+  "$runtime/push-mirrors.json" "$runtime" push-mirrors
+jq -e 'type == "array" and length == 0' "$runtime/push-mirrors.json" >/dev/null ||
+  gitea_die 'canonical repository has an unreviewed push mirror'
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/orgs/$GITEA_ORG/teams" \
+  "$runtime/teams.json" "$runtime" teams
+jq -e '
+  (map(.name) | sort) ==
+    (["Owners", "maintainers", "package-publishers", "package-readers", "release-maintainers"] | sort)
+' "$runtime/teams.json" >/dev/null ||
+  gitea_die 'organization team set contains a missing, duplicate, or unreviewed role'
+owner_team_id=$(gitea_owner_team_id "$runtime/teams.json") ||
+  gitea_die 'organization Owners team settings drifted'
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/teams/$owner_team_id/members" \
+  "$runtime/owner-members.json" "$runtime" owner-members
+gitea_assert_only_owner_member "$runtime/owner-members.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME"
+
+verify_team() {
+  local name=$1 template=$2 id members repos member expected_members
+  shift 2
+  id=$(jq -er --arg name "$name" --slurpfile expected "$template" '
+    [.[] | select(.name == $name)] as $matches
+    | select(($matches | length) == 1)
+    | $matches[0]
+    | select(.permission == "none")
+    | select(.description == $expected[0].description)
+    | select(.can_create_org_repo == false)
+    | select(.includes_all_repositories == false)
+    | select(.units_map == $expected[0].units_map)
+    | .id
+  ' "$runtime/teams.json") || gitea_die "team identity or settings drifted: $name"
+  members="$runtime/team-$name-members.json"
+  repos="$runtime/team-$name-repos.json"
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/teams/$id/members" \
+    "$members" "$runtime" "team-$name-members"
+  for member in "$@"; do
+    jq -e --arg username "$member" 'any(.[]; .login == $username)' \
+      "$members" >/dev/null || gitea_die "$member is not a member of $name"
+  done
+  expected_members=$(printf '%s\n' "$@" | jq -Rsc 'split("\n")[:-1] | sort')
+  jq -e --argjson expected "$expected_members" \
+    '(map(.login) | sort) == $expected' "$members" >/dev/null ||
+    gitea_die "team $name has an unreviewed or missing member"
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" "/teams/$id/repos" \
+    "$repos" "$runtime" "team-$name-repos"
+  jq -e --arg full_name "$GITEA_ORG/$GITEA_REPO" \
+    '(map(.full_name) | sort) == [$full_name]' "$repos" >/dev/null ||
+    gitea_die "team $name has an unreviewed or missing repository"
+}
+
+verify_team maintainers "$SCRIPT_DIR/templates/team-maintainers.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME"
+verify_team release-maintainers "$SCRIPT_DIR/templates/team-release-maintainers.json" \
+  "$BOOTSTRAP_ADMIN_USERNAME"
+verify_team package-publishers "$SCRIPT_DIR/templates/team-package-publishers.json" \
+  svc-build svc-release-package
+verify_team package-readers "$SCRIPT_DIR/templates/team-package-readers.json" \
+  svc-backup-read svc-deploy-read
+
+verify_collaborator() {
+  local username=$1 permission=$2
+  local output="$runtime/collaborator-$username.json"
+  status=$(gitea_api_status "$GITEA_ADMIN_CURL_CONFIG" GET \
+    "/repos/$GITEA_ORG/$GITEA_REPO/collaborators/$username/permission" "$output") ||
+    gitea_die "failed to inspect collaborator $username"
+  gitea_expect_status "$status" 200 "GET collaborator permission for $username"
+  jq -e --arg permission "$permission" '.permission == $permission' "$output" >/dev/null ||
+    gitea_die "collaborator permission drifted for $username"
+}
+
+verify_collaborator svc-backup-read read
+verify_collaborator svc-release-record write
+verify_collaborator svc-release-tag write
+verify_collaborator svc-deploy-read read
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+  "/repos/$GITEA_ORG/$GITEA_REPO/collaborators" \
+  "$runtime/collaborators.json" "$runtime" collaborators
+jq -e '
+  (map(.login) | sort) ==
+    (["svc-backup-read", "svc-deploy-read", "svc-release-record", "svc-release-tag"] | sort)
+' "$runtime/collaborators.json" >/dev/null ||
+  gitea_die 'canonical repository has an unreviewed or missing direct collaborator'
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+  "/repos/$GITEA_ORG/$GITEA_REPO/branch_protections" \
+  "$runtime/branch-protections.json" "$runtime" branch-protections
+release_count=$(jq -r '[.[] | select((.rule_name // .branch_name) == "release/v*")] | length' \
+  "$runtime/branch-protections.json")
+[[ "$release_count" == 1 ]] || gitea_die 'release/v* branch protection is missing or duplicated'
+jq -e '.[] | select((.rule_name // .branch_name) == "release/v*")' \
+  "$runtime/branch-protections.json" >"$runtime/branch-release.json"
+gitea_assert_release_protection "$runtime/branch-release.json"
+
+main_count=$(jq -r '[.[] | select((.rule_name // .branch_name) == "main")] | length' \
+  "$runtime/branch-protections.json")
+if [[ "$mode" == full ]]; then
+  [[ "$main_count" == 1 ]] || gitea_die 'main branch protection is missing or duplicated'
+  [[ $(jq 'length' "$runtime/branch-protections.json") -eq 2 ]] ||
+    gitea_die 'unexpected branch-protection rule exists'
+  jq -e '.[] | select((.rule_name // .branch_name) == "main")' \
+    "$runtime/branch-protections.json" >"$runtime/branch-main.json"
+  gitea_assert_main_protection "$runtime/branch-main.json"
+else
+  [[ "$main_count" == 0 || "$main_count" == 1 ]] ||
+    gitea_die 'main branch protection is duplicated'
+  [[ $(jq 'length' "$runtime/branch-protections.json") -eq $((release_count + main_count)) ]] ||
+    gitea_die 'unexpected branch-protection rule exists'
+  if [[ "$main_count" == 1 ]]; then
+    jq -e '.[] | select((.rule_name // .branch_name) == "main")' \
+      "$runtime/branch-protections.json" >"$runtime/branch-main.json"
+    gitea_assert_main_protection "$runtime/branch-main.json"
+  fi
+fi
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+  "/repos/$GITEA_ORG/$GITEA_REPO/tag_protections" \
+  "$runtime/tag-protections.json" "$runtime" tag-protections
+gitea_extract_only_tag_protection \
+  "$runtime/tag-protections.json" "$runtime/tag-v.json"
+gitea_assert_tag_protection "$runtime/tag-v.json"
+
+verify_token() {
+  local account=$1 token_name=$2 scopes=$3 file_name=$4 positive=$5 label=$6
+  gitea_validate_token_record "$GITEA_TOKEN_DIR/$file_name" \
+    "$GITEA_TOKEN_METADATA_DIR/$label.json" "$account" "$token_name" "$scopes"
+  gitea_token_permission_probe "$GITEA_TOKEN_DIR/$file_name" "$positive" \
+    "$runtime" "$label"
+}
+
+verify_token svc-build svc-build-registry write:package \
+  registry-build.token package registry-build
+verify_token svc-backup-read svc-backup-reader \
+  read:user,read:repository,read:package backup-reader.token repository-package backup-reader
+verify_token svc-release-package svc-release-registry write:package \
+  registry-release.token package registry-release
+verify_token svc-release-record svc-release-record write:repository \
+  release-record.token release release-record
+verify_token svc-deploy-read svc-deploy-head read:repository \
+  deploy-head.token repository deploy-head
+verify_token svc-deploy-read svc-deploy-registry read:package \
+  deploy-registry.token package deploy-registry
+
+for username in svc-build svc-backup-read svc-release-package svc-release-record svc-deploy-read; do
+  [[ ! -e "$GITEA_CREDENTIAL_DIR/$username.password" &&
+    ! -L "$GITEA_CREDENTIAL_DIR/$username.password" ]] ||
+    gitea_die "discarded one-time password reappeared for $username"
+done
+
+release_tag_password="$GITEA_CREDENTIAL_DIR/svc-release-tag.password"
+if [[ -e "$release_tag_password" || -L "$release_tag_password" ]]; then
+  gitea_require_root_secret "$release_tag_password"
+  gitea_make_basic_curl_config svc-release-tag "$release_tag_password" \
+    "$runtime/release-tag.basic.curl"
+  gitea_api_get_all "$runtime/release-tag.basic.curl" \
+    /users/svc-release-tag/tokens "$runtime/release-tag.tokens.json" \
+    "$runtime" release-tag-tokens
+  jq -e 'type == "array" and length == 0' "$runtime/release-tag.tokens.json" >/dev/null ||
+    gitea_die 'svc-release-tag unexpectedly has a PAT'
+else
+  gitea_require_root_secret /etc/gitea/release-tag-ssh-only.json
+  jq -e '
+    .account == "svc-release-tag"
+    and .ssh_key_verified == true
+    and .password_discarded == true
+    and .pat_count == 0
+  ' /etc/gitea/release-tag-ssh-only.json >/dev/null ||
+    gitea_die 'svc-release-tag SSH-only evidence is missing or invalid'
+fi
+
+gitea_make_token_curl_config "$GITEA_TOKEN_DIR/backup-reader.token" \
+  "$runtime/backup-api.expected"
+gitea_require_root_secret /etc/gitea/backup-api.curl
+cmp -- "$runtime/backup-api.expected" /etc/gitea/backup-api.curl >/dev/null ||
+  gitea_die 'backup API curl config does not contain the reviewed backup-reader token'
+
+gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+  "/repos/$GITEA_ORG/$GITEA_REPO/actions/secrets" \
+  "$runtime/action-secrets.json" "$runtime" action-secrets
+if [[ "$mode" == full ]]; then
+  gitea_assert_actions_secret_names "$runtime/action-secrets.json" true
+else
+  gitea_assert_actions_secret_names "$runtime/action-secrets.json" false
+fi
+
+if [[ "$mode" == full ]]; then
+  gitea_require_root_secret "$context_evidence"
+  printf '%s\n' 'ci / required (push)' 'security / required (push)' \
+    >"$runtime/required-contexts.expected"
+  cmp -- "$runtime/required-contexts.expected" "$context_evidence" >/dev/null ||
+    gitea_die 'status-context evidence is not the two reviewed Task 11 contexts'
+  gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
+    "/repos/$GITEA_ORG/$GITEA_REPO/commits/$status_sha/statuses" \
+    "$runtime/actual-statuses.json" "$runtime" actual-statuses
+  gitea_assert_required_statuses "$runtime/actual-statuses.json" "$status_sha"
+fi
+
+gitea_require_root_file /opt/gitea/admin/install-immutable-tag-hook 755
+/opt/gitea/admin/install-immutable-tag-hook --verify
+
+printf '%s\n' "Gitea repository verification passed ($mode)."

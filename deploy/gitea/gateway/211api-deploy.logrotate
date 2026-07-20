@@ -1,0 +1,11 @@
+/var/log/211api-deploy/.rotation-trigger {
+    daily
+    ifempty
+    missingok
+    rotate 0
+    copytruncate
+    su root root
+    firstaction
+        /etc/211api-deploy/gateway-audit-rotate --max-size 10485760 --rotate 10
+    endscript
+}

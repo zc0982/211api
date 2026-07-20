@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "artifactKey": "netcup-host-inspection",
+  "type": "read-only host inspection",
+  "source": "37.221.194.27:4422",
+  "summary": "Confirmed retired Netcup host capacity, Docker availability, open-port state, existing services, and absence of 211API containers.",
+  "verifier": "main agent SSH read-only commands"
+}
