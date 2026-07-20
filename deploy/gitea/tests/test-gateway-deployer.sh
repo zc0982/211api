@@ -79,9 +79,11 @@ cat >"$FAKE_BIN/stub" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 name=${0##*/}
-printf '%s' "$name" >>"$COMMAND_LOG"
-printf ' <%s>' "$@" >>"$COMMAND_LOG"
-printf '\n' >>"$COMMAND_LOG"
+command_line=$name
+for argument in "$@"; do
+  printf -v command_line '%s <%s>' "$command_line" "$argument"
+done
+printf '%s\n' "$command_line" >>"$COMMAND_LOG"
 
 case "$name" in
   curl)
@@ -160,6 +162,9 @@ case "$name" in
       fi
       exit 0
     elif [[ "$1" == exec || ( "$1" == exec && "$2" == -i ) ]]; then
+      if [[ "$args" == *" restorecheck "* ]]; then
+        [[ "$args" == *" --username postgres "* ]] || exit 64
+      fi
       if [[ "$args" == *" pg_dump "* ]]; then
         [[ "${GATEWAY_DEPLOY_TEST_FAIL_PGDUMP:-0}" != 1 ]] || exit 41
         if [[ "${PGRESTORE_LIST_EARLY_EXIT:-0}" == 1 ]]; then
@@ -683,6 +688,7 @@ rg -q 'docker <run> <-d>.*<--network> <none>' "$COMMAND_LOG"
 ! rg -q 'docker <run>.*<-p>|docker <run>.*<--publish>' "$COMMAND_LOG"
 rg -q 'docker <run>.*<--mount> <type=volume,src=211api-drill-[^,]*-data,dst=/var/lib/postgresql>' "$COMMAND_LOG"
 ! rg -q 'docker <run>.*<--mount> <type=volume,[^>]*dst=/var/lib/postgresql/data>' "$COMMAND_LOG"
+[[ "$(rg -c 'docker <exec>.*<--username> <postgres>.*<--dbname> <restorecheck>' "$COMMAND_LOG")" == 5 ]]
 [[ -z "$(find "$DOCKER_STATE" -name 'container-*' -o -name 'volume-*')" ]]
 jq -e '.referenced_by == [] and .lease_until == null' "$backup_dir/manifest.json" >/dev/null
 expect_status 64 env "${base_env[@]}" "$RESTORE" --backup-id '../live' --identity "$identity"

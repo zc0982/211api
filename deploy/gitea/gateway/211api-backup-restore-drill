@@ -242,7 +242,8 @@ create_isolated_database() {
 wait_for_postgres() {
   local attempt
   for attempt in $(seq 1 60); do
-    if docker exec "$CONTAINER" pg_isready --dbname restorecheck >/dev/null 2>&1; then
+    if docker exec "$CONTAINER" pg_isready \
+      --username postgres --dbname restorecheck >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
@@ -256,7 +257,7 @@ restore_database() {
   age --decrypt --identity "$IDENTITY_SOURCE" "$BACKUP_DIR/database.dump.age" |
     docker exec -i "$CONTAINER" pg_restore \
       --exit-on-error --single-transaction --no-owner --no-privileges \
-      --dbname restorecheck
+      --username postgres --dbname restorecheck
   pipeline_status=("${PIPESTATUS[@]}")
   set -e
   [[ "${pipeline_status[0]}" == 0 && "${pipeline_status[1]}" == 0 ]] ||
@@ -266,17 +267,17 @@ restore_database() {
 verify_restored_database() {
   local table_count constraint_count row_counts counts_json
   table_count="$(docker exec "$CONTAINER" psql --no-psqlrc --tuples-only --no-align \
-    --dbname restorecheck --command \
+    --username postgres --dbname restorecheck --command \
     "SELECT count(*) FROM pg_catalog.pg_class WHERE relkind='r' AND relnamespace NOT IN (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname LIKE 'pg_%' OR nspname='information_schema');" |
     tr -d '[:space:]')"
   constraint_count="$(docker exec "$CONTAINER" psql --no-psqlrc --tuples-only --no-align \
-    --dbname restorecheck --command \
+    --username postgres --dbname restorecheck --command \
     "SELECT count(*) FROM pg_catalog.pg_constraint WHERE connamespace NOT IN (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname LIKE 'pg_%' OR nspname='information_schema');" |
     tr -d '[:space:]')"
   [[ "$table_count" =~ ^[1-9][0-9]*$ && "$constraint_count" =~ ^[1-9][0-9]*$ ]] ||
     gateway_die "restored schema or constraints are missing"
   row_counts="$(docker exec "$CONTAINER" psql --no-psqlrc --tuples-only --no-align \
-    --dbname restorecheck --command \
+    --username postgres --dbname restorecheck --command \
     "SELECT count(*) FROM users; SELECT count(*) FROM api_keys; SELECT count(*) FROM schema_migrations;")"
   [[ "$(grep -Ec '^[[:space:]]*[0-9]+[[:space:]]*$' <<<"$row_counts")" == 3 ]] ||
     gateway_die "representative row-count checks failed"
