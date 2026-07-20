@@ -1837,10 +1837,15 @@ Gitea main.
    ID set at drain start, then wait for or explicitly `gh run cancel` every ID,
    with a hard ten-minute deadline and 15-second poll interval. Require every
    observed ID to become terminal; a newly appearing active ID or deadline
-   expiry stops cutover. Then require two full paginated zero-active queries 60
-   seconds apart, stable Gateway image/Compose hashes, and no SSH/deploy/Compose
-   process targeting `/opt/211api/deploy`. Record only complete IDs/statuses and
-   redacted process types.
+   expiry stops cutover. The sole explicitly accepted exception is residual run
+   `29755862485`: it may remain `queued` only while repository Actions is
+   `enabled=false`, its job count remains zero, it never enters execution, and
+   no other queued run exists. Then require two full paginated observations 60
+   seconds apart with queued IDs exactly `[29755862485]`, zero `in_progress`
+   IDs, the residual run byte-stable with zero jobs, stable Gateway
+   image/Compose hashes, and no SSH/deploy/Compose process targeting
+   `/opt/211api/deploy`. Record only complete IDs/statuses and redacted process
+   types.
 
 2. Disable repository Actions using an authenticated JSON request:
 
@@ -1868,12 +1873,29 @@ Gitea main.
    set -e
    ```
 
-   Parse the first HTTP status and assert one of `403`, `404`, or `422` with a
-   nonzero command status. If GitHub instead returns `204`, treat transport
-   acceptance as inconclusive: poll for 90 seconds and require the run-ID set to
-   remain byte-identical and zero active runs. Any other status, new run ID, or
-   active run stops cutover. Redact/delete `dispatch.response` after recording
-   only status, sanitized message class, timestamps, and before/after run IDs.
+   Parse the first HTTP status. Either of these negative-dispatch outcomes is
+   acceptable while repository Actions remains disabled:
+
+   - `403`, `404`, or `422` with a nonzero command status; or
+   - transport acceptance that creates exactly one new run which remains
+     `queued`, has zero jobs, and never enters execution during a bounded
+     90-second observation.
+
+   For the second outcome, retain sanitized evidence of repository
+   `enabled=false`, the exact run ID/status/commit/workflow, repeated zero-job
+   observations, zero `in_progress` runs, and unchanged Gateway state. For this
+   cutover the operator explicitly accepts `29755862485` as an inert residual
+   queue record because GitHub refuses cancellation while disabled and refuses
+   deletion until the run completes or becomes more than two weeks old. Do not
+   re-enable GitHub Actions merely to terminalize it and do not weaken the
+   exception to cover another ID. Any job appearance, transition into
+   execution, Actions permission drift, additional new run, or Gateway change
+   stops cutover.
+
+   The previously observed run `29755862485` supplies this negative-dispatch
+   evidence after the contract amendment; do not dispatch again merely to
+   reproduce it. Redact/delete `dispatch.response` after recording only status,
+   sanitized message class, timestamps, and before/after run IDs.
 
 4. Rename local remotes without pushing old GitHub:
 
@@ -1896,7 +1918,8 @@ Gitea main.
 7. Observe the Gitea main deploy workflow. At this exact point Gitea becomes
    delivery owner; GitHub is already disabled.
 
-**Verification:** GitHub disabled/rejected; Gitea main protected and active;
+**Verification:** GitHub disabled with only the explicitly accepted inert
+residual queue record and no executing jobs; Gitea main protected and active;
 there was no dual-deploy interval.
 
 ## Task 15: Complete the First Digest-Qualified Gateway Deployment

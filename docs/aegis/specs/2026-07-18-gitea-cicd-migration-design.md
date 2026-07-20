@@ -680,11 +680,14 @@ follow-up and is not represented as already solved.
 7. On GitHub, wait for or cancel every queued/in-progress old run within a
    bounded ten-minute drain window, then require every listed run to be terminal
    and no GitHub-originated SSH/deploy process to remain on Gateway. Disable
-   repository Actions through the API, verify `enabled=false`, repeat both
-   no-active-run and no-Gateway-session checks, and prove that a new dispatch
-   cannot start. Store redacted timestamped API JSON fields, old run IDs/statuses,
-   and the dispatch HTTP status/result in the Aegis evidence bundle; never store
-   the authorization header or token.
+   repository Actions through the API and verify `enabled=false`. The sole
+   accepted platform residue is run `29755862485`, which may remain queued only
+   with zero jobs, no transition into execution, no other queued run, and zero
+   `in_progress` runs; GitHub Actions must never be re-enabled merely to clear
+   it. Repeat the exact residual-run and no-Gateway-session checks twice at
+   least 60 seconds apart. Store redacted timestamped API JSON fields, old run
+   IDs/statuses, and the dispatch HTTP status/result in the Aegis evidence
+   bundle; never store the authorization header or token.
 8. Switch local `origin` to Gitea and merge the already-tested migration commit
    into protected Gitea `main`. The canonical commit removes
    `.github/workflows/*`; the retained GitHub repository may still contain those
@@ -789,8 +792,10 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - Production `.env` was never stored in Gitea.
 - Protected `v0.1.160-gitea-smoke.1` produces a prerelease and version image from
   the existing digest without changing `latest`.
-- GitHub API evidence reports Actions disabled, no old run is active, and a new
-  dispatch cannot start; Gitea is the only deployment owner.
+- GitHub API evidence reports Actions disabled, zero executing jobs, and no
+  queued run except the explicitly accepted zero-job residual
+  `29755862485`; the residual never executes and Gitea is the only deployment
+  owner.
 
 ### 14.4 Backup
 
