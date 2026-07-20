@@ -187,8 +187,16 @@ case "$name" in
         format=$3
         case "$format" in
           '{{.Image}}') printf 'sha256:local-image\n' ;;
-          '{{.Config.Image}}') printf '%s:%s@%s\n' "$REGISTRY_IMAGE" "$TARGET_COMMIT" "$TARGET_DIGEST" ;;
-          *org.opencontainers.image.revision*) printf '%s\n' "$TARGET_COMMIT" ;;
+          '{{.Config.Image}}')
+            if [[ "${BASELINE_CONFIG_MAIN:-0}" == 1 ]]; then
+              printf '%s:main\n' "$REGISTRY_IMAGE"
+            else
+              printf '%s:%s@%s\n' "$REGISTRY_IMAGE" "$TARGET_COMMIT" "$TARGET_DIGEST"
+            fi
+            ;;
+          *org.opencontainers.image.revision*)
+            [[ "${BASELINE_NO_REVISION:-0}" == 1 ]] || printf '%s\n' "$TARGET_COMMIT"
+            ;;
           *com.211api.restore-run*)
             resource=${4:-}
             [[ -f "$DOCKER_STATE/container-$resource" ]] || exit 1
@@ -214,6 +222,13 @@ JSON
         case "$4" in
           '{{.Id}}') printf 'sha256:local-image\n' ;;
           '{{json .RepoDigests}}') printf '["%s@%s"]\n' "$REGISTRY_IMAGE" "$TARGET_DIGEST" ;;
+          '{{json .RepoTags}}')
+            if [[ "${BASELINE_REPO_TAG_MODE:-exact}" == suffix ]]; then
+              printf '["%s:%s-extra"]\n' "$REGISTRY_IMAGE" "$TARGET_COMMIT"
+            else
+              printf '["%s:main","%s:%s"]\n' "$REGISTRY_IMAGE" "$REGISTRY_IMAGE" "$TARGET_COMMIT"
+            fi
+            ;;
           *) exit 64 ;;
         esac
       else
@@ -387,13 +402,25 @@ expect_status 64 env "${dispatch_env[@]}" SSH_AUTH_SOCK=/tmp/agent SSH_ORIGINAL_
 
 # The Task-12 baseline branch is human-only and never changes env or containers.
 reset_fixture
-printf 'SUB2API_IMAGE=%s:%s@%s\nPOSTGRES_PASSWORD=supersecret\nUNCHANGED=value\n' \
-  "$REGISTRY_IMAGE" "$TARGET_COMMIT" "$TARGET_DIGEST" >"$DEPLOY_DIR/.env"
+printf 'SUB2API_IMAGE=%s:main\nPOSTGRES_PASSWORD=supersecret\nUNCHANGED=value\n' \
+  "$REGISTRY_IMAGE" >"$DEPLOY_DIR/.env"
 chmod 0600 "$DEPLOY_DIR/.env"
 baseline_env_hash="$(sha256sum "$DEPLOY_DIR/.env" | awk '{print $1}')"
+baseline_state_hash="$(sha256sum "$STATE_FILE" | awk '{print $1}')"
 : >"$COMMAND_LOG"
+expect_failure env "${base_env[@]}" \
+  GATEWAY_DEPLOY_TEST_CONFIRM_BASELINE="BACKUP BASELINE $TARGET_COMMIT $TARGET_DIGEST" \
+  BASELINE_CONFIG_MAIN=1 BASELINE_NO_REVISION=1 BASELINE_REPO_TAG_MODE=suffix \
+  "$PROGRAM" deploy --record-baseline --commit "$TARGET_COMMIT" --digest "$TARGET_DIGEST"
+[[ "$(sha256sum "$DEPLOY_DIR/.env" | awk '{print $1}')" == "$baseline_env_hash" ]]
+[[ "$(sha256sum "$STATE_FILE" | awk '{print $1}')" == "$baseline_state_hash" ]]
+reset_fixture
+printf 'SUB2API_IMAGE=%s:main\nPOSTGRES_PASSWORD=supersecret\nUNCHANGED=value\n' \
+  "$REGISTRY_IMAGE" >"$DEPLOY_DIR/.env"
+chmod 0600 "$DEPLOY_DIR/.env"
 env "${base_env[@]}" \
   GATEWAY_DEPLOY_TEST_CONFIRM_BASELINE="BACKUP BASELINE $TARGET_COMMIT $TARGET_DIGEST" \
+  BASELINE_CONFIG_MAIN=1 BASELINE_NO_REVISION=1 \
   "$PROGRAM" deploy --record-baseline --commit "$TARGET_COMMIT" --digest "$TARGET_DIGEST" \
   >/dev/null
 [[ "$(sha256sum "$DEPLOY_DIR/.env" | awk '{print $1}')" == "$baseline_env_hash" ]]

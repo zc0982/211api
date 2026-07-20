@@ -520,7 +520,7 @@ verify_running_image() {
 }
 
 verify_existing_baseline() {
-  local commit=$1 digest=$2 current_image container_id config_image revision image_id repo_digests
+  local commit=$1 digest=$2 current_image container_id config_image revision image_id repo_digests repo_tags
   current_image="$(gateway_current_env_image)"
   container_id="$(docker inspect --format '{{.Image}}' "$APPLICATION_CONTAINER")"
   config_image="$(docker inspect --format '{{.Config.Image}}' "$APPLICATION_CONTAINER")"
@@ -528,6 +528,7 @@ verify_existing_baseline() {
     "$APPLICATION_CONTAINER" 2>/dev/null || true)"
   image_id="$(docker image inspect --format '{{.Id}}' "$config_image")"
   repo_digests="$(docker image inspect --format '{{json .RepoDigests}}' "$config_image")"
+  repo_tags="$(docker image inspect --format '{{json .RepoTags}}' "$config_image")"
   [[ "$current_image" == "$config_image" && "$container_id" == "$image_id" ]] ||
     gateway_die "running image does not match the current environment"
   jq -e --arg suffix "@$digest" 'any(.[]; endswith($suffix))' <<<"$repo_digests" >/dev/null ||
@@ -535,12 +536,12 @@ verify_existing_baseline() {
   if [[ -n "$revision" ]]; then
     [[ "$revision" == "$commit" ]] || gateway_die "running OCI revision differs from the asserted baseline"
   else
-    python3 -c '
-import re, sys
-image, commit = sys.argv[1:]
-if re.search(r"(?<![0-9a-f])" + re.escape(commit) + r"(?![0-9a-f])", image) is None:
-    raise SystemExit("baseline commit is not an exact image tag token")
-' "$config_image" "$commit"
+    jq -e --arg commit "$commit" '
+      any(.[];
+        (split("/") | last | split(":")) as $parts
+        | ($parts | length) == 2 and $parts[1] == $commit)
+    ' <<<"$repo_tags" >/dev/null ||
+      gateway_die "baseline commit is not an exact image tag"
   fi
   BASELINE_CURRENT_IMAGE=$current_image
 }
