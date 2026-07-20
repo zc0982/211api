@@ -122,7 +122,7 @@ services:
     security_opt:
       - no-new-privileges:true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=1770
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000,mode=1770
     configs:
       - source: runner_config
         target: /etc/gitea-runner/config.yaml

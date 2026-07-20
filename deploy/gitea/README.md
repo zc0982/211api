@@ -281,6 +281,13 @@ the first unrestricted linter analysis still exhausted that boundary, so the
 same compiler-internal limit also owns package loading and analysis. Business
 tests keep their normal runtime.
 
+The unprivileged Runner keeps its root filesystem read-only and uses a bounded
+64 MiB `/tmp` tmpfs. `act_runner` creates a temporary tar there while copying a
+locked action or workspace into a job container; 16 MiB is smaller than the
+observed locked checkout payload. Capacity remains one, so only one such job
+transfer competes for this tmpfs at a time. Do not replace it with a host `/tmp`
+mount or a persistent volume.
+
 Docker-label jobs also execute JavaScript Actions and every normal `run` step
 uses Bash, while the locked public Docker CLI image contains neither Node nor
 Bash. The `docker-29.6.1` label therefore uses the private digest-locked
