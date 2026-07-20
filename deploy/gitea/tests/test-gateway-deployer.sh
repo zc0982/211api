@@ -162,10 +162,18 @@ case "$name" in
     elif [[ "$1" == exec || ( "$1" == exec && "$2" == -i ) ]]; then
       if [[ "$args" == *" pg_dump "* ]]; then
         [[ "${GATEWAY_DEPLOY_TEST_FAIL_PGDUMP:-0}" != 1 ]] || exit 41
-        printf 'FAKE-CUSTOM-DUMP-%s' "$TARGET_COMMIT"
+        if [[ "${PGRESTORE_LIST_EARLY_EXIT:-0}" == 1 ]]; then
+          head -c 1048576 /dev/zero | tr '\0' x
+        else
+          printf 'FAKE-CUSTOM-DUMP-%s' "$TARGET_COMMIT"
+        fi
       elif [[ "$args" == *" pg_restore --list "* ]]; then
-        cat >/dev/null
-        printf '; fake pg_restore listing\n1; 0 0 TABLE public users postgres\n'
+        if [[ "${PGRESTORE_LIST_EARLY_EXIT:-0}" == 1 ]]; then
+          PATH="${0%/*}:/usr/sbin:/usr/bin:/sbin:/bin" sh -eu -c "${!#}"
+        else
+          cat >/dev/null
+          printf '; fake pg_restore listing\n1; 0 0 TABLE public users postgres\n'
+        fi
       elif [[ "$args" == *" pg_restore "* ]]; then
         cat >/dev/null
         [[ "${RESTORE_FAIL:-0}" != 1 ]] || exit 46
@@ -267,13 +275,18 @@ JSON
       exit 64
     fi
     ;;
+  pg_restore)
+    [[ "$1" == --list ]]
+    head -c 1 >/dev/null
+    printf '; early pg_restore listing\n1; 0 0 TABLE public users postgres\n'
+    ;;
   *)
     exit 64
     ;;
 esac
 STUB
 chmod 0755 "$FAKE_BIN/stub"
-for command in curl docker age age-keygen findmnt sleep; do
+for command in curl docker age age-keygen findmnt sleep pg_restore; do
   ln -s stub "$FAKE_BIN/$command"
 done
 
@@ -426,6 +439,22 @@ env "${base_env[@]}" \
 [[ "$(sha256sum "$DEPLOY_DIR/.env" | awk '{print $1}')" == "$baseline_env_hash" ]]
 jq -e --arg commit "$TARGET_COMMIT" '.commit == $commit and .backup_id != null' "$STATE_FILE" >/dev/null
 ! rg -q 'docker <compose>.*<(pull|up)>' "$COMMAND_LOG"
+
+# A real pg_restore --list may stop after the archive TOC. The validator must
+# preserve its status and drain the remaining large stream without SIGPIPE.
+reset_fixture
+printf 'SUB2API_IMAGE=%s:main\nPOSTGRES_PASSWORD=supersecret\nUNCHANGED=value\n' \
+  "$REGISTRY_IMAGE" >"$DEPLOY_DIR/.env"
+chmod 0600 "$DEPLOY_DIR/.env"
+env "${base_env[@]}" \
+  GATEWAY_DEPLOY_TEST_CONFIRM_BASELINE="BACKUP BASELINE $TARGET_COMMIT $TARGET_DIGEST" \
+  BASELINE_CONFIG_MAIN=1 BASELINE_NO_REVISION=1 PGRESTORE_LIST_EARLY_EXIT=1 \
+  "$PROGRAM" deploy --record-baseline --commit "$TARGET_COMMIT" --digest "$TARGET_DIGEST" \
+  >/dev/null
+jq -e --arg commit "$TARGET_COMMIT" '.commit == $commit and .backup_id != null' "$STATE_FILE" >/dev/null
+[[ -z "$(find "$BACKUP_ROOT" -name '*.partial' -print -quit)" ]]
+backup_dir="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+rg -q '^; early pg_restore listing$' "$backup_dir/database.list"
 
 # Normal deploy: immutable manifest, encrypted backup, one env line, state, and audit.
 reset_fixture

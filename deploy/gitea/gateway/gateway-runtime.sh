@@ -441,7 +441,12 @@ gateway_produce_database() {
 
 gateway_validate_database() {
   [[ "${GATEWAY_DEPLOY_TEST_FAIL_VALIDATOR:-0}" != 1 ]] || return 42
-  docker exec -i "$POSTGRES_CONTAINER" sh -eu -c 'exec pg_restore --list'
+  docker exec -i "$POSTGRES_CONTAINER" sh -eu -c '
+    status=0
+    pg_restore --list || status=$?
+    cat >/dev/null
+    exit "$status"
+  '
 }
 
 gateway_produce_deployment_archive() {
