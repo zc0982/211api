@@ -360,12 +360,23 @@ gateway_get_changed_paths() {
     return 0
   fi
   gateway_api_get "/repos/$GITEA_REPOSITORY/compare/${previous}...${target}" |
-    jq -er '
-      if (.files | type) != "array" then error("missing files") else .files end
+    jq -r '
+      if ((.total_commits | type) == "number"
+          and .total_commits >= 1
+          and (.total_commits | floor) == .total_commits
+          and (.commits | type) == "array"
+          and (.commits | length) == .total_commits
+          and all(.commits[];
+            (.sha | type) == "string"
+            and (.sha | test("^[0-9a-f]{40}$"))
+            and (.files | type) == "array"))
+        then [.commits[].files[]?]
+        else error("invalid compare response")
+      end
       | if all(.[]; (.filename | type) == "string"
           and (.filename | test("^[^/[:cntrl:]][^[:cntrl:]]*$"))
           and (.filename | test("(^|/)\\.\\.(/|$)") | not))
-        then .[]?.filename else error("invalid filename") end
+        then [.[].filename] | unique[] else error("invalid filename") end
     '
 }
 

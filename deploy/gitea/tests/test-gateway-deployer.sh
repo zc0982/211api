@@ -93,10 +93,35 @@ case "$name" in
       printf '{"status":"ok"}\n'
     elif [[ "$url" == */compare/* ]]; then
       case "${COMPARE_MODE:-normal}" in
-        normal) printf '{"files":[{"filename":"README.md"}]}\n' ;;
-        sensitive) printf '{"files":[{"filename":"backend/migrations/999_test.sql"}]}\n' ;;
-        malformed) printf '{"files":"bad"}\n' ;;
-        traversal) printf '{"files":[{"filename":"../backend/migrations/999_test.sql"}]}\n' ;;
+        normal)
+          printf '{"total_commits":1,"commits":[{"sha":"%s","files":[{"filename":"README.md"}]}]}\n' \
+            "$TARGET_COMMIT"
+          ;;
+        sensitive)
+          printf '{"total_commits":1,"commits":[{"sha":"%s","files":[{"filename":"backend/migrations/999_test.sql"}]}]}\n' \
+            "$TARGET_COMMIT"
+          ;;
+        gitea126)
+          printf '{"total_commits":2,"commits":[{"sha":"%s","files":[{"filename":"backend/migrations/999_test.sql"},{"filename":"README.md"}]},{"sha":"%s","files":[{"filename":"README.md"},{"filename":"backend/ent/schema/user.go"}]}]}\n' \
+            "$PREVIOUS_COMMIT" "$TARGET_COMMIT"
+          ;;
+        empty-files)
+          printf '{"total_commits":1,"commits":[{"sha":"%s","files":[]}]}\n' \
+            "$TARGET_COMMIT"
+          ;;
+        malformed) printf '{"total_commits":1,"commits":"bad"}\n' ;;
+        count-mismatch)
+          printf '{"total_commits":2,"commits":[{"sha":"%s","files":[]}]}\n' \
+            "$TARGET_COMMIT"
+          ;;
+        missing-files)
+          printf '{"total_commits":1,"commits":[{"sha":"%s"}]}\n' "$TARGET_COMMIT"
+          ;;
+        bad-sha) printf '{"total_commits":1,"commits":[{"sha":"bad","files":[]}]}\n' ;;
+        traversal)
+          printf '{"total_commits":1,"commits":[{"sha":"%s","files":[{"filename":"../backend/migrations/999_test.sql"}]}]}\n' \
+            "$TARGET_COMMIT"
+          ;;
       esac
     elif [[ "$url" == */branches/main ]]; then
       case "${API_MODE:-normal}" in
@@ -400,6 +425,28 @@ run_deploy() {
   fi
 }
 
+probe_changed_paths() {
+  local compare_mode=$1 output=$2
+  env "${base_env[@]}" COMPARE_MODE="$compare_mode" PATH="$FAKE_BIN:/usr/bin:/bin" \
+    bash -c '
+      source "$1"
+      gateway_runtime_init
+      gateway_get_changed_paths "$2" "$3"
+    ' _ "$GATEWAY_ROOT/gateway-runtime.sh" "$PREVIOUS_COMMIT" "$TARGET_COMMIT" \
+    >"$output"
+}
+
+# Gitea 1.26 returns affected files on each commit in a comparison. Preserve
+# the range as a deterministic set so approval hashes do not depend on commit
+# order or repeated paths.
+reset_fixture
+probe_changed_paths gitea126 "$TEST_ROOT/gitea126-changed-paths"
+printf '%s\n' README.md backend/ent/schema/user.go backend/migrations/999_test.sql \
+  >"$TEST_ROOT/gitea126-expected-paths"
+cmp "$TEST_ROOT/gitea126-expected-paths" "$TEST_ROOT/gitea126-changed-paths"
+probe_changed_paths empty-files "$TEST_ROOT/empty-changed-paths"
+[[ ! -s "$TEST_ROOT/empty-changed-paths" ]]
+
 # /run is tmpfs in production; every entry point recreates its owned runtime.
 reset_fixture
 rm -rf -- "$FIXTURE/run/211api-deploy"
@@ -542,7 +589,7 @@ for mode in timeout non2xx malformed; do
   expect_failure run_deploy env API_MODE="$mode"
   [[ "$(sha256sum "$DEPLOY_DIR/.env" | awk '{print $1}')" == "$env_before" ]]
 done
-for compare_mode in malformed traversal; do
+for compare_mode in malformed count-mismatch missing-files bad-sha traversal; do
   reset_fixture
   env_before="$(sha256sum "$DEPLOY_DIR/.env" | awk '{print $1}')"
   expect_failure run_deploy env COMPARE_MODE="$compare_mode"
