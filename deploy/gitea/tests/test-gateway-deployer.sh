@@ -38,8 +38,10 @@ expect_failure() {
   ((status != 0)) || fail "expected failure: $*"
 }
 
-mkdir -p "$FIXTURE/opt/211api/deploy"
-chmod 0755 "$FIXTURE/opt" "$FIXTURE/opt/211api" "$FIXTURE/opt/211api/deploy"
+mkdir -p "$FIXTURE/opt/211api/deploy" "$FIXTURE/run/lock"
+chmod 0755 "$FIXTURE/opt" "$FIXTURE/opt/211api" "$FIXTURE/opt/211api/deploy" \
+  "$FIXTURE/run"
+chmod 1777 "$FIXTURE/run/lock"
 "$GATEWAY_ROOT/install-gateway-deployer" --test-root "$FIXTURE" >/dev/null
 
 for installed in \
@@ -58,6 +60,10 @@ grep -q 'gateway-audit-rotate --max-size 10485760 --rotate 10' \
 grep -q 'AUDIT_LOCK' "$FIXTURE/etc/211api-deploy/gateway-audit-rotate"
 grep -q 'rotate 10' "$FIXTURE/etc/logrotate.d/211api-deploy"
 ! grep -q '/usr/bin/true' "$FIXTURE/etc/logrotate.d/211api-deploy"
+
+chmod 1777 "$FIXTURE/opt"
+expect_failure "$GATEWAY_ROOT/install-gateway-deployer" --test-root "$FIXTURE"
+chmod 0755 "$FIXTURE/opt"
 
 conflict="$TEST_ROOT/conflict"
 mkdir -p "$conflict/opt/211api/deploy" "$conflict/usr/local/sbin"

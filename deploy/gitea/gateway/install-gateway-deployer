@@ -75,7 +75,7 @@ ensure_host_parent() {
     die "host directory owner or group conflicts: $path"
   case "$(stat -c '%a' "$path")" in
     700 | 750 | 755) ;;
-    775) [[ "$path" == "$LOCK_ROOT" ]] || die "host directory mode conflicts: $path" ;;
+    775 | 1777) [[ "$path" == "$LOCK_ROOT" ]] || die "host directory mode conflicts: $path" ;;
     *) die "host directory mode conflicts: $path" ;;
   esac
 }

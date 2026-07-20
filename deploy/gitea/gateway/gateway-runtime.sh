@@ -89,7 +89,8 @@ gateway_require_host_directory() {
     gateway_die "host directory owner or group is unsafe: $path"
   mode="$(stat -c '%a' "$path")"
   [[ "$mode" == 700 || "$mode" == 750 || "$mode" == 755 ||
-    ( "$path" == "${GATEWAY_ROOT}/run/lock" && "$mode" == 775 ) ]] ||
+    ( "$path" == "${GATEWAY_ROOT}/run/lock" &&
+      ( "$mode" == 775 || "$mode" == 1777 ) ) ]] ||
     gateway_die "host directory mode is unsafe: $path"
 }
 
