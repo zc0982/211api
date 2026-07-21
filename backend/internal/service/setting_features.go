@@ -184,7 +184,18 @@ func (s *SettingService) IsTotpEncryptionKeyConfigured() bool {
 func (s *SettingService) IsSessionBindingEnabled(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeySessionBindingEnabled)
 	if err != nil {
-		return true // 默认开启
+		return true // 读取失败时保持既有安全门控
+	}
+	return value != "false"
+}
+
+// IsStepUpEnabled 检查敏感操作 step-up 2FA 门控是否启用（默认开启）。
+// 开启时账号/代理导出、备份创建/下载、S3 配置修改、提升管理员等操作
+// 要求当前会话在有效期内完成过 TOTP step-up 验证。
+func (s *SettingService) IsStepUpEnabled(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyStepUpEnabled)
+	if err != nil {
+		return true // 读取失败时不得静默绕过敏感操作门控
 	}
 	return value != "false"
 }

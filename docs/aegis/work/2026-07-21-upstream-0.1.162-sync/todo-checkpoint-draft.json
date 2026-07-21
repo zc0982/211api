@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-21-upstream-0.1.162-sync",
+  "currentTodo": "推送测试时序修复并在新 SHA 上通过受保护 Gitea PR 门禁",
+  "completedTodos": [
+    "建立隔离 worktree 与 Aegis 检查点",
+    "合并 upstream/main 并解决冲突",
+    "完成部署、安全、迁移、owner 与 logo 语义审计",
+    "完成本地 unit/integration/frontend/embed/compose/build 验证",
+    "完成两路独立只读审查",
+    "创建双父 merge commit 11344fe32dcd6b1dae2acfe588a1896cff2e8a06",
+    "通过严格 luoee SSH 身份推送分支并创建受保护 PR #5",
+    "诊断旧 SHA 的 pull_request backend-unit job 576 单一时序失败",
+    "以协议级握手同步修复测试并通过 focused count=5000、完整 service package 与独立审查"
+  ],
+  "activeSlice": "PR #5 已创建；测试时序修复已本地验证，等待提交、推送和新 SHA 完整门禁",
+  "evidenceRefs": [
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/90-evidence.md"
+  ],
+  "blockedOn": null,
+  "nextStep": "提交并推送测试修复，在精确新 SHA 上重新运行完整 PR CI/security 门禁",
+  "updatedAt": "2026-07-21T23:32:03+08:00"
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "affectedLayers": [
+    "backend, frontend, database migrations, deploy config, Gitea CI/CD compatibility"
+  ],
+  "owners": [
+    "sync/upstream-0.1.162 integration branch and protected PR"
+  ],
+  "invariants": [
+    "Gitea remains sole CI/CD/release/deploy owner; production remains Gateway; no DockerHub/GHCR/Telegram/multiarch outputs"
+  ],
+  "compatBoundary": "保留 .gitea 与 deploy/gitea 定制、axios 1.18.1 安全修复、Gateway runtime variables；不得恢复 .github workflows 或 .goreleaser files",
+  "nonGoals": [
+    "不执行 Task 17，不创建 release tag，不启用 GitHub Actions，不改变 Registry/release architecture"
+  ]
+}

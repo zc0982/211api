@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "requestedOutcome": "将 upstream/main 的 0.1.162 业务版本同步到受保护 Gitea fork，并保留现有 Gitea CI/CD 与 AMD64-only 发布边界",
+  "goal": "将 upstream/main 的 0.1.162 业务版本同步到受保护 Gitea fork，并保留现有 Gitea CI/CD 与 AMD64-only 发布边界",
+  "successEvidence": [
+    "保留 merge history；VERSION=0.1.162；所有冲突和交叉部署配置经语义审查；旧 GitHub/GoReleaser owner 不复活；本地及受保护 CI/security/deploy 通过；生产健康"
+  ],
+  "stopCondition": "验证完成并部署健康则 done；安全默认、迁移或保护边界无法确认则 blocked/needs-verification；需要改变 Gitea-only 或生产所有权则 scope-exceeded",
+  "nonGoals": [
+    "不执行 Task 17，不创建 release tag，不启用 GitHub Actions，不改变 Registry/release architecture"
+  ],
+  "scope": "从 origin/main 创建隔离同步分支，合并 upstream/main，解决冲突，验证并通过受保护 PR 集成",
+  "changeKinds": [
+    "upstream-integration"
+  ],
+  "riskHints": [
+    "两边分叉 124/213 commits；部署配置交叉修改；step-up 2FA 默认变化；数据库迁移；不得恢复 GitHub Actions/GoReleaser"
+  ]
+}
