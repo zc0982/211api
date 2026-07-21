@@ -711,11 +711,16 @@ stores this sequence per token.
 | `deploy-head.token` | `svc-deploy-read` | `read:repository` | Gateway deploy owner only |
 | `deploy-registry.token` | `svc-deploy-read` | `read:package` | Gateway Docker credential only |
 
-`GITEA_TOKEN` is Gitea's per-job built-in identity. Never create a static
-Actions secret with that name: the release request lane relies on its actor and
-team binding. Gitea also rejects user secret names beginning with reserved
-`GITEA_`, which is why the Release API PAT is named `RELEASE_RECORD_TOKEN`.
-Gateway's two read tokens never enter Actions.
+`GITEA_TOKEN` is Gitea's repository-scoped per-job built-in identity, not the
+push actor identity. Never create a static Actions secret with that name. The
+release request lane takes the actor from the signed push event, requires a
+new exact-main request branch, and verifies that Gitea reports that exact
+branch as protected. Admission to that branch is the live `release/v*` push
+whitelist, whose exact `release-maintainers` team and membership are checked by
+the root-run full repository verifier immediately before the request. Gitea
+also rejects user secret names beginning with reserved `GITEA_`, which is why
+the Release API PAT is named `RELEASE_RECORD_TOKEN`. Gateway's two read tokens
+never enter Actions.
 
 After bootstrap, install the pre-main repository controls and split Actions
 PATs. The command creates rules only when absent and fails on field drift; it
@@ -1189,6 +1194,7 @@ deploy/gitea/runner/tests/smoke-rootless-dind.sh
 deploy/gitea/tests/test-admin-primitives.sh
 deploy/gitea/tests/test-immutable-tag-hook.sh
 deploy/gitea/tests/test-gateway-deployer.sh
+deploy/gitea/tests/test-release-workflow.sh
 ```
 
 The DinD smoke uses unique project, network, and volume names, proves rootless

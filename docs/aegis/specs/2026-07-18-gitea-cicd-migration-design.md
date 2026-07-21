@@ -380,11 +380,14 @@ semantics.
 ### 7.4 `release.yml`
 
 Publication trigger: protected `v*` tag only. The same workflow also contains a
-request lane for a newly pushed protected `release/v*` branch. That lane verifies
-the actor, requires the branch head to equal current `main`, requires the SHA
-image to exist, validates VERSION/tag consistency, and uses the SSH-only
-technical account to create the annotated tag. It does not publish a release
-itself; the resulting tag event enters the publication lane below.
+request lane for a newly pushed protected `release/v*` branch. That lane records
+the actor from the signed push event, requires Gitea to report the request branch
+as protected with its head equal to current `main`, requires the SHA image to
+exist, validates VERSION/tag consistency, and uses the SSH-only technical account
+to create the annotated tag. Branch protection, independently checked by the full
+repository verifier, enforces actor/team admission. The request lane does not
+publish a release itself; the resulting tag event enters the publication lane
+below.
 
 - Resolve the tag's commit SHA.
 - Require the corresponding SHA image and recorded manifest digest to exist.
@@ -394,11 +397,14 @@ itself; the resulting tag event enters the publication lane below.
 - Create a Gitea Release with the tag message and Registry image reference.
 - Do not build archives, cross-platform binaries, ARM64 images, DockerHub
   manifests, DockerHub descriptions, or legacy Telegram release messages.
-- Verification uses the exact annotated private prerelease tag
-  `v0.1.160-gitea-smoke.1`, which is currently unused. It creates a Gitea
-  prerelease and version image but must not update `latest`. The smoke tag,
-  image, and release are retained unless the user later gives explicit scoped
-  permission to delete them.
+- Verification first used the exact request branch
+  `release/v0.1.160-gitea-smoke.1`; its failed actor-gate evidence is retained
+  without a tag, release, or version image. The authorized recovery uses the
+  exact annotated private prerelease tag `v0.1.160-gitea-smoke.2`. It creates a
+  Gitea prerelease and version image but must not update `latest`. Both smoke
+  request branches and all resulting smoke tag, image, and release evidence are
+  retained unless the user later gives explicit scoped permission to delete
+  them.
 
 ## 8. Secrets and Permissions
 
@@ -408,10 +414,13 @@ itself; the resulting tag event enters the publication lane below.
   read/write permission required to retag a verified digest.
 - `RELEASE_RECORD_TOKEN`: separate token with repository read and release write;
   it has no administration, Actions-secret, or package-write permission.
-- `GITEA_TOKEN` remains the per-job built-in actor identity and is never
-  shadowed by a static repository secret. Gitea 1.26.4 rejects user secret names
-  with the reserved `GITEA_` prefix, so the release-record PAT uses the
-  non-reserved `RELEASE_RECORD_TOKEN` name.
+- `GITEA_TOKEN` remains the repository-scoped per-job built-in identity and is
+  never shadowed by a static repository secret. It is not treated as the push
+  actor: the request lane reads the actor from the signed push event, requires
+  a new exact-main branch reported as protected, and relies on the independently
+  full-verified `release/v*` push whitelist for team admission. Gitea 1.26.4
+  rejects user secret names with the reserved `GITEA_` prefix, so the
+  release-record PAT uses the non-reserved `RELEASE_RECORD_TOKEN` name.
 - `RELEASE_TAG_SSH_KEY`: SSH-only key for `svc-release-tag`; the account has no
   retained password or PAT, and native tag protection plus the platform-managed
   immutable-tag hook bound what the key can change.

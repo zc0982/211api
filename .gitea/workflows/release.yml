@@ -83,16 +83,17 @@ jobs:
               "$1"
           }
 
-          api_get "$api_url/user" >"$work_dir/user.json"
-          jq -e --arg actor "$EVENT_ACTOR" '.login == $actor' \
-            "$work_dir/user.json" >/dev/null
-          api_get "$api_url/user/teams" >"$work_dir/teams.json"
-          jq -e '
-            any(.[];
-              .name == "release-maintainers"
-              and ((.organization.username // .organization.name // "") == "211api")
-            )
-          ' "$work_dir/teams.json" >/dev/null
+          request_branch="${EVENT_REF#refs/heads/}"
+          encoded_request_branch="$(jq -nr --arg value "$request_branch" \
+            '$value | @uri')"
+          api_get "$api_url/repos/211api/211api/branches/$encoded_request_branch" \
+            >"$work_dir/request-branch.json"
+          request_sha="$(jq -er --arg branch "$request_branch" '
+            select(.name == $branch and .protected == true)
+            | .commit.id
+            | select(type == "string" and test("^[0-9a-f]{40}$"))
+          ' "$work_dir/request-branch.json")"
+          [[ "$request_sha" == "$EVENT_SHA" ]]
 
           api_get "$api_url/repos/211api/211api/branches/main" >"$work_dir/main.json"
           main_sha="$(jq -er '
