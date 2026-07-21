@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-21-upstream-0.1.162-sync",
+  "requiredBaselineRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+  ],
+  "deliveredContextRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+  ],
+  "acknowledgedBeforePlanRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+  ],
+  "citedInPlanRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+  ],
+  "missingRefs": [],
+  "decision": "continue"
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-21-upstream-0.1.162-sync",
+  "currentTodo": "提交、推送并通过受保护 Gitea PR 集成",
+  "completedTodos": [
+    "建立隔离 worktree 与 Aegis 检查点",
+    "合并 upstream/main 并解决冲突",
+    "完成部署、安全、迁移、owner 与 logo 语义审计",
+    "完成本地 unit/integration/frontend/embed/compose/build 验证",
+    "完成两路独立只读审查"
+  ],
+  "activeSlice": "本地合并结果已验证，尚未提交或推送",
+  "evidenceRefs": [
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/90-evidence.md"
+  ],
+  "blockedOn": null,
+  "nextStep": "创建 merge commit，重新核对 origin/main 后推送 sync/upstream-0.1.162 并创建受保护 PR",
+  "updatedAt": "2026-07-21T22:13:12+08:00"
+}

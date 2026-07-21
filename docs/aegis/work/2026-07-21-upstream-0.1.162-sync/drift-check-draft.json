@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-21-upstream-0.1.162-sync",
+  "taskIntentRef": "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/task-intent-draft.json",
+  "baselineRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
+  ],
+  "scopeStatus": "local-verified",
+  "compatStatus": "local-verified",
+  "retirementStatus": "verified",
+  "newRiskSignals": [
+    "两边分叉 124/213 commits；部署配置交叉修改；step-up 2FA 默认变化；数据库迁移；不得恢复 GitHub Actions/GoReleaser"
+  ],
+  "decision": "continue"
+}
