@@ -139,18 +139,24 @@ if (
   fail 'tag-protection extraction accepted duplicate rules'
 fi
 
-sha=0123456789abcdef0123456789abcdef01234567
-jq -n --arg sha "$sha" '[
-  {context:"ci / required (push)",status:"failure",sha:$sha,created_at:"2026-07-18T00:00:00Z"},
-  {context:"ci / required (push)",status:"success",sha:$sha,created_at:"2026-07-18T00:01:00Z"},
-  {context:"security / required (push)",status:"success",sha:$sha,created_at:"2026-07-18T00:01:00Z"}
+jq -n '[
+  {context:"ci / required (push)",status:"failure",created_at:"2026-07-18T00:00:00Z"},
+  {context:"ci / required (push)",status:"success",created_at:"2026-07-18T00:01:00Z"},
+  {context:"security / required (push)",status:"success",created_at:"2026-07-18T00:01:00Z"}
 ]' >"$tmp/statuses.json"
-gitea_assert_required_statuses "$tmp/statuses.json" "$sha"
+gitea_assert_required_statuses "$tmp/statuses.json"
 jq '.[2].status = "pending"' "$tmp/statuses.json" >"$tmp/statuses-pending.json"
 if (
-  gitea_assert_required_statuses "$tmp/statuses-pending.json" "$sha"
+  gitea_assert_required_statuses "$tmp/statuses-pending.json"
 ) >/dev/null 2>&1; then
   fail 'pending required status was accepted'
+fi
+jq 'map(select(.context != "security / required (push)"))' \
+  "$tmp/statuses.json" >"$tmp/statuses-missing.json"
+if (
+  gitea_assert_required_statuses "$tmp/statuses-missing.json"
+) >/dev/null 2>&1; then
+  fail 'missing required status was accepted'
 fi
 
 printf '%s\n' 'dummy-bootstrap-password' >"$tmp/bootstrap-password"

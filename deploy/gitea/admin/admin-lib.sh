@@ -610,8 +610,8 @@ gitea_assert_actions_secret_names() {
 }
 
 gitea_assert_required_statuses() {
-  local file=$1 sha=$2
-  jq -e --arg sha "$sha" '
+  local file=$1
+  jq -e '
     def latest($context):
       [ .[] | select(.context == $context) ]
       | sort_by(.created_at)
@@ -620,8 +620,6 @@ gitea_assert_required_statuses() {
     | (latest("security / required (push)")) as $security
     | $ci.status == "success"
     and $security.status == "success"
-    and $ci.sha == $sha
-    and $security.sha == $sha
   ' "$file" >/dev/null ||
     gitea_die 'actual commit statuses do not prove successful required contexts'
 }

@@ -266,7 +266,7 @@ if [[ "$mode" == full ]]; then
   gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
     "/repos/$GITEA_ORG/$GITEA_REPO/commits/$status_sha/statuses" \
     "$runtime/actual-statuses.json" "$runtime" actual-statuses
-  gitea_assert_required_statuses "$runtime/actual-statuses.json" "$status_sha"
+  gitea_assert_required_statuses "$runtime/actual-statuses.json"
 fi
 
 gitea_require_root_file /opt/gitea/admin/install-immutable-tag-hook 755

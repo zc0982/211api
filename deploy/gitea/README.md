@@ -771,8 +771,8 @@ Do not activate `main` protection from guessed check names. Task 11 must first
 produce a root-owned mode-0600 evidence file containing exactly:
 
 ```text
-ci / required
-security / required
+ci / required (push)
+security / required (push)
 ```
 
 Then activate and verify against the real tested commit SHA:
@@ -783,6 +783,9 @@ sudo /opt/gitea/admin/configure-repository \
 sudo /opt/gitea/admin/verify-repository --full \
   /etc/gitea/required-status-contexts "$PROVED_COMMIT_SHA"
 ```
+
+The exact commit is bound by the statuses API request path. The returned
+`CommitStatus` rows do not carry a separate commit SHA field.
 
 The full verifier also requires the later SSH secrets, both actual commit
 statuses, the SSH-only release-tag evidence, no push mirror, exact teams and
