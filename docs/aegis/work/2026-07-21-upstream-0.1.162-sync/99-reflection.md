@@ -9,3 +9,12 @@ Interim reflection (2026-07-21T22:13:12+08:00):
 - Decision: proceed to protected Gitea PR; do not claim completion before remote checks and production verification.
 
 Method Pack output does not grant completion authority.
+
+Interim reflection (2026-07-21T23:32:03+08:00):
+
+- Protected execution surfaced one pull-request-only timing failure in a WebSocket lease-loss close test; the same SHA's push lane and prior local suite were green.
+- Systematic reproduction showed the assertion could race the deferred client-reader startup. A production close change and a helper-only close attempt did not address the cause and were fully reverted.
+- The retained fix synchronizes through observable protocol traffic before injecting lease loss, preserving strict close-code and reason checks and leaving production code unchanged.
+- Local `-count=5000`, full service-package unit tests and independent semantic review are green. Completion remains withheld until the new SHA passes all protected contexts, merges, deploys and is verified in production.
+
+Method Pack output does not grant completion authority.

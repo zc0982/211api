@@ -271,6 +271,12 @@ func TestPassthroughLifecycle_LeaseLossSendsRetryClose(t *testing.T) {
 	event, err := readPassthroughLifecycleFrame(t, clientConn, 3*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, "response.created", gjson.GetBytes(event, "type").String())
+	require.Equal(t, "response.create", gjson.GetBytes(requirePassthroughUpstreamWrite(t, upstream, time.Second), "type").String())
+	writeCtx, cancelWrite := context.WithTimeout(context.Background(), time.Second)
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.cancel","response_id":"resp_lease"}`))
+	cancelWrite()
+	require.NoError(t, err)
+	require.Equal(t, "response.cancel", gjson.GetBytes(requirePassthroughUpstreamWrite(t, upstream, time.Second), "type").String())
 	cancelControl(ErrOpenAIWSIngressLeaseLost)
 
 	_, err = readPassthroughLifecycleFrame(t, clientConn, 3*time.Second)

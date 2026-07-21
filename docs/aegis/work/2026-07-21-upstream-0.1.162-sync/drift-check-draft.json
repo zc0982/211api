@@ -5,11 +5,12 @@
   "baselineRefs": [
     "docs/aegis/baseline/2026-07-18-initial-baseline.md"
   ],
-  "scopeStatus": "local-verified",
-  "compatStatus": "local-verified",
+  "scopeStatus": "pr-fix-local-verified",
+  "compatStatus": "pr-fix-local-verified",
   "retirementStatus": "verified",
   "newRiskSignals": [
-    "两边分叉 124/213 commits；部署配置交叉修改；step-up 2FA 默认变化；数据库迁移；不得恢复 GitHub Actions/GoReleaser"
+    "两边分叉 124/213 commits；部署配置交叉修改；step-up 2FA 默认变化；数据库迁移；不得恢复 GitHub Actions/GoReleaser",
+    "PR #5 旧 SHA 的 pull_request backend-unit 暴露 WebSocket 测试 reader 启动时序窗口；测试已增加协议级同步，本地 count=5000 与完整 service package 通过，等待新 SHA 远程门禁"
   ],
   "decision": "continue"
 }

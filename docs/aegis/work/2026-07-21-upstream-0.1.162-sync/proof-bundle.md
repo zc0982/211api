@@ -21,7 +21,7 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 
 ## Drift Check
 
-- Scope status: local-verified
-- Compatibility status: local-verified
+- Scope status: pr-fix-local-verified
+- Compatibility status: pr-fix-local-verified
 - Retirement status: verified
 - Advisory decision: continue

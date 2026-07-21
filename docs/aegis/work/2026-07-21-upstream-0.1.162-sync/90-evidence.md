@@ -46,7 +46,14 @@
 
 ## Pending evidence
 
-- Branch push and protected Gitea PR CI/security checks on Go 1.26.5 and Node 20.
+- Protected Gitea PR #5: `https://git.211api.com/211api/211api/pulls/5`.
+- On exact SHA `b4646b2e93ea9bedce26e8eb44d2c3ef9f6ab931`, every completed push lane passed. Pull-request backend-unit job 576 failed only in `TestPassthroughLifecycle_LeaseLossSendsRetryClose`, where the assertion received EOF before the WebSocket client reader had started.
+- The same SHA's push backend-unit lane passed, and the unmodified focused test reproduced the EOF at `-count=300`. This isolated a test timing window rather than a change in production lease-loss close ownership.
+- Test-only synchronization now proves the reader relay is active before injecting lease loss: observe upstream `response.create`, send a legal `response.cancel`, observe that upstream frame, then cancel control with `ErrOpenAIWSIngressLeaseLost`. The required `websocket.CloseError`, code 1013 and exact reason assertions are retained.
+- Post-change focused verification: `go test -tags=unit ./internal/service -run '^TestPassthroughLifecycle_LeaseLossSendsRetryClose$' -count=5000` — pass in 8.249s.
+- Post-change package verification: `go test -tags=unit ./internal/service` — pass in 142.594s.
+- Independent read-only review confirmed that the added exchange is protocol-level readiness synchronization and does not alter production relay or close ownership.
+- New exact-SHA protected Gitea PR CI/security checks on Go 1.26.5 and Node 20.
 - Protected merge result, deploy workflow result, Registry digest and production health.
 
 These records are Method Pack evidence only and do not grant completion authority.
