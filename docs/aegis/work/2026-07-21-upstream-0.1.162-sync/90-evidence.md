@@ -7,6 +7,9 @@
 - merge base: `57914967cbb127ff715719c3879d881c10d75274`
 - divergence: origin-only 124 / upstream-only 213
 - target version: `backend/cmd/server/VERSION = 0.1.162`
+- fresh pre-commit fetch confirmed both remote refs unchanged
+- merge commit: `11344fe32dcd6b1dae2acfe588a1896cff2e8a06`
+- merge parents: `e289410d1c37d7aa93d26ea75103026845759587` and `5a8d6c4e41e38f05cea4164e6ff03443fc0f6923`
 - explicit conflicts: `frontend/package.json` and `frontend/pnpm-lock.yaml`; both resolved to axios `^1.18.1`, locked `1.18.1`
 
 ## Semantic merge decisions
@@ -43,7 +46,7 @@
 
 ## Pending evidence
 
-- Protected Gitea PR CI/security checks on Go 1.26.5 and Node 20.
+- Branch push and protected Gitea PR CI/security checks on Go 1.26.5 and Node 20.
 - Protected merge result, deploy workflow result, Registry digest and production health.
 
 These records are Method Pack evidence only and do not grant completion authority.
