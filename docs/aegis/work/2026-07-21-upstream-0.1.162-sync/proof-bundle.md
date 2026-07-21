@@ -17,11 +17,11 @@ This proof bundle is an advisory Aegis Method Pack record. It does not determine
 
 ## Evidence Bundle Refs
 
-- none
+- docs/aegis/work/2026-07-21-upstream-0.1.162-sync/evidence-bundle-draft-upstream-0.1.162-final.json
 
 ## Drift Check
 
-- Scope status: pr-fix-local-verified
-- Compatibility status: pr-fix-local-verified
+- Scope status: protected-main-and-production-verified
+- Compatibility status: production-verified-with-runner-capacity-follow-up
 - Retirement status: verified
 - Advisory decision: continue

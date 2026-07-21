@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-21-upstream-0.1.162-sync",
+  "lastCheckpointRef": "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/todo-checkpoint-draft.json",
+  "resumeInstruction": "The upstream 0.1.162 sync is merged and deployed. Re-read the latest sync checkpoint and final evidence before any follow-up. Do not start Task 17, alter retained Task 16 smoke objects, enable GitHub Actions, or treat the Runner lint capacity risk as resolved without fresh explicit authorization and verification.",
+  "knownPartialWork": [
+    "Protected main is f83eeda7715b63b55cca5abe3d1674715b3e7f9f and production runs exact digest sha256:333330a196494a37ee4f44f58b31232a37a3e228f0c95f37c5712ed50f3c8135",
+    "PR #5 and main each have complete green exact-SHA protected contexts; migrations 183 and 184 are applied after one-time exact approval and validated backup",
+    "Registry SHA/main are identical single linux/amd64 OCI manifests; latest and 0.1.162 release tags remain absent",
+    "GitHub Actions remains disabled and residual run 29755862485 remains queued with zero jobs",
+    "DinD lint capacity remains a follow-up: 4 GiB attempt 1 was OOM-killed and attempt 2 passed while repeatedly approaching memory.max within 1 MiB"
+  ],
+  "mustReadBeforeContinuing": [
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/10-intent.md",
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/20-checkpoint.md",
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/todo-checkpoint-draft.json",
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/evidence-bundle-draft-upstream-0.1.162-final.json",
+    "docs/aegis/work/2026-07-18-gitea-cicd-migration/resume-state-hint.json"
+  ],
+  "unsafeToAssume": [
+    "Do not assume production, protected main, Registry pointers, migrations, Runner memory events, GitHub residual state or retained Task 16 smoke objects remain unchanged; re-check live state before new work",
+    "Do not delete or clean Task 16 branches/tags/releases/images, create a 0.1.162 release tag, enable GitHub Actions, delete residual run 29755862485, or start Task 17 without explicit authorization"
+  ]
+}
