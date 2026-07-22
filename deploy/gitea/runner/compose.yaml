@@ -34,7 +34,7 @@ services:
       retries: 24
       start_period: 20s
     stop_grace_period: 1m
-    mem_limit: 4g
+    mem_limit: 5g
     cpus: 3.0
     pids_limit: 2048
     networks:
