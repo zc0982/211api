@@ -41,8 +41,6 @@ gateway_runtime_init() {
   HEAD_API_CONFIG="$CONFIG_ROOT/gitea-head-api.curl"
   AGE_RECIPIENT_FILE="$CONFIG_ROOT/age-recipient"
   KEY_METADATA_FILE="$CONFIG_ROOT/key-metadata.json"
-  ACTIVE_APPROVAL_DIR="$CONFIG_ROOT/migration-approvals"
-  CONSUMED_APPROVAL_DIR="$CONFIG_ROOT/consumed-approvals"
   ARCHIVE_VALIDATOR="$CONFIG_ROOT/gateway-validate-archive.py"
   RETENTION_PROGRAM="$CONFIG_ROOT/gateway-retention.py"
 

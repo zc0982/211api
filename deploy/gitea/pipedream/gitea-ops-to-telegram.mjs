@@ -1,6 +1,16 @@
-const SCHEMA = "gitea-backup-notification.v1";
+const BACKUP_SCHEMA = "gitea-backup-notification.v1";
+const DEPLOYMENT_SCHEMA = "gitea-deployment-notification.v1";
 const PREFLIGHT_KEYS = ["event", "schema", "status"];
-const FAILURE_KEYS = ["code", "event", "failed_at", "schema", "status", "unit"];
+const BACKUP_FAILURE_KEYS = ["code", "event", "failed_at", "schema", "status", "unit"];
+const DEPLOYMENT_KEYS = [
+  "commit",
+  "event",
+  "finished_at",
+  "repository",
+  "run_url",
+  "schema",
+  "status",
+];
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 
 function isRecord(value) {
@@ -26,31 +36,54 @@ function isUtcSecond(value) {
 }
 
 function classifyPayload(body) {
-  if (!isRecord(body) || body.schema !== SCHEMA) {
+  if (!isRecord(body)) {
     return null;
   }
-  if (body.event === "preflight" && body.status === "ok" &&
-      hasExactKeys(body, PREFLIGHT_KEYS)) {
+  if (body.schema === BACKUP_SCHEMA && body.event === "preflight" &&
+      body.status === "ok" && hasExactKeys(body, PREFLIGHT_KEYS)) {
     return "preflight";
   }
-  if (body.event !== "backup-failed" || body.status !== "failed" ||
-      !hasExactKeys(body, FAILURE_KEYS) || !isUtcSecond(body.failed_at) ||
-      typeof body.code !== "string" || !/^[a-z0-9-]{1,48}$/.test(body.code) ||
-      typeof body.unit !== "string" || !/^[0-9A-Za-z_.@-]{1,128}$/.test(body.unit)) {
-    return null;
+  if (body.schema === BACKUP_SCHEMA && body.event === "backup-failed" &&
+      body.status === "failed" && hasExactKeys(body, BACKUP_FAILURE_KEYS) &&
+      isUtcSecond(body.failed_at) && typeof body.code === "string" &&
+      /^[a-z0-9-]{1,48}$/.test(body.code) && typeof body.unit === "string" &&
+      /^[0-9A-Za-z_.@-]{1,128}$/.test(body.unit)) {
+    return "backup-failed";
   }
-  return "backup-failed";
+  if (body.schema === DEPLOYMENT_SCHEMA &&
+      body.event === "deployment-finished" &&
+      (body.status === "success" || body.status === "failed") &&
+      hasExactKeys(body, DEPLOYMENT_KEYS) && isUtcSecond(body.finished_at) &&
+      body.repository === "211api/211api" && typeof body.commit === "string" &&
+      /^[0-9a-f]{40}$/.test(body.commit) && typeof body.run_url === "string" &&
+      /^https:\/\/git\.211api\.com\/211api\/211api\/actions\/runs\/[1-9][0-9]{0,19}$/.test(body.run_url)) {
+    return "deployment-finished";
+  }
+  return null;
 }
 
-function renderMessage(body) {
-  const heading = body.code === "notification-test"
-    ? "🧪 Gitea 备份告警测试"
-    : "🚨 Gitea 平台备份失败";
+function renderMessage(kind, body) {
+  if (kind === "backup-failed") {
+    const heading = body.code === "notification-test"
+      ? "🧪 Gitea 备份告警测试"
+      : "🚨 Gitea 平台备份失败";
+    return [
+      heading,
+      `时间（UTC）：${body.failed_at}`,
+      `错误代码：${body.code}`,
+      `systemd 单元：${body.unit}`,
+    ].join("\n");
+  }
+
+  const heading = body.status === "success"
+    ? "✅ 211API 合并后部署成功"
+    : "❌ 211API 合并后部署失败";
   return [
     heading,
-    `时间（UTC）：${body.failed_at}`,
-    `错误代码：${body.code}`,
-    `systemd 单元：${body.unit}`,
+    `仓库：${body.repository}`,
+    `提交：${body.commit.slice(0, 12)}`,
+    `时间（UTC）：${body.finished_at}`,
+    `详情：${body.run_url}`,
   ].join("\n");
 }
 
@@ -96,7 +129,7 @@ export default defineComponent({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text: renderMessage(request.body) }),
+          body: JSON.stringify({ chat_id: chatId, text: renderMessage(kind, request.body) }),
           signal: controller.signal,
         },
       );
@@ -109,7 +142,7 @@ export default defineComponent({
       if (!response.ok || telegram?.ok !== true) {
         return respond(502, { ok: false, error: "telegram_delivery_failed" });
       }
-      return respond(200, { ok: true, event: "backup-failed" });
+      return respond(200, { ok: true, event: kind });
     } catch {
       return respond(502, { ok: false, error: "telegram_delivery_failed" });
     } finally {

@@ -1,5 +1,9 @@
 # Pipedream Telegram Backup Notification Implementation Plan
 
+> Historical plan note (2026-07-22): the backup contract remains compatible,
+> but `2026-07-22-automatic-deploy-telegram-notification.md` supersedes this
+> plan's backup-only adapter scope and filename.
+
 Date: `2026-07-19`
 Status: `approved-spec implementation plan`
 Parent design: `docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md`

@@ -296,3 +296,73 @@ jobs:
             printf 'Main advanced during pointer update; queued head %s must converge it.\n' \
               "$post_tag_head"
           fi
+
+  notify:
+    name: telegram-notification
+    if: always()
+    needs:
+      - verify
+      - build_deploy
+    runs-on: linux-amd64
+    steps:
+      - name: Notify final deployment result through Pipedream
+        shell: bash
+        env:
+          BUILD_DEPLOY_RESULT: ${{ needs.build_deploy.result }}
+          EVENT_SHA: ${{ gitea.sha }}
+          PIPEDREAM_NOTIFY_URL: ${{ secrets.PIPEDREAM_NOTIFY_URL }}
+          RUN_URL: https://git.211api.com/211api/211api/actions/runs/${{ gitea.run_id }}
+        run: |
+          set -u
+          set +x
+
+          if [[ -z "$PIPEDREAM_NOTIFY_URL" ]]; then
+            printf 'Deployment notification skipped: Pipedream endpoint is not configured.\n' >&2
+            exit 0
+          fi
+
+          DEPLOYMENT_STATUS=failed
+          if [[ "$BUILD_DEPLOY_RESULT" == success ]]; then
+            DEPLOYMENT_STATUS=success
+          fi
+          FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export DEPLOYMENT_STATUS FINISHED_AT
+
+          if ! node --input-type=module -e '
+            const endpoint = process.env.PIPEDREAM_NOTIFY_URL;
+            const payload = {
+              schema: "gitea-deployment-notification.v1",
+              event: "deployment-finished",
+              status: process.env.DEPLOYMENT_STATUS,
+              finished_at: process.env.FINISHED_AT,
+              repository: "211api/211api",
+              commit: process.env.EVENT_SHA,
+              run_url: process.env.RUN_URL,
+            };
+            if (!/^https:\/\/[^/]+\.m\.pipedream\.net(?:\/.*)?$/.test(endpoint) ||
+                !/^[0-9a-f]{40}$/.test(payload.commit) ||
+                !/^https:\/\/git\.211api\.com\/211api\/211api\/actions\/runs\/[1-9][0-9]{0,19}$/.test(payload.run_url)) {
+              process.exit(2);
+            }
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15_000);
+            try {
+              const response = await fetch(endpoint, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+              });
+              const result = await response.json().catch(() => null);
+              if (!response.ok || result?.ok !== true ||
+                  result?.event !== "deployment-finished") {
+                process.exit(3);
+              }
+            } catch {
+              process.exit(4);
+            } finally {
+              clearTimeout(timeout);
+            }
+          '; then
+            printf 'Deployment notification delivery failed; deployment result is unchanged.\n' >&2
+          fi

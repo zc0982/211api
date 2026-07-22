@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "artifactKey": "notification-contract-local",
+  "type": "test",
+  "source": "Node adapter tests, PyYAML workflow parse, extracted notify-step execution, admin secret contract test",
+  "summary": "10 adapter tests pass; deployment success/failure and backup compatibility proven; workflow always/needs structure parses; invalid endpoint execution is bounded; full repository verification requires PIPEDREAM_NOTIFY_URL while base mode remains compatible",
+  "verifier": "codex"
+}

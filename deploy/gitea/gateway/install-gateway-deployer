@@ -144,8 +144,6 @@ ensure_host_parent "$INSTALL_ROOT/run"
 ensure_host_parent "$LOCK_ROOT"
 
 ensure_parent "$CONFIG_ROOT" 700
-ensure_parent "$CONFIG_ROOT/migration-approvals" 700
-ensure_parent "$CONFIG_ROOT/consumed-approvals" 700
 ensure_parent "$BACKUP_ROOT" 700
 ensure_parent "$AUDIT_DIR" 700
 ensure_parent "$RUNTIME_ROOT" 700

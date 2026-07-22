@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "artifactKey": "gateway-approval-retirement",
+  "type": "test",
+  "source": "tools/gitea-ci.sh shell-syntax and active Gateway rg scan",
+  "summary": "Shell syntax passed; active Gateway files contain no approval command, record helper, or approval-directory dependency; migration classification remains for backup and extended health checks",
+  "verifier": "codex"
+}
