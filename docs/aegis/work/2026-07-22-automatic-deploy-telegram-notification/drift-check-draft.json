@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-07-22-automatic-deploy-telegram-notification",
+  "taskIntentRef": "docs/aegis/work/2026-07-22-automatic-deploy-telegram-notification/task-intent-draft.json",
+  "baselineRefs": [
+    "docs/aegis/baseline/2026-07-18-initial-baseline.md",
+    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md"
+  ],
+  "scopeStatus": "Notification adapter, terminal workflow job, verifier, baseline/spec/README remain within approved scope",
+  "compatStatus": "Backup schema retained; notification failure cannot rewrite deploy outcome; Pipedream remains sole Telegram credential owner",
+  "retirementStatus": "Backup-only adapter filename retired; no direct Telegram call outside canonical adapter; active approval command references absent",
+  "newRiskSignals": [],
+  "decision": "continue"
+}

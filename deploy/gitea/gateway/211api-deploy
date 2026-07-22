@@ -41,7 +41,6 @@ usage() {
   cat >&2 <<'EOF'
 Usage:
   211api-deploy status
-  211api-deploy approve-migration --commit 40_HEX --digest sha256:64_HEX --expires-in 30m
   211api-deploy deploy --commit 40_HEX --digest sha256:64_HEX
   211api-deploy deploy --record-baseline --commit 40_HEX --digest sha256:64_HEX
 EOF
@@ -95,8 +94,6 @@ validate_deploy_configuration() {
   gateway_require_regular "$ENV_FILE" 600
   gateway_require_directory "$DOCKER_CONFIG_DIR" 700
   gateway_require_regular "$DOCKER_CONFIG_DIR/config.json" 600
-  gateway_require_directory "$ACTIVE_APPROVAL_DIR" 700
-  gateway_require_directory "$CONSUMED_APPROVAL_DIR" 700
   gateway_require_regular "$ARCHIVE_VALIDATOR" 600
   gateway_require_regular "$RETENTION_PROGRAM" 600
   gateway_validate_api_config
@@ -106,20 +103,6 @@ validate_deploy_configuration() {
 prepare_deploy_layout() {
   prepare_common_layout
   validate_deploy_configuration
-  WORK_DIR="$(mktemp -d "$RUNTIME_ROOT/run.XXXXXXXX")"
-  chmod 0700 "$WORK_DIR"
-}
-
-prepare_approval_layout() {
-  prepare_common_layout
-  gateway_require_command curl
-  gateway_require_command date
-  gateway_require_command openssl
-  gateway_require_host_file "$COMPOSE_FILE"
-  gateway_require_regular "$ENV_FILE" 600
-  gateway_require_directory "$ACTIVE_APPROVAL_DIR" 700
-  gateway_require_directory "$CONSUMED_APPROVAL_DIR" 700
-  gateway_validate_api_config
   WORK_DIR="$(mktemp -d "$RUNTIME_ROOT/run.XXXXXXXX")"
   chmod 0700 "$WORK_DIR"
 }
@@ -215,55 +198,6 @@ status_command() {
   [[ "$ready" == true ]]
 }
 
-approval_record_path() {
-  local commit=$1 digest=$2
-  printf '%s/%s-%s.json\n' "$ACTIVE_APPROVAL_DIR" "$commit" "${digest#sha256:}"
-}
-
-validate_approval_record() {
-  local path=$1 commit=$2 digest=$3 expected_paths_sha=${4:-}
-  local now created expires nonce consumed
-  gateway_require_regular "$path" 600 || return 78
-  jq -e --arg commit "$commit" --arg digest "$digest" --arg paths_sha "$expected_paths_sha" '
-    .schema == "211api-migration-approval.v1"
-    and .commit == $commit and .digest == $digest
-    and (.nonce | type == "string" and test("^[0-9a-f]{32}$"))
-    and (.operator | type == "string" and test("^[A-Za-z0-9._-]{1,64}$"))
-    and (.created_at | type == "string")
-    and (.expires_at | type == "string")
-    and (.sensitive_paths_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
-    and ($paths_sha == "" or .sensitive_paths_sha256 == $paths_sha)
-  ' "$path" >/dev/null || gateway_die "migration approval record is invalid" 78
-  nonce="$(jq -r '.nonce' "$path")"
-  consumed="$CONSUMED_APPROVAL_DIR/$nonce-$commit-${digest#sha256:}.json"
-  [[ ! -e "$consumed" ]] || gateway_die "migration approval nonce was already consumed" 78
-  now="$(date -u +%s)"
-  created="$(date -u -d "$(jq -r '.created_at' "$path")" +%s 2>/dev/null || true)"
-  expires="$(date -u -d "$(jq -r '.expires_at' "$path")" +%s 2>/dev/null || true)"
-  [[ "$created" =~ ^[0-9]+$ && "$expires" =~ ^[0-9]+$ &&
-    "$created" -le $((now + 60)) && "$expires" -gt "$now" &&
-    $((expires - created)) -eq 1800 ]] ||
-    gateway_die "migration approval is expired" 78
-}
-
-archive_expired_approval() {
-  local path=$1 expires now nonce destination
-  [[ -e "$path" ]] || return 0
-  gateway_require_regular "$path" 600
-  expires="$(date -u -d "$(jq -r '.expires_at // empty' "$path")" +%s 2>/dev/null || true)"
-  now="$(date -u +%s)"
-  [[ "$expires" =~ ^[0-9]+$ && "$expires" -le "$now" ]] ||
-    gateway_die "an active approval already exists" 78
-  nonce="$(jq -er '.nonce | select(type == "string" and test("^[0-9a-f]{32}$"))' "$path")"
-  destination="$CONSUMED_APPROVAL_DIR/expired-$nonce.json"
-  [[ ! -e "$destination" ]] || gateway_die "expired approval archive conflicts" 78
-  gateway_audit_event approval-expire success expired "$nonce" ||
-    gateway_die "unable to persist approval expiry audit" 78
-  mv -- "$path" "$destination"
-  gateway_fsync_path "$ACTIVE_APPROVAL_DIR"
-  gateway_fsync_path "$CONSUMED_APPROVAL_DIR"
-}
-
 changed_paths_for_target() {
   local previous_commit=$1 target=$2 output=$3
   if [[ -z "$previous_commit" ]]; then
@@ -272,94 +206,6 @@ changed_paths_for_target() {
     gateway_get_changed_paths "$previous_commit" "$target" >"$output"
   fi
   chmod 0600 "$output"
-}
-
-approve_migration_command() {
-  local commit=$1 digest=$2 expires_in=$3 previous_commit paths sensitive_paths
-  local phrase answer nonce now expires operator record partial
-  [[ "${GATEWAY_DEPLOY_DISPATCH:-0}" != 1 && -z "${SSH_ORIGINAL_COMMAND:-}" &&
-    "${CI:-false}" != true && "${GITEA_ACTIONS:-false}" != true ]] || {
-    gateway_audit_event approval-reject denied ci-path none >/dev/null 2>&1 || true
-    gateway_die "migration approval is unavailable through the CI forced command" 78
-  }
-  [[ -t 0 && -t 1 ]] || {
-    gateway_audit_event approval-reject denied non-tty none >/dev/null 2>&1 || true
-    gateway_die "migration approval requires an interactive TTY" 78
-  }
-  [[ "$expires_in" == 30m ]] || gateway_die "migration approval expiry must be exactly 30m" 78
-  prepare_approval_layout
-  GATEWAY_CURRENT_COMMIT=$commit
-  GATEWAY_CURRENT_DIGEST=$digest
-  exec {DEPLOY_FD}>"$DEPLOY_LOCK"
-  flock -n "$DEPLOY_FD" || return 75
-  previous_commit="$(jq -r '.commit // empty' "$STATE_FILE")"
-  paths="$WORK_DIR/changed-paths"
-  changed_paths_for_target "$previous_commit" "$commit" "$paths"
-  sensitive_paths="$WORK_DIR/sensitive-paths"
-  if [[ -z "$previous_commit" ]]; then
-    cp -- "$paths" "$sensitive_paths"
-  else
-    gateway_sensitive_paths <"$paths" >"$sensitive_paths"
-  fi
-  [[ -s "$sensitive_paths" ]] || gateway_die "target has no migration-sensitive changes" 78
-
-  printf 'Migration-sensitive paths for %s @ %s:\n' "$commit" "$digest"
-  sed 's/^/  - /' "$sensitive_paths"
-  phrase="APPROVE $commit $digest"
-  printf 'Type exactly: %s\n> ' "$phrase"
-  IFS= read -r answer
-  [[ "$answer" == "$phrase" ]] || {
-    gateway_audit_event approval-reject denied confirmation-mismatch none >/dev/null 2>&1 || true
-    gateway_die "migration approval confirmation did not match" 78
-  }
-
-  nonce="$(openssl rand -hex 16)"
-  [[ "$nonce" =~ ^[0-9a-f]{32}$ ]] || gateway_die "unable to generate approval nonce" 78
-  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  expires="$(date -u -d '+30 minutes' +%Y-%m-%dT%H:%M:%SZ)"
-  operator=${SUDO_USER:-${USER:-root}}
-  [[ "$operator" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || operator="uid-$EUID"
-  record="$(approval_record_path "$commit" "$digest")"
-  archive_expired_approval "$record"
-  [[ ! -e "$record" ]] || gateway_die "approval path already exists" 78
-  partial="$ACTIVE_APPROVAL_DIR/.approval.$$.partial"
-  local sensitive_paths_sha256
-  sensitive_paths_sha256="$(gateway_hash_file "$sensitive_paths")"
-  jq -n \
-    --arg schema 211api-migration-approval.v1 \
-    --arg commit "$commit" --arg digest "$digest" --arg nonce "$nonce" \
-    --arg operator "$operator" --arg created_at "$now" --arg expires_at "$expires" \
-    --arg sensitive_paths_sha256 "$sensitive_paths_sha256" '
-      {
-        schema:$schema,commit:$commit,digest:$digest,nonce:$nonce,
-        operator:$operator,created_at:$created_at,expires_at:$expires_at,
-        sensitive_paths_sha256:$sensitive_paths_sha256
-      }
-    ' >"$partial"
-  chmod 0600 "$partial"
-  gateway_audit_event approval-create start pending record ||
-    gateway_die "unable to persist pre-approval audit" 78
-  gateway_fsync_path "$partial"
-  mv -- "$partial" "$record"
-  gateway_fsync_path "$ACTIVE_APPROVAL_DIR"
-  gateway_audit_event approval-create success created record ||
-    gateway_die "unable to persist approval completion audit" 78
-  printf 'Approval nonce: %s\nExpires at: %s\n' "$nonce" "$expires"
-}
-
-consume_approval_record() {
-  local path=$1 commit=$2 digest=$3 expected_paths_sha=$4 nonce destination
-  validate_approval_record "$path" "$commit" "$digest" "$expected_paths_sha"
-  nonce="$(jq -r '.nonce' "$path")"
-  destination="$CONSUMED_APPROVAL_DIR/$nonce-$commit-${digest#sha256:}.json"
-  [[ ! -e "$destination" ]] || gateway_die "migration approval was already consumed" 78
-  gateway_audit_event approval-consume start pending record ||
-    gateway_die "unable to persist pre-consumption audit" 78
-  mv -- "$path" "$destination"
-  gateway_fsync_path "$ACTIVE_APPROVAL_DIR"
-  gateway_fsync_path "$CONSUMED_APPROVAL_DIR"
-  gateway_audit_event approval-consume success consumed record ||
-    gateway_die "unable to persist approval consumption audit" 78
 }
 
 validate_registry_manifest() {
@@ -614,7 +460,7 @@ record_baseline_command() {
 deploy_command() {
   local commit=$1 digest=$2 target first_head second_head
   local previous_commit previous_digest previous_image previous_backup_id current_env_image
-  local paths sensitive_paths sensitive_paths_sha migration_sensitive=false approval=
+  local paths sensitive_paths migration_sensitive=false
   local env_hash env_other_hash compose_hash backup_dir backup_id
 
   prepare_deploy_layout
@@ -659,9 +505,6 @@ deploy_command() {
   fi
   if [[ -s "$sensitive_paths" ]]; then
     migration_sensitive=true
-    sensitive_paths_sha="$(gateway_hash_file "$sensitive_paths")"
-    approval="$(approval_record_path "$commit" "$digest")"
-    validate_approval_record "$approval" "$commit" "$digest" "$sensitive_paths_sha"
   fi
 
   env_hash="$(gateway_hash_file "$ENV_FILE")"
@@ -684,10 +527,6 @@ deploy_command() {
   [[ "$(gateway_hash_file "$ENV_FILE")" == "$env_hash" &&
     "$(gateway_hash_file "$COMPOSE_FILE")" == "$compose_hash" ]] ||
     gateway_die "Compose or environment changed during backup"
-  if [[ "$migration_sensitive" == true ]]; then
-    consume_approval_record "$approval" "$commit" "$digest" "$sensitive_paths_sha"
-  fi
-
   gateway_audit_event env-replace start mutation "$backup_id" ||
     gateway_die "unable to persist pre-mutation audit"
   replace_env_image "$target" "$env_hash" "$env_other_hash"
@@ -729,12 +568,6 @@ case "$command" in
   status)
     (($# == 0)) || usage
     status_command
-    ;;
-  approve-migration)
-    (($# == 6)) || usage
-    [[ "$1" == --commit && "$3" == --digest && "$5" == --expires-in ]] || usage
-    [[ "$2" =~ ^[0-9a-f]{40}$ && "$4" =~ ^sha256:[0-9a-f]{64}$ ]] || usage
-    approve_migration_command "$2" "$4" "$6"
     ;;
   deploy)
     if (($# == 5)) && [[ "$1" == --record-baseline && "$2" == --commit && "$4" == --digest ]]; then

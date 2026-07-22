@@ -1,7 +1,7 @@
 # Gitea CI/CD Migration Design
 
 Date: `2026-07-18`
-Status: `approved written design; Telegram backup-notification amendment approved`
+Status: `approved written design; automatic-deploy and Telegram operations-notification amendment approved 2026-07-22`
 ArchitectureReviewRequired: `yes`
 
 ## 1. Outcome
@@ -28,6 +28,8 @@ and the retired GitHub workflows can no longer deploy.
 | Release output | AMD64 image, protected `v*` tag, Gitea Release |
 | Retired release output | DockerHub, legacy Telegram release/deploy notifications, ARM64, macOS/Windows binaries |
 | Backup failure notification | Netcup fixed JSON webhook -> Pipedream -> dedicated Telegram bot and private group |
+| Post-merge deployment notification | Gitea deploy result -> Pipedream -> the same dedicated Telegram bot and private group |
+| Migration-sensitive deployment | Automatic after protected-main verification and validated pre-deploy backup; no human approval record |
 | Upstream updater | Continue reading `Wei-Shaw/sub2api` GitHub Releases |
 | Old GitHub repository | Retained; Actions disabled; repository not deleted |
 
@@ -329,8 +331,9 @@ Trigger: push to protected `main` only.
    `backend/ent/schema/**`, `backend/ent/migrate/**`,
    `backend/internal/repository/ent.go`,
    `backend/internal/repository/migrations_runner.go`, or
-   `backend/migrations/migrations.go`. A match takes the migration-sensitive
-   path in section 9.
+   `backend/migrations/migrations.go`. A match marks the validated backup as
+   migration-sensitive and selects the longer health-check window described in
+   section 9; it does not pause for human approval.
 7. Invoke the audited Gateway deployment script for the fixed allowlisted target
    `root@157.254.234.244:4422` and `/opt/211api/deploy`; repository variables
    cannot redirect production SSH. This dedicated root authorized key is also
@@ -358,7 +361,7 @@ Trigger: push to protected `main` only.
 11. Run `docker compose pull` and `docker compose up -d` from the existing
     Gateway deployment directory.
 12. Poll `/health` for up to five minutes on the normal no-migration path. The
-    approved migration-sensitive path has a twelve-minute ceiling, covering the
+    migration-sensitive path has a twelve-minute ceiling, covering the
     existing ten-minute migration context plus startup evidence collection.
 13. On failure, emit container status and redacted bounded logs, preserve the
     previous image and backup locations, and stop for operator action.
@@ -375,6 +378,12 @@ the tag unchanged. Cleanup preserves the digest running on Gateway, its recorded
 predecessor, every retained Gitea Release, the smoke release, and the newest 20
 successful SHA builds. `main` is only a mutable convenience pointer; `latest` is
 only the latest stable release pointer.
+
+A terminal `always()` job reports the final post-merge deployment result to the
+notification-only Pipedream endpoint. It sends only the fixed repository,
+40-hex commit, UTC completion time, success/failed result, and an allowlisted
+Gitea run URL. Missing or unavailable notification delivery emits a bounded
+warning and cannot change the actual deployment result.
 
 The workflow does not use `workflow_dispatch` or job `environment` as a
 security gate because the target Gitea behavior does not support those GitHub
@@ -438,14 +447,15 @@ below.
 - `DEPLOY_SSH_KEY`: dedicated deployment key.
 - `DEPLOY_KNOWN_HOSTS`: pinned Gateway host key material.
 - Pipedream project secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` belong
-  only to the dedicated backup-notification workflow. They are never stored on
+  only to the dedicated operations-notification workflow. They are never stored on
   Netcup, Gateway, Gitea, or in this repository, and workflow code must not log
   either value.
-- Netcup stores only the Pipedream HTTPS endpoint in
+- Netcup stores the Pipedream HTTPS endpoint in
   `/etc/gitea/backup-notify-url`, owned by `root:root` with mode `0600`. The
-  endpoint URL is a bearer-like secret: it is not committed, printed, copied to
-  evidence, or included in shell history. Gateway stores no notification
-  credential or endpoint.
+  repository stores the same opaque endpoint as the masked Actions secret
+  `PIPEDREAM_NOTIFY_URL`. The endpoint URL is a bearer-like notification secret:
+  it is not committed, printed, copied to evidence, or included in shell
+  history. Gateway stores no notification credential or endpoint.
 - Gateway host, port, user, and path are fixed audited constants in the deploy
   script, not mutable repository variables or secret payloads.
 - The full production `.env` is not stored in Gitea and is not copied on
@@ -464,9 +474,8 @@ below.
   credential cannot create releases or administer repositories.
 - The deploy public key is installed as a forced-command, restricted root key.
   The dispatcher accepts only strict full-SHA/digest/status subcommands and
-  rejects unexpected argv before invoking the root-owned deployment script.
-  Migration approval cannot be supplied by this CI key; a platform operator must
-  use the pre-existing administrative channel for that explicit action.
+  rejects unexpected argv before invoking the root-owned deployment script. It
+  cannot obtain a shell or invoke the TTY-only baseline branch.
 
 ## 9. Production Safety and Rollback Boundary
 
@@ -483,23 +492,13 @@ Before each deployment on Gateway:
 Application migrations are forward-only and may run before the new container
 becomes healthy. Therefore:
 
-- the normal automatic main path is allowed only when the migration-sensitive
-  file set in section 7.3 has not changed since the recorded deployed commit;
-- the first cutover is treated as migration-sensitive unless the currently
-  deployed commit can be proven exactly;
-- a migration-sensitive run builds and records the image but stops before
-  Gateway mutation. A platform operator must review the SQL/schema diff,
-  confirm an expand/contract compatibility window, and verify the backup. Over
-  the pre-existing administrative SSH channel the operator runs
-  `/usr/local/sbin/211api-deploy approve-migration` with exact arguments
-  `--commit <40-hex-sha>`, `--digest sha256:<64-hex>`, and `--expires-in 30m`,
-  confirms the displayed diff identity,
-  and receives a random one-time nonce in a root-only approval record. The
-  operator then invokes `211api-deploy deploy` with the same commit, digest, and
-  nonce. Approval is atomically consumed before mutation; mismatch, expiry,
-  replay, or an approval attempt through the CI forced-command key is rejected.
-  Failed attempts and the consumed approval metadata are written to the
-  root-only deployment audit log without secret values;
+- every protected-`main` commit, including migration-sensitive commits, follows
+  the automatic deployment path after required CI succeeds;
+- migration-sensitive classification is written into the validated backup
+  manifest and selects a twelve-minute health deadline, but creates, validates,
+  or consumes no human approval record;
+- existing `migration-approvals` and `consumed-approvals` host directories are
+  inert historical evidence after upgrade and are neither required nor deleted;
 - the existing database advisory lock serializes concurrent migration runners
   but is not treated as rollback, compatibility, or recovery protection;
 - migration stdout/stderr and the bounded startup log are retained as evidence;
@@ -554,20 +553,22 @@ database restore.
   failure is not accepted. Local-restore targets are RPO 24 hours and RTO two
   hours.
 
-#### 10.1.1 Backup failure notification contract
+#### 10.1.1 Operations notification contract
 
-The approved path is deliberately narrower than the retired release notifier:
+The approved path is notification-only and deliberately separate from the
+retired release notifier and all production authority:
 
 ```text
-Netcup gitea-backup-notify
-  -> fixed nonsecret JSON over HTTPS
+Netcup gitea-backup-notify OR Gitea deploy terminal job
+  -> fixed bounded JSON over HTTPS
   -> Pipedream HTTP workflow
   -> Telegram Bot API sendMessage
   -> dedicated private operations group
 ```
 
-- The path carries only Gitea platform backup failures. It is not a CI,
-  security-scan, release, deployment, Gateway, or general observability channel.
+- The path carries only Gitea platform backup failures and final post-merge
+  deployment results. It is not an individual CI/security job, release,
+  Gateway-command, deployment-control, or general observability channel.
 - Netcup emits one of two exact payload shapes. The readiness probe is
   `{schema:"gitea-backup-notification.v1",event:"preflight",status:"ok"}`.
   A failure contains exactly `schema`, `event`, `status`, `failed_at`, `code`,
@@ -576,8 +577,9 @@ Netcup gitea-backup-notify
   matches `^[0-9A-Za-z_.@-]{1,128}$`. No log text, command output, URL, token,
   host credential, backup content, or business data enters the payload.
 - Pipedream accepts only HTTPS-triggered JSON `POST` requests matching one of
-  those shapes. Unknown fields, wrong methods, malformed values, and unknown
-  schema versions return HTTP 400 and do not call Telegram.
+  those backup shapes or the exact deployment-result shape below. Unknown
+  fields, wrong methods, malformed values, and unknown schema versions return
+  HTTP 400 and do not call Telegram.
 - A valid `preflight` returns HTTP 200 without sending a Telegram message, so
   daily readiness checks remain quiet. A one-time synthetic failure with code
   `notification-test` is rendered as an explicit test alert and proves the full
@@ -586,6 +588,12 @@ Netcup gitea-backup-notify
   class, UTC failure time, failure code, and systemd unit. The bot performs no
   inbound-message processing, is a normal non-admin member of the dedicated
   private group, and is not reused by another business workflow.
+- Gitea emits deployment results using
+  `gitea-deployment-notification.v1`, `event=deployment-finished`, a
+  `success|failed` status, UTC `finished_at`, exact repository `211api/211api`,
+  a 40-lower-hex commit, and an allowlisted Gitea Actions run URL. Pipedream
+  rejects unknown fields or values and renders one bounded Chinese success or
+  failure message. Notification failure does not rewrite deployment outcome.
 - Pipedream returns success to Netcup only when Telegram returns HTTP 2xx and a
   JSON body with `ok: true`. Telegram timeout, non-2xx, malformed JSON, or
   `ok != true` returns a generic non-2xx response without exposing credentials.
@@ -595,9 +603,9 @@ Netcup gitea-backup-notify
   endpoint URL is therefore the bearer credential. Suspected exposure requires
   endpoint rotation and replacement of the root-only Netcup file before the old
   endpoint is disabled.
-- Pipedream may retain execution metadata, so the request is intentionally
+- Pipedream may retain execution metadata, so each request is intentionally
   limited to nonsecret bounded fields. Neither Pipedream nor Telegram becomes a
-  delivery owner or a backup store.
+  delivery owner, deployment authority, or backup store.
 
 ### 10.2 Production deployment
 
@@ -688,7 +696,7 @@ follow-up and is not represented as already solved.
    backup and complete the full clone/ref/release/package restore drill. Do not
    push this commit to the old GitHub fork.
 6. Record the current Gateway deployment/image/port baseline and complete the
-   migration-sensitive first-deploy review and validated Gateway backup.
+   validated Gateway backup.
 7. On GitHub, wait for or cancel every queued/in-progress old run within a
    bounded ten-minute drain window, then require every listed run to be terminal
    and no GitHub-originated SSH/deploy process to remain on Gateway. Disable
@@ -705,7 +713,7 @@ follow-up and is not represented as already solved.
    `.github/workflows/*`; the retained GitHub repository may still contain those
    inert historical files because Actions is already disabled.
 9. Execute the first digest-qualified deployment to Gateway through the audited
-   migration-sensitive path.
+   automatic path.
 10. Verify production health, unchanged ingress/listener exposure, running
     manifest digest, source-revision label, and deployment-state record.
 11. Push protected request branch `release/v0.1.160-gitea-smoke.1` at the
@@ -713,8 +721,8 @@ follow-up and is not represented as already solved.
     annotated tag, then verify the Gitea prerelease and version image and prove
     that `latest` was not changed.
 12. Confirm that no GitHub workflow, GHCR, DockerHub, or legacy Telegram
-    release/deploy path remains an active delivery owner. The isolated backup
-    failure notifier is evidence-only and cannot publish or deploy.
+    release/deploy path remains an active delivery owner. The isolated
+    operations notifier is evidence-only and cannot publish or deploy.
 
 There is no period in which both GitHub and Gitea are allowed to deploy.
 
@@ -726,9 +734,9 @@ There is no period in which both GitHub and Gitea are allowed to deploy.
 - Retire GHCR image naming and credentials.
 - Retire DockerHub and legacy Telegram release/deploy steps and credentials.
 - Do not reuse any retired Telegram bot, token, chat, code path, or workflow for
-  the new backup notifier. Pipedream plus the dedicated bot is the single owner
-  of the bounded notification adapter; Gitea workflows and Gateway have no
-  Telegram credential.
+  the operations notifier. Pipedream plus the dedicated bot is the single owner
+  of the bounded Telegram adapter; Gitea holds only the opaque notification
+  endpoint and Gateway has no Telegram credential.
 - Retire GitHub-only CLA automation, which is inactive for this fork.
 - Retire macOS CI and multi-architecture release jobs.
 - Remove the CI dependency on `PROD_ENV_B64`.
@@ -827,11 +835,14 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
   private group, and neither secret exists in the repository, Netcup, Gitea, or
   Gateway. Netcup contains only the root-owned mode-`0600` Pipedream endpoint;
   evidence never records its value.
+- The exact deployment-result schema accepts success and failed probes, rejects
+  unknown fields/repositories/commits/run URLs without calling Telegram, and
+  the full repository verifier proves `PIPEDREAM_NOTIFY_URL` exists by name.
 - A validated Gateway pre-deploy backup and previous commit/image/digest are
   recorded; age recipient/rotation and an isolated PostgreSQL restore drill are
   evidenced; failed backup validation demonstrably blocks deployment.
-- Wrong-commit, wrong-digest, expired, replayed, and CI-key migration approvals
-  are rejected; one valid approval is bound to one commit/digest and consumed.
+- A migration-sensitive protected-main commit creates a validated backup and
+  proceeds automatically without reading or consuming an approval record.
 
 ## 15. Non-goals
 
@@ -841,23 +852,23 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - Replacing the application updater's public GitHub release source.
 - Deleting or automatically mirroring the old GitHub repository.
 - Preserving GitHub workflow syntax or GitHub-only behavior for its own sake.
-- Using Telegram for CI, security-scan, release, deployment, Gateway, or general
-  application notifications.
+- Using Telegram as deployment control, for individual CI/security jobs,
+  releases, Gateway commands, or general application notifications.
 
 ## 16. Architecture Integrity and Minimality
 
 - Invariant: one canonical delivery owner, with production runtime ownership
   remaining separate.
 - Canonical owners: Gitea for delivery; Gateway for runtime; GitHub for public
-  upstream releases; Pipedream for the bounded backup-notification adapter.
+  upstream releases; Pipedream for the bounded operations-notification adapter.
 - Responsibility overlap removed: GitHub workflows and GHCR stop carrying
   delivery behavior before Gitea deployment activates.
 - New surfaces with creation proof: Gitea platform, Gitea PostgreSQL, Caddy,
   isolated act_runner, and rootless DinD are the minimum services needed for
   private self-hosted Git plus TLS, persistence, and CI execution. The dedicated
   Pipedream workflow, bot, and private group are the minimum isolated surfaces
-  needed to deliver backup failures without placing a Telegram credential on
-  Netcup or reactivating retired release notification logic.
+  needed to deliver backup failures and deployment results without placing a
+  Telegram credential on Netcup/Gitea or reactivating retired release logic.
 - Rejected additions: Kubernetes, a second runner host, GitHub push mirror,
   application release-provider abstraction, and CI-held production
   environment payload.
@@ -875,8 +886,9 @@ Candidate durable decision:
 - Gateway remains the canonical 211API production runtime owner.
 - GitHub remains only the public upstream release source.
 - Rootless DinD is the runner isolation contract.
-- Pipedream is the only Telegram adapter, scoped to Gitea backup failures; all
-  legacy release/deploy Telegram paths remain retired.
+- Pipedream is the only Telegram adapter, scoped to Gitea backup failures and
+  final post-merge deployment results; all legacy release/deploy Telegram paths
+  remain retired.
 
 The ADR, if backfilled after implementation evidence exists, must record the
 alternatives considered: single Compose stack, native systemd services, and a

@@ -252,7 +252,7 @@ gitea_api_get_all "$GITEA_ADMIN_CURL_CONFIG" \
   "/repos/$GITEA_ORG/$GITEA_REPO/actions/secrets" \
   "$runtime/action-secrets.json" "$runtime" action-secrets
 if [[ "$mode" == full ]]; then
-  gitea_assert_actions_secret_names "$runtime/action-secrets.json" true
+  gitea_assert_actions_secret_names "$runtime/action-secrets.json" true true
 else
   gitea_assert_actions_secret_names "$runtime/action-secrets.json" false
 fi

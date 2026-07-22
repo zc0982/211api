@@ -46,7 +46,9 @@ unrequested production-service or business-data migration.
   team members may access or trigger CI.
 - The selected release posture is AMD64-only: automatic `main` deployment,
   immutable commit images, protected `v*` releases, and no DockerHub,
-  Telegram, ARM64, macOS, or Windows release outputs.
+  legacy Telegram release notifications, ARM64, macOS, or Windows release
+  outputs. A dedicated Pipedream adapter sends bounded backup failures and
+  final post-merge deployment results to Telegram without deployment authority.
 - The current production application remains on Gateway Los Angeles. Business
   traffic, PostgreSQL, Redis, configuration, and persistent data do not move.
 - The application admin UI continues to use the public
@@ -69,8 +71,8 @@ unrequested production-service or business-data migration.
 - Public Gitea registration or public repository access.
 - Business database, Redis, ingress, domain, or application relocation.
 - Complete removal of GitHub as the public upstream source.
-- DockerHub publication, Telegram notification, multi-architecture images, or
-  cross-platform binary releases.
+- DockerHub publication, Telegram deployment control or general business
+  notifications, multi-architecture images, or cross-platform binary releases.
 - Deletion of the old GitHub repository.
 
 ## 5. Architecture / Runtime Boundary Baseline

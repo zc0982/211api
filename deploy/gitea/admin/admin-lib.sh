@@ -591,14 +591,16 @@ gitea_validate_token_record() {
 }
 
 gitea_assert_actions_secret_names() {
-  local file=$1 require_ssh=${2:-false}
-  jq -e --argjson require_ssh "$require_ssh" '
+  local file=$1 require_ssh=${2:-false} require_notify=${3:-false}
+  jq -e --argjson require_ssh "$require_ssh" --argjson require_notify "$require_notify" '
     def rows: if type == "array" then . else (.secrets // []) end;
     (rows | map(.name)) as $names
     | ($names | index("REGISTRY_BUILD_TOKEN") != null)
     and ($names | index("REGISTRY_RELEASE_TOKEN") != null)
     and ($names | index("RELEASE_RECORD_TOKEN") != null)
     and ($names | index("GITEA_TOKEN") == null)
+    and (($require_notify | not) or
+      ($names | index("PIPEDREAM_NOTIFY_URL") != null))
     and (($require_ssh | not) or (
       ($names | index("DEPLOY_SSH_KEY") != null)
       and ($names | index("DEPLOY_KNOWN_HOSTS") != null)
@@ -606,7 +608,7 @@ gitea_assert_actions_secret_names() {
       and ($names | index("RELEASE_TAG_KNOWN_HOSTS") != null)
     ))
   ' "$file" >/dev/null ||
-    gitea_die 'Actions secret names drifted or a static GITEA_TOKEN shadows the job token'
+    gitea_die 'required Actions secret names drifted or a static GITEA_TOKEN shadows the job token'
 }
 
 gitea_assert_required_statuses() {

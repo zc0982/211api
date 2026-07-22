@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "requestedOutcome": "Remove migration approval and notify final post-merge deployment result through Pipedream and Telegram",
+  "goal": "Remove migration approval and notify final post-merge deployment result through Pipedream and Telegram",
+  "successEvidence": [],
+  "stopCondition": "Stop when success evidence is satisfied or a blocker/risk requires pause.",
+  "nonGoals": [
+    "Delete historical approval or audit records",
+    "Grant Telegram or Pipedream deployment authority"
+  ],
+  "scope": "Gateway approval retirement, deploy workflow notification, Pipedream adapter, active docs, rollout verification",
+  "changeKinds": [
+    "architecture"
+  ],
+  "riskHints": [
+    "Forward-only migrations become automatic; notification adapter has an external deployment step"
+  ]
+}
