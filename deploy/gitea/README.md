@@ -271,15 +271,17 @@ never remap the label to the plain Go image or install Node during a workflow.
 The repository-wide Runner environment sets `GOFLAGS=-p=1`, limiting Go's
 package build parallelism while leaving test semantics unchanged. Live cold
 builds proved that 3 GiB was insufficient even after serialization because the
-single `internal/service` compiler process crossed that cgroup; DinD therefore
-has a still-bounded 4 GiB limit. Runner capacity remains one, and no workflow or
-business package receives a resource-specific branch. The separate cold source
-build of `golangci-lint` has a compiler-internal concurrency peak, so only that
-fixed-version `go install` and the linter process run with `GOMAXPROCS=1`. A
-live cold build of v2.9.0 with Go 1.26.5 completed inside the 4 GiB boundary;
-the first unrestricted linter analysis still exhausted that boundary, so the
-same compiler-internal limit also owns package loading and analysis. Business
-tests keep their normal runtime.
+single `internal/service` compiler process crossed that cgroup. Later lint
+sampling reached within 1 MiB of the 4 GiB ceiling, and two independent
+`govulncheck` runs plus their controlled retries were OOM-killed there. A live
+5 GiB validation then measured a 5,255,966,720-byte backend-unit peak, leaving
+only about 108 MiB of cgroup headroom. DinD therefore has a still-bounded 6 GiB
+limit. Runner capacity remains one, and no workflow or business package
+receives a resource-specific branch. The separate cold source build of
+`golangci-lint` has a compiler-internal concurrency peak, so only that
+fixed-version `go install` and the linter process run with `GOMAXPROCS=1`. The
+same cgroup owns package loading and analysis; business tests keep their normal
+runtime.
 
 The unprivileged Runner keeps its root filesystem read-only and uses a bounded
 64 MiB `/tmp` tmpfs. `act_runner` creates a temporary tar there while copying a

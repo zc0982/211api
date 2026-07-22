@@ -1,7 +1,7 @@
 {
   "schemaVersion": "aegis.schema.v0",
   "taskId": "2026-07-21-upstream-0.1.162-sync",
-  "currentTodo": "推送测试时序修复并在新 SHA 上通过受保护 Gitea PR 门禁",
+  "currentTodo": "等待新的明确授权；不得启动 Task 17",
   "completedTodos": [
     "建立隔离 worktree 与 Aegis 检查点",
     "合并 upstream/main 并解决冲突",
@@ -11,13 +11,18 @@
     "创建双父 merge commit 11344fe32dcd6b1dae2acfe588a1896cff2e8a06",
     "通过严格 luoee SSH 身份推送分支并创建受保护 PR #5",
     "诊断旧 SHA 的 pull_request backend-unit job 576 单一时序失败",
-    "以协议级握手同步修复测试并通过 focused count=5000、完整 service package 与独立审查"
+    "以协议级握手同步修复测试并通过 focused count=5000、完整 service package 与独立审查",
+    "精确修复 SHA 通过 18/18 push/pull_request CI 和 security 上下文",
+    "通过受保护 PR #5 合并为双父 main f83eeda7715b63b55cca5abe3d1674715b3e7f9f",
+    "系统诊断 deploy lint exit 137 为 4 GiB DinD cgroup OOM，并以单次受控失败-job rerun取得绿色证据",
+    "通过 human root TTY 审查并批准精确迁移敏感路径，审批被部署原子消费",
+    "main 18/18 上下文通过并部署精确 linux/amd64 OCI digest；Gateway、迁移、Registry、GitHub 与无额外产物边界验证完成"
   ],
-  "activeSlice": "PR #5 已创建；测试时序修复已本地验证，等待提交、推送和新 SHA 完整门禁",
+  "activeSlice": "upstream/main 0.1.162 已在受保护 main 与 Gateway 生产完成收敛；Task 17 未启动",
   "evidenceRefs": [
     "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/90-evidence.md"
   ],
   "blockedOn": null,
-  "nextStep": "提交并推送测试修复，在精确新 SHA 上重新运行完整 PR CI/security 门禁",
-  "updatedAt": "2026-07-21T23:32:03+08:00"
+  "nextStep": "保持当前生产和 Task 16 smoke 证据不变；如另行授权，再独立治理 Runner lint 的 4 GiB 容量余量",
+  "updatedAt": "2026-07-22T03:09:56+08:00"
 }

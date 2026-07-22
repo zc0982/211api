@@ -44,7 +44,7 @@
 - Independent integrity review found stale embed-tag `/logo.png` tests; reproduced failure, updated to canonical SVG, then both unit and embed-tag web tests passed.
 - Reviewer Redis concern was checked against the final worktree: only standalone compose contains `REDIS_USERNAME`.
 
-## Pending evidence
+## Protected PR evidence
 
 - Protected Gitea PR #5: `https://git.211api.com/211api/211api/pulls/5`.
 - On exact SHA `b4646b2e93ea9bedce26e8eb44d2c3ef9f6ab931`, every completed push lane passed. Pull-request backend-unit job 576 failed only in `TestPassthroughLifecycle_LeaseLossSendsRetryClose`, where the assertion received EOF before the WebSocket client reader had started.
@@ -53,7 +53,21 @@
 - Post-change focused verification: `go test -tags=unit ./internal/service -run '^TestPassthroughLifecycle_LeaseLossSendsRetryClose$' -count=5000` — pass in 8.249s.
 - Post-change package verification: `go test -tags=unit ./internal/service` — pass in 142.594s.
 - Independent read-only review confirmed that the added exchange is protocol-level readiness synchronization and does not alter production relay or close ownership.
-- New exact-SHA protected Gitea PR CI/security checks on Go 1.26.5 and Node 20.
-- Protected merge result, deploy workflow result, Registry digest and production health.
+- Exact test-fix SHA `243f8d66368c6507265c1b7bda26f2970242a64e` passed all 18 push/pull_request CI and security contexts on Go 1.26.5 and Node 20; the formerly failing pull-request backend-unit context passed in 10m0s.
+- PR #5 merged without branch deletion as `f83eeda7715b63b55cca5abe3d1674715b3e7f9f`; its parents are exact old main `e289410d...` then exact PR head `243f8d663...`.
+
+## Main deploy and production evidence
+
+- Main run 152 finished `success`; exact main has 18/18 success, zero failure and zero pending across CI, security and deploy.
+- `deploy / lint` attempt 1 failed with exit 137 when golangci-lint was killed at the 4 GiB DinD cgroup boundary. The host itself still had about 5.4 GiB available. Cgroup evidence recorded `memory.max=4294967296`, lifetime `memory.peak=4295454720` and `oom_kill=5` before retry.
+- A single controlled `rerun-failed-jobs` retried only lint and downstream jobs. Lint attempt 2 passed in 18m19s with `oom_kill` unchanged, but repeated live samples reached `4294881280` bytes and less than 1 MiB remaining. The upstream sync is deployed; the bounded Runner memory margin remains an explicit reliability follow-up.
+- Build-and-deploy attempt 1 published the immutable SHA image, then failed closed with exit 78 because migration-sensitive changes had no exact approval. No production state or mutable `main` tag was changed by that attempt.
+- Installed Gateway `211api-deploy`, dispatcher and runtime library hashes exactly matched origin/main; owner/mode, health, lock availability and state/env consistency passed. Human root TTY review listed only `backend/internal/repository/migrations_runner.go`, migrations 183 and 184, then created the 30-minute approval bound to exact commit and digest.
+- Build-and-deploy attempt 2 succeeded in 53s. The approval was atomically consumed; validated encrypted backup `20260721T190018Z-f83eeda7715b63b55cca5abe3d1674715b3e7f9f` was created before `.env` mutation.
+- Registry `f83eeda...` and `main` both resolve to `sha256:333330a196494a37ee4f44f58b31232a37a3e228f0c95f37c5712ed50f3c8135`; raw inspection proves `application/vnd.oci.image.manifest.v1+json`, no index, `linux/amd64`, and exact OCI revision/version. Registry `latest`, `0.1.162` and `v0.1.162` are absent.
+- Gateway status reports ready, healthy, lock available, protected main exact, current commit/digest exact, and `state_env_consistent=true`; listener proof is only `127.0.0.1:8080`. Container health is `healthy` with failing streak 0 and exact OCI labels.
+- Production `schema_migrations` contains `183_ops_ingress_reject_aggregates.sql` checksum `16a2ffccfe0f03451ab5ab6edfe252501d09c5c8927e27d87bbc3f826a5d8871` and `184_auth_cache_invalidation_outbox.sql` checksum `870ff546e67a8c59f99310fab34e2101af71332eea50fff17a6bfb2a4d0fdc7a`; they match the deployed source.
+- GitHub Actions remains disabled. Residual run `29755862485` remains queued at old SHA `5ed5530...` with zero jobs. Gitea retains only the authorized Task 16 smoke tag/release; no 0.1.162 tag/release was created.
+- Static owner proof: `.github/workflows` and `.goreleaser*` remain absent, release/deploy workflows publish only to `git.211api.com`, and the produced manifest is not multi-arch. No DockerHub/GHCR/Telegram publication, archive/checksum, macOS/Windows binary or ARM64 output occurred.
 
 These records are Method Pack evidence only and do not grant completion authority.

@@ -831,7 +831,7 @@ job containers are not.
      security-significant: the locked image's entrypoint adds
      `tcp://0.0.0.0:2375` when its first argument begins with `-`, while the
      explicit command retains the rootless checks/RootlessKit path without that
-     listener injection. Apply 4 GiB memory and 3 CPU limit;
+     listener injection. Apply 6 GiB memory and 3 CPU limit;
    - `runner`: locked basic `gitea/runner:2.1.0`, forced by Compose to numeric
      unprivileged UID/GID 1000 with `HOME=/data`, 512 MiB and 0.5 CPU limit,
      pre-owned runner data volume, read-only config, the same named tmpfs runtime
@@ -866,8 +866,8 @@ job containers are not.
 
 3. Configure `runner.capacity: 1`, `runner.timeout: 3h`, Gitea TLS verification on,
    `runner.envs.GOFLAGS: -p=1` to serialize package compilation and a bounded
-   DinD 4 GiB cgroup for the live-proven single-package compiler peak, no debug
-   logs, `cache.enabled: false`,
+   DinD 6 GiB cgroup for the live-proven compiler, lint, and vulnerability-scan
+   peak, no debug logs, `cache.enabled: false`,
    `container.privileged: false`,
    `container.valid_volumes: []`,
    `container.docker_host: unix:///run/user/1000/docker.sock`,

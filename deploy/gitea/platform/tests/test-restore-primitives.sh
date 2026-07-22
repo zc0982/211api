@@ -74,6 +74,19 @@ jq -e '
 jq '.[0].head_branch = null' "$tmp/restored-actions.json" |
   normalize_action_runs >"$tmp/null-head-branch.normalized.json"
 jq -e '.[0].head_branch == null' "$tmp/null-head-branch.normalized.json" >/dev/null
+jq '.[0].actor = {id:-1,login:"Ghost"} | .[0].trigger_actor = {id:-2,login:"gitea-actions"}' \
+  "$tmp/restored-actions.json" |
+  normalize_action_runs >"$tmp/system-actors.normalized.json"
+jq -e '
+  .[0].actor == {id:-1,login:"Ghost"}
+  and .[0].trigger_actor == {id:-2,login:"gitea-actions"}
+' "$tmp/system-actors.normalized.json" >/dev/null
+jq '.[0].trigger_actor = {id:-3,login:"unknown-system"}' \
+  "$tmp/restored-actions.json" >"$tmp/invalid-system-actor.json"
+if normalize_action_runs <"$tmp/invalid-system-actor.json" >/dev/null 2>&1; then
+  printf 'Actions normalization accepted an unknown negative actor ID\n' >&2
+  exit 1
+fi
 jq '.[0].conclusion = "cancelled"' "$tmp/restored-actions.json" |
   normalize_action_runs >"$tmp/changed-actions.normalized.json"
 if cmp -s "$tmp/restored-actions.normalized.json" "$tmp/changed-actions.normalized.json"; then

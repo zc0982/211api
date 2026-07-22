@@ -6,5 +6,7 @@
   "impactStatement": "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/impact-statement-draft.json",
   "compatPlan": "保留 .gitea 与 deploy/gitea 定制、axios 1.18.1 安全修复、Gateway runtime variables；不得恢复 .github workflows 或 .goreleaser files",
   "retirementPlan": "verified",
-  "evidenceBundle": []
+  "evidenceBundle": [
+    "docs/aegis/work/2026-07-21-upstream-0.1.162-sync/evidence-bundle-draft-upstream-0.1.162-final.json"
+  ]
 }
