@@ -157,19 +157,21 @@ Directory: `/opt/gitea/runner`
   runs under `sh` to install Bash before checkout and later Bash steps. The
   plain Docker CLI image is not a runnable Actions label.
 - The repository-scoped Runner injects `GOFLAGS=-p=1` into every job and keeps
-  DinD under a 5 GiB cgroup. Live unit and integration builds independently
+  DinD under a 6 GiB cgroup. Live unit and integration builds independently
   exhausted the original 3 GiB limit; serialization removed package-level
   concurrency but proved the single `internal/service` compiler still crossed
   3 GiB. After the upstream 0.1.162 sync, lint sampled within 1 MiB of the 4 GiB
   ceiling and two independent `govulncheck` lanes plus their controlled retries
-  were OOM-killed there. The host retained more than 6 GiB available after the
-  failed runs, so a 5 GiB single-job boundary is the smallest whole-GiB
-  correction with material headroom rather than an unbounded daemon or
-  business-code accommodation. Workflow commands remain canonical and Runner
-  capacity stays one. The fixed golangci-lint source build is the separate
-  compiler-internal peak: its `go install` and linter process both use
-  `GOMAXPROCS=1`. The same limit owns package loading and analysis. Business
-  test runtimes remain unchanged.
+  were OOM-killed there. A live 5 GiB validation then measured a
+  5,255,966,720-byte backend-unit peak, leaving only about 108 MiB of cgroup
+  headroom. The host retained more than 6 GiB available after the failed runs,
+  so a 6 GiB single-job boundary is the smallest whole-GiB correction with
+  material headroom rather than an unbounded daemon or business-code
+  accommodation. Workflow commands remain canonical and Runner capacity stays
+  one. The fixed golangci-lint source build is the separate compiler-internal
+  peak: its `go install` and linter process both use `GOMAXPROCS=1`. The same
+  limit owns package loading and analysis. Business test runtimes remain
+  unchanged.
 - Gitea Runner places each job on an ephemeral user-defined inner Docker
   network. Testcontainers' default remote-daemon host discovery resolves the
   default `172.17.0.1` bridge, but RootlessKit publishes ports in DinD's parent

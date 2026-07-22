@@ -38,7 +38,7 @@ jq -e '
   and .services.runner.read_only == true
   and .services.runner.mem_limit == "536870912"
   and .services.runner.cpus == 0.5
-  and .services.docker.mem_limit == "5368709120"
+  and .services.docker.mem_limit == "6442450944"
   and .services.docker.cpus == 3
   and ([.services[] | .ports[]?] | length) == 0
   and ([.services | to_entries[] | select(.value.privileged == true) | .key] ==
