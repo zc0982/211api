@@ -209,6 +209,19 @@ jq -e '
 jq '.[0].head_branch = null' "$tmp/actions.json" |
   normalize_action_run_array >"$tmp/actions-null-head-branch.normalized.json"
 jq -e '.[0].head_branch == null' "$tmp/actions-null-head-branch.normalized.json" >/dev/null
+jq '.[0].actor = {id:-1,login:"Ghost"} | .[0].trigger_actor = {id:-2,login:"gitea-actions"}' \
+  "$tmp/actions.json" |
+  normalize_action_run_array >"$tmp/actions-system-actors.normalized.json"
+jq -e '
+  .[0].actor == {id:-1,login:"Ghost"}
+  and .[0].trigger_actor == {id:-2,login:"gitea-actions"}
+' "$tmp/actions-system-actors.normalized.json" >/dev/null
+jq '.[0].actor = {id:-3,login:"unknown-system"}' \
+  "$tmp/actions.json" >"$tmp/actions-invalid-system-actor.json"
+if normalize_action_run_array <"$tmp/actions-invalid-system-actor.json" >/dev/null 2>&1; then
+  printf 'Actions validator accepted an unknown negative actor ID\n' >&2
+  exit 1
+fi
 
 full_page_calls="$tmp/actions-full-page.calls"
 api_get() {

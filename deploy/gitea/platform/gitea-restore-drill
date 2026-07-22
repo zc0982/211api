@@ -527,10 +527,11 @@ normalize_packages() {
 normalize_action_runs() {
   jq -S -e '
     def integer: type == "number" and floor == .;
+    def valid_actor_id: integer and (. > 0 or . == -1 or . == -2);
     def valid_actor:
       . == null
       or (type == "object"
-          and (.id | integer and . > 0)
+          and (.id | valid_actor_id)
           and (.login | type == "string" and length > 0));
     def normalized_actor:
       if . == null then null else {id,login} end;
