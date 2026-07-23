@@ -1,7 +1,7 @@
 # Gitea CI/CD Migration Design
 
 Date: `2026-07-18`
-Status: `approved written design; automatic-deploy and Telegram operations-notification amendment approved 2026-07-22`
+Status: `approved living design; single-Runner performance amendment implemented in repository and pending separately authorized live validation 2026-07-23`
 ArchitectureReviewRequired: `yes`
 
 ## 1. Outcome
@@ -200,9 +200,20 @@ Directory: `/opt/gitea/runner`
   registration window.
 - Concurrency is one job. CPU, memory, process, and disk limits leave capacity
   for Caddy, Gitea, and PostgreSQL.
-- Job containers and workspaces are ephemeral. Cache volumes may contain only
-  dependency/build cache, never credentials or repository tokens, and are
-  subject to bounded cleanup.
+- Job containers and workspaces are ephemeral. Runner 2.1.0's built-in cache
+  stores only rebuildable Go module/build and pnpm/Corepack data under the exact
+  `/data/cache/actions` path in the Runner state volume. Jobs reach it only at
+  `gitea-runner-cache:8088` on the outer private Runner network; Compose publishes
+  no cache port and the Docker daemon remains Unix-socket-only. Cache keys bind
+  the relevant lock, tool, image-lock, lint/package, and dispatcher inputs and
+  use no prefix restore. Cache restore/save failure never changes a gate result;
+  the unchanged command must rebuild cold.
+- Runner offline Action reuse is allowed only while every `uses:` entry is a
+  full 40-hex SHA represented in `.gitea/actions.lock`. The post-task maintenance
+  script rejects a symlink or non-`1000:1000` action-cache root and clears only
+  its direct children after size exceeds 20 GiB or filesystem use reaches 80%.
+  Validation/statistics failure is fail-closed for deletion. The test-only
+  threshold variables are absent from production Compose.
 - Acceptance inspects effective mounts, namespaces, capabilities, socket
   endpoints, and UID/GID rather than trusting the Compose source alone.
 
@@ -255,11 +266,12 @@ Directory: `/opt/gitea/runner`
   immutable refs, and commit/digest validation are the trust boundary.
 - Branch and tag protection are proved with negative push/update/delete tests
   from a normal team account, not only by reading the settings UI.
-- Before protection becomes a cutover gate, a test pull request must produce the
-  actual Gitea commit-status list. Live push evidence must show contexts exactly
-  named `ci / required (push)` and `security / required (push)`; the PR smoke
-  separately proves the event-qualified pull-request executions rather than
-  weakening or guessing the required-status rule.
+- Before protection becomes a cutover gate, a source-branch push must produce the
+  actual Gitea commit-status list with contexts exactly named
+  `ci / required (push)` and `security / required (push)`. An internal PR smoke
+  proves those same head-SHA push statuses satisfy protection without creating a
+  `pull_request` workflow run. An external-fork negative smoke must schedule no
+  trusted Runner job and cannot manufacture either required push context.
 - Disable Actions in the old GitHub repository through the GitHub repository
   Actions-permissions API before activating Gitea deployment. Evidence includes
   `enabled=false`, no queued or in-progress old workflow run, and rejection of a
@@ -269,55 +281,57 @@ Directory: `/opt/gitea/runner`
 ## 7. Workflow Design
 
 All active workflows live under `.gitea/workflows/`. Gitea-compatible contexts
-and outputs replace `GITHUB_*` assumptions. The only initially approved external
-action is the Gitea-hosted checkout action; it is pinned to a full commit ID.
+and outputs replace `GITHUB_*` assumptions. The approved external actions are
+checkout and cache; both use absolute HTTPS URLs pinned to full commit IDs.
 Toolchains run from digest-pinned job/container images or project scripts, so
 setup and lint Marketplace actions are unnecessary. The approved action URL and
-commit are recorded in reviewed manifest `.gitea/actions.lock`; additions require a pull
-request and platform-operator review. No workflow may silently resolve a mutable
-Marketplace tag. The pre-cutover smoke run explicitly validates the Gitea event
-contexts, service containers, secrets, artifacts, and cache semantics used by
-these workflows.
+commit are recorded in reviewed manifest `.gitea/actions.lock`; additions require
+a pull request and platform-operator review. No workflow may silently resolve a
+mutable Marketplace tag. The live smoke explicitly validates Gitea event
+contexts, step outputs, cache save/restore and cold fallback, service containers,
+secrets, and artifacts used by these workflows.
 
 ### 7.1 `ci.yml`
 
-Triggers: `push`, internal `pull_request`.
+Trigger: non-`main` source-branch `push` only. Opening or updating an internal PR
+creates no additional run; external forks do not enter the trusted Runner.
 
-- Backend unit tests.
-- Backend integration tests.
-- Frontend frozen pnpm install, typecheck, and critical Vitest suite.
-- golangci-lint v2.9 with the project timeout.
-- Linux shell syntax checks.
-- No macOS runner and no Apple-container fixture job.
-- The aggregate `required` job depends on every item above and is the only
-  base success context named `ci / required`; Gitea persists its push execution
-  as `ci / required (push)`. The commands live in reviewed project scripts
-  shared with the deployment verification job, preventing CI and deploy
-  verification from drifting apart.
+- `backend` (Go image) restores an exact Go cache key, then runs Linux shell
+  syntax, backend unit, backend integration with the isolated-DinD marker, and
+  golangci-lint v2.9 in that order.
+- `required` uses the Node 20 image with `if: always()` and first requires
+  `needs.backend.result == success` before checkout or dependency preparation.
+  It then restores the exact pnpm cache key and runs the frozen frontend gate.
+- The two-Job graph produces the real base success context `ci / required`,
+  persisted by Gitea as `ci / required (push)`. There is no empty or forged
+  aggregator, macOS Runner, or Apple-container fixture Job.
 
 ### 7.2 `security.yml`
 
-Triggers: `push`, internal `pull_request`, and cron `0 3 * * 1` with the Gitea
-and runner containers configured to UTC (Monday 03:00 UTC / 11:00 China time).
+Triggers: non-`main` source-branch `push` and cron `0 3 * * 1`, with Gitea and
+Runner configured to UTC (Monday 03:00 UTC / 11:00 China time). There is no
+`pull_request` trigger.
 
-- govulncheck.
-- Production dependency pnpm audit.
-- Audit-exception validation.
-- Move the exception source from `.github/audit-exceptions.yml` to
-  `.gitea/audit-exceptions.yml`.
-- The aggregate base context is `security / required`, persisted for push as
-  `security / required (push)`. A scheduled failure is visible in Gitea Actions
-  and enters the operator's failure-notification path; it must be acknowledged
-  within one business day.
+- `backend` (Go image) restores the exact Go cache key and runs govulncheck.
+- `required` (Node 20 image) uses `if: always()`, rejects a failed backend before
+  checkout, restores the exact pnpm cache key, and runs the production audit plus
+  `.gitea/audit-exceptions.yml` validation.
+- The two-Job graph produces the real base context `security / required`,
+  persisted for push as `security / required (push)`. A scheduled failure remains
+  visible in Gitea Actions and enters the operator's failure-notification path;
+  it must be acknowledged within one business day.
 
 ### 7.3 `deploy.yml`
 
 Trigger: push to protected `main` only.
 
-1. Checkout the exact commit.
-2. Run the same reviewed required CI and security scripts used by `ci.yml` and
-   `security.yml`; deployment has a native `needs: verify` boundary and does not
-   rely on cross-workflow scheduling order.
+1. `backend` checks out the exact commit, restores the exact Go cache key, and
+   runs Shell, unit, integration, lint, and backend vulnerability gates once.
+2. `verify` uses `if: always()` and first rejects a failed backend. It then checks
+   out the same commit, restores the exact pnpm cache key, installs once, and runs
+   frontend tests followed by production audit/exception validation. The two
+   verification Jobs contain all seven gates exactly once and do not rely on
+   another workflow's scheduling or status.
 3. Build locally with an explicit `linux/amd64` platform and source-revision
    labels, then query the Gitea API before any Registry publication. If the
    commit is no longer protected `main` head, exit successfully as superseded
@@ -777,6 +791,10 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
   be privileged, no Docker TCP API is listening, and the shared socket resolves
   only inside the dedicated tmpfs volume. Job UID/GID/capability evidence matches
   section 5.3.
+- The cache endpoint is reachable by an inner rootless Job only through
+  `gitea-runner-cache:8088`; no host/public 8088 mapping exists. The exact cache
+  root is `1000:1000`, and maintenance rejects a wrong path, symlink, or owner
+  without deleting another directory.
 - NTP is synchronized, SSH rate limiting/ban policy is active, and existing
   Hermes, Komari, and administrative SSH remain healthy.
 
@@ -793,6 +811,15 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - Required push contexts are exactly `ci / required (push)` and
   `security / required (push)`; the Gitea compatibility smoke covers every
   context/secret/service/cache feature used by active workflows.
+- A non-`main` source push creates exactly four Jobs (CI two plus Security two);
+  its internal PR creates no additional `pull_request` run. An external fork gets
+  no trusted Runner, cache, secret, or required push context. A `main` push creates
+  exactly four deploy Jobs, executes all seven gates once, blocks build/deploy on
+  either verification failure, and still runs the terminal notification Job.
+- A cold run after an exact stopped-Runner clear passes all gates; rerunning the
+  same SHA and lock files records exact Go and pnpm `cache-hit=true`. The
+  20 GiB/80% post-task policy is observed without deleting `.runner`, BuildKit,
+  Registry, or Gateway data, and cold/warm DinD `memory.events` shows no new OOM.
 - No active workflow remains under `.github/workflows/`.
 
 ### 14.3 Registry, deployment, and release
@@ -872,7 +899,8 @@ No Gitea-to-GitHub updater fallback or dual release provider is added.
 - Rejected additions: Kubernetes, a second runner host, GitHub push mirror,
   application release-provider abstraction, and CI-held production
   environment payload.
-- Verdict: proceed to a written implementation plan after written-spec review.
+- Verdict: the repository implementation may proceed through local verification;
+  live Runner/Gitea/Gateway rollout remains a separately authorized gate.
 
 ## 17. ADR Signals for Completion Review
 
@@ -896,10 +924,11 @@ separate runner host.
 
 ## 18. Implementation Boundary
 
-This design authorizes planning, not implementation by itself. The
-implementation plan must include exact files, pinned image versions, commands,
-verification evidence, cutover checkpoints, rollback boundaries, and the
-specific point at which GitHub Actions are disabled.
+The original migration design authorized planning and its reviewed implementation
+plan. The 2026-07-23 performance amendment authorizes repository code, tests, and
+documentation only; it does not authorize changing the live Runner, Gitea, or
+Gateway. Live rollout must use the recorded cold/warm, event-routing, isolation,
+memory, and rollback gates above under separate authorization.
 
 Cloudflare authorization, generated administrator credentials, runner
 registration tokens, Registry PATs, deployment keys, and the Pipedream webhook

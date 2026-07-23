@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/07-23-optimize-gitea-cicd-performance/research/gitea-runner-cache-and-workflow.md","reason":"单 Runner 现状证据、Runner 2.1.0 cache 合同、rootless 网络实验、安全边界与待 live-smoke 兼容点"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"合并重复工作流和抽取统一 dispatcher/cache-key owner 时遵循仓库的去重与一致性原则"}
