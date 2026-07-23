@@ -116,6 +116,8 @@ backend/.installed
 # 其他
 # ===================
 tests
+!deploy/gitea/tests/
+!deploy/gitea/runner/tests/
 !deploy/tests/
 !deploy/tests/**
 CLAUDE.md
