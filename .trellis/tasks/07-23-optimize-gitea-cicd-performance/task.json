@@ -12,7 +12,7 @@
   "assignee": "mssy",
   "createdAt": "2026-07-23",
   "completedAt": null,
-  "branch": null,
+  "branch": "sync/upstream-0.1.164",
   "base_branch": "sync/upstream-0.1.164",
   "worktree_path": null,
   "commit": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "单 Runner 灰度及 branch cold 证据见 evidence.md；warm/cold fallback 待安全补丁提交，main/Gateway、PR/fork 门禁未授权且未执行。",
   "meta": {}
 }
