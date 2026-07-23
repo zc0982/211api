@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "单 Runner 灰度及 branch cold 证据见 evidence.md；warm/cold fallback 待安全补丁提交，main/Gateway、PR/fork 门禁未授权且未执行。",
+  "notes": "修复后 tip d283e13000c8fc957ff9832e196c43869fcf9b5a 的 branch push 证据已写入 evidence.md：attempt 1 为 Go 双 hit、pnpm miss/save 后 hit，attempt 2 为四次 exact hit 且无 miss/save，attempt 3 为精确清理后的 cold fallback；PostCSS 补丁 e40f3ff66 已提交并推送。main/Gateway、PR/fork、故障注入、后续观察及定时门禁未授权且未执行。",
   "meta": {}
 }

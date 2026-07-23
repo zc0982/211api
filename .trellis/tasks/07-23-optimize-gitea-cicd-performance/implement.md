@@ -190,12 +190,13 @@ git status --short
 
 ## 8. 真实 Gitea 上线门禁（另行授权）
 
-- [ ] 先部署 Runner config/Compose/维护脚本，验证 Runner healthy、cache 仅监听容器
+- [x] 先部署 Runner config/Compose/维护脚本，验证 Runner healthy、cache 仅监听容器
   私网、8088 无宿主端口，Docker daemon 仍只有 Unix socket。
-- [ ] smoke 分支首次运行：4 Job、七项检查、cache miss/save、两个精确 push context。
-- [ ] 对同 SHA rerun：4 Job、Go 与 pnpm `cache-hit=true`、结果一致；记录 cold/warm
-  总耗时。
-- [ ] 停止 Runner 后只清空 `/data/cache/actions`，再运行同 SHA，证明 cold fallback。
+- [x] 修复后 smoke 分支以 4 Job 完成七项检查并产生两个精确 push context；精确清理
+  后的 attempt 3 同时证明 Go/pnpm 首次 miss/save 和后续 exact hit。
+- [x] 对同 SHA rerun：attempt 2 的 4 次 Go/pnpm restore 均为精确
+  `cache-hit=true`，且没有 miss/save；已分别记录 warm 与清理后 cold fallback 总耗时。
+- [x] 停止 Runner 后只清空 `/data/cache/actions`，再运行同 SHA，证明 cold fallback。
 - [ ] 打开/更新内部 PR 不创建 pull_request run；外部 fork 负面 smoke 不调度受信
   Runner 且不能满足 push contexts。
 - [ ] 故意失败的 smoke commit 不进入 build/deploy；不得使用真实 main/Gateway 制造
