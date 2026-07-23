@@ -87,6 +87,17 @@ func TestNormalizeOpenAIPassthroughOAuthBody_StringInputBecomesList(t *testing.T
 	require.Equal(t, "hello", gjson.GetBytes(normalized, "input.0.content").String())
 }
 
+func TestNormalizeOpenAIPassthroughOAuthBody_EmptyStringInputWrappedAsEmptyArray(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.4","input":"  "}`)
+
+	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	input := gjson.GetBytes(normalized, "input")
+	require.True(t, input.IsArray())
+	require.Len(t, input.Array(), 0, "whitespace-only input should become empty array")
+}
+
 func TestNormalizeOpenAIPassthroughOAuthBody_ObjectInputBecomesList(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4-mini","input":{"type":"message","role":"user","content":"hello"}}`)
 
@@ -107,4 +118,16 @@ func TestNormalizeOpenAIPassthroughOAuthBody_MissingInputBecomesEmptyList(t *tes
 	require.True(t, changed)
 	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
 	require.Equal(t, int64(0), gjson.GetBytes(normalized, "input.#").Int())
+}
+
+func TestNormalizeOpenAIPassthroughOAuthBody_ArrayInputUnchanged(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.4","input":[{"type":"message","role":"user","content":"hi"}]}`)
+
+	normalized, _, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	require.NoError(t, err)
+
+	input := gjson.GetBytes(normalized, "input")
+	require.True(t, input.IsArray())
+	require.Len(t, input.Array(), 1)
+	require.Equal(t, "message", input.Array()[0].Get("type").String())
 }
