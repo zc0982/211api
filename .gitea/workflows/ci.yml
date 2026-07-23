@@ -2,122 +2,62 @@ name: ci
 
 "on":
   push:
-  pull_request:
+    branches-ignore:
+      - main
 
 permissions:
   contents: read
 
 jobs:
-  backend_unit:
-    name: backend-unit
+  backend:
+    name: backend
     runs-on: go-1.26.5
     steps:
-      - name: Require an internal pull request
-        env:
-          EVENT_NAME: ${{ gitea.event_name }}
-          HEAD_REPOSITORY: ${{ gitea.event.pull_request.head.repo.full_name }}
-          BASE_REPOSITORY: ${{ gitea.repository }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            [[ -n "$HEAD_REPOSITORY" && "$HEAD_REPOSITORY" == "$BASE_REPOSITORY" ]]
-          fi
       - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - run: ./tools/gitea-ci.sh backend-unit
-
-  backend_integration:
-    name: backend-integration
-    runs-on: go-1.26.5
-    steps:
-      - name: Require an internal pull request
-        env:
-          EVENT_NAME: ${{ gitea.event_name }}
-          HEAD_REPOSITORY: ${{ gitea.event.pull_request.head.repo.full_name }}
-          BASE_REPOSITORY: ${{ gitea.repository }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            [[ -n "$HEAD_REPOSITORY" && "$HEAD_REPOSITORY" == "$BASE_REPOSITORY" ]]
-          fi
-      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - run: GITEA_CI=true ./tools/gitea-ci.sh backend-integration
-
-  frontend:
-    name: frontend
-    runs-on: node-20.20.2
-    steps:
-      - name: Require an internal pull request
-        env:
-          EVENT_NAME: ${{ gitea.event_name }}
-          HEAD_REPOSITORY: ${{ gitea.event.pull_request.head.repo.full_name }}
-          BASE_REPOSITORY: ${{ gitea.repository }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            [[ -n "$HEAD_REPOSITORY" && "$HEAD_REPOSITORY" == "$BASE_REPOSITORY" ]]
-          fi
-      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - run: ./tools/gitea-ci.sh frontend
-
-  lint:
-    name: lint
-    runs-on: go-1.26.5
-    steps:
-      - name: Require an internal pull request
-        env:
-          EVENT_NAME: ${{ gitea.event_name }}
-          HEAD_REPOSITORY: ${{ gitea.event.pull_request.head.repo.full_name }}
-          BASE_REPOSITORY: ${{ gitea.repository }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            [[ -n "$HEAD_REPOSITORY" && "$HEAD_REPOSITORY" == "$BASE_REPOSITORY" ]]
-          fi
-      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - run: ./tools/gitea-ci.sh lint
-
-  shell_syntax:
-    name: shell-syntax
-    runs-on: linux-amd64
-    steps:
-      - name: Require an internal pull request
-        env:
-          EVENT_NAME: ${{ gitea.event_name }}
-          HEAD_REPOSITORY: ${{ gitea.event.pull_request.head.repo.full_name }}
-          BASE_REPOSITORY: ${{ gitea.repository }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            [[ -n "$HEAD_REPOSITORY" && "$HEAD_REPOSITORY" == "$BASE_REPOSITORY" ]]
-          fi
-      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Compute Go cache key
+        id: cache_key
+        run: printf 'key=%s\n' "$(./tools/gitea-cache-key.sh go)" >>"$GITEA_OUTPUT"
+      - name: Restore Go cache
+        id: go_cache
+        continue-on-error: true
+        uses: https://github.com/actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            /go/pkg/mod
+            /root/.cache/go-build
+          key: ${{ steps.cache_key.outputs.key }}
+      - name: Record Go cache result
+        run: printf 'go-cache-hit=%s\n' '${{ steps.go_cache.outputs.cache-hit }}'
       - run: ./tools/gitea-ci.sh shell-syntax
+      - run: ./tools/gitea-ci.sh backend-unit
+      - run: GITEA_CI=true ./tools/gitea-ci.sh backend-integration
+      - run: ./tools/gitea-ci.sh lint
 
   required:
     name: required
     if: always()
-    needs:
-      - backend_unit
-      - backend_integration
-      - frontend
-      - lint
-      - shell_syntax
-    runs-on: linux-amd64
+    needs: backend
+    runs-on: node-20.20.2
     steps:
-      - name: Require every CI job to succeed
+      - name: Require backend to succeed
         env:
-          BACKEND_UNIT_RESULT: ${{ needs.backend_unit.result }}
-          BACKEND_INTEGRATION_RESULT: ${{ needs.backend_integration.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          LINT_RESULT: ${{ needs.lint.result }}
-          SHELL_SYNTAX_RESULT: ${{ needs.shell_syntax.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
         run: |
           set -euo pipefail
-          for result in \
-            "$BACKEND_UNIT_RESULT" \
-            "$BACKEND_INTEGRATION_RESULT" \
-            "$FRONTEND_RESULT" \
-            "$LINT_RESULT" \
-            "$SHELL_SYNTAX_RESULT"; do
-            [[ "$result" == success ]]
-          done
+          [[ "$BACKEND_RESULT" == success ]]
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Compute pnpm cache key
+        id: cache_key
+        run: printf 'key=%s\n' "$(./tools/gitea-cache-key.sh pnpm)" >>"$GITEA_OUTPUT"
+      - name: Restore pnpm cache
+        id: pnpm_cache
+        continue-on-error: true
+        uses: https://github.com/actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            /root/.cache/corepack
+            /root/.local/share/pnpm/store
+          key: ${{ steps.cache_key.outputs.key }}
+      - name: Record pnpm cache result
+        run: printf 'pnpm-cache-hit=%s\n' '${{ steps.pnpm_cache.outputs.cache-hit }}'
+      - run: ./tools/gitea-ci.sh frontend

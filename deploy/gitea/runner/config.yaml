@@ -12,9 +12,17 @@ runner:
   insecure: false
   labels: []
   allocate_pty: false
+  post_task_script: /usr/local/bin/gitea-runner-cache-maintenance
+  post_task_script_timeout: 2m
 
 cache:
-  enabled: false
+  enabled: true
+  dir: /data/cache/actions
+  host: gitea-runner-cache
+  port: 8088
+  external_server: ""
+  external_secret: ""
+  offline_mode: true
 
 container:
   network: ""

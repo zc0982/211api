@@ -126,6 +126,9 @@ services:
     configs:
       - source: runner_config
         target: /etc/gitea-runner/config.yaml
+      - source: runner_cache_maintenance
+        target: /usr/local/bin/gitea-runner-cache-maintenance
+        mode: 0555
     volumes:
       - runner_data:/data
       - runner_runtime:/run/user/1000
@@ -135,12 +138,18 @@ services:
     pids_limit: 256
     privileged: false
     networks:
-      - runner
+      runner:
+        aliases:
+          - gitea-runner-cache
+    expose:
+      - "8088"
     logging: *local-logging
 
 configs:
   runner_config:
     file: ./config.yaml
+  runner_cache_maintenance:
+    file: ./cache-maintenance.sh
 
 volumes:
   runner_data:
