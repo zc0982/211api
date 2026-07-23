@@ -52,6 +52,22 @@ the production-dependency audit. Any failed phase returns non-zero.
 The production command accepts no path argument. It may operate only on
 `/data/cache/actions` and keeps that root directory after cleanup.
 
+### Runner state/cache volume initializer
+
+```text
+docker run --rm --network none --read-only --user 0:0 \
+  --cap-drop ALL \
+  --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER \
+  --security-opt no-new-privileges:true \
+  --mount type=volume,src=gitea-runner-data,dst=/data \
+  "$APP_ALPINE_IMAGE" sh -ec '<initialize and assert exact paths>'
+```
+
+The initializer creates only `/data/cache/actions`, normalizes `/data`,
+`/data/cache`, and `/data/cache/actions` to `1000:1000` mode `0700`, then
+asserts all three owner/mode pairs. It is idempotent and must not read, rewrite,
+chmod, chown, or delete the sibling `/data/.runner` registration-state file.
+
 ## 3. Contracts
 
 ### Workflow topology
@@ -110,6 +126,16 @@ The maintenance hook requires the exact cache path to be a real directory owned
 by `1000:1000`. It clears direct children when size exceeds 20 GiB or filesystem
 usage reaches 80%. Production Compose must not set test threshold overrides.
 
+Initialize the shared Runner state volume before recreating the Runner. The
+initializer must run as explicit UID/GID `0:0` with all capabilities dropped and
+only `DAC_OVERRIDE`, `CHOWN`, and `FOWNER` restored. `CHOWN` changes ownership,
+but it does not authorize a later `chmod` after the directory belongs to UID
+1000; `FOWNER` is therefore required for the exact `0700` postcondition.
+`DAC_OVERRIDE` is required when the idempotent second run traverses the already
+normalized `1000:1000` mode-`0700` parents. Do not add broader capabilities,
+make the container privileged, or replace the named volume to repair
+permissions, because the same volume contains `.runner`.
+
 ## 4. Validation & Error Matrix
 
 | Condition | Required behavior |
@@ -119,6 +145,9 @@ usage reaches 80%. Production Compose must not set test threshold overrides.
 | Cache key kind/arity is invalid | Exit `64`, print no usable key |
 | Cache-key input is missing or a symlink | Exit non-zero |
 | Cache root is missing, symlinked, or not owned by `1000:1000` | Exit non-zero and delete nothing |
+| Volume initializer is run against an empty volume | Create the missing `/data/cache/actions` path and normalize `/data`, `/data/cache`, and `/data/cache/actions` to `1000:1000` mode `0700` |
+| Volume initializer is run again with an existing `.runner` | Succeed with identical directory postconditions and leave `.runner` byte-for-byte and metadata unchanged |
+| Initializer omits `FOWNER` after chowning directories to UID 1000 | `chmod` may fail; treat initialization as failed and do not recreate the Runner |
 | Cache size `>20 GiB` or filesystem use `>=80%` | Delete direct children only; keep cache root |
 | Action ref is floating or absent from lock file | Static workflow contract test fails |
 | Host port `8088` is published | Runner configuration test fails |
@@ -151,7 +180,9 @@ deploy/gitea/runner/tests/smoke-rootless-dind.sh
 Assertions must cover command failure propagation, one frontend install in
 `frontend-all`, exact key inputs and arity, immutable Action refs, event/job
 counts and dependency order, no host cache port, cache cleanup thresholds and
-path/owner guards, and DNS/HTTP reachability from a real rootless DinD job.
+path/owner guards, restricted-capability volume initialization, two consecutive
+initializer runs preserving `.runner` content and metadata, and DNS/HTTP
+reachability from a real rootless DinD job.
 
 Repository tests do not replace live Gitea validation. Before rollout is
 considered complete, verify branch/tag routing, exact protected contexts, cold
@@ -174,6 +205,22 @@ This duplicates trusted work for internal PRs, schedules fork PRs on the trusted
 Runner, points nested jobs at the wrong network namespace, and exposes the cache
 on the host.
 
+```bash
+docker run --rm --network none --read-only --user 0:0 \
+  --cap-drop ALL \
+  --cap-add DAC_OVERRIDE --cap-add CHOWN \
+  --security-opt no-new-privileges:true \
+  --mount type=volume,src=gitea-runner-data,dst=/data \
+  "$APP_ALPINE_IMAGE" sh -ec '
+    mkdir -p /data/cache/actions
+    chown 1000:1000 /data /data/cache /data/cache/actions
+    chmod 0700 /data /data/cache /data/cache/actions
+  '
+```
+
+After `chown`, UID 0 no longer owns the directory and has neither `FOWNER` nor
+the full root capability set, so the `chmod` is not a valid deployment contract.
+
 ### Correct
 
 ```yaml
@@ -188,3 +235,22 @@ expose:
 
 Internal PRs consume their head-push statuses, while rootless DinD jobs reach
 the cache through its private network alias without a host-published port.
+
+```bash
+docker run --rm --network none --read-only --user 0:0 \
+  --cap-drop ALL \
+  --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER \
+  --security-opt no-new-privileges:true \
+  --mount type=volume,src=gitea-runner-data,dst=/data \
+  "$APP_ALPINE_IMAGE" sh -ec '
+    mkdir -p /data/cache/actions
+    chown 1000:1000 /data /data/cache /data/cache/actions
+    chmod 0700 /data /data/cache /data/cache/actions
+    test "$(stat -c "%u:%g %a" /data)" = "1000:1000 700"
+    test "$(stat -c "%u:%g %a" /data/cache)" = "1000:1000 700"
+    test "$(stat -c "%u:%g %a" /data/cache/actions)" = "1000:1000 700"
+  '
+```
+
+The least-capability initializer can enforce the owner/mode postcondition while
+leaving the existing registration file outside its mutation set.

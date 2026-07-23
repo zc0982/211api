@@ -364,21 +364,24 @@ into the isolated DinD daemon after that daemon is healthy.
 Initialize the persistent Runner state volume and its exact action-cache
 directory. Registration state and cache data share this named volume, so the
 cache directory is created explicitly as UID/GID 1000 and must never be cleaned
-by deleting the volume. This utility container is networkless and
-non-privileged; it does not initialize DinD data or any host path.
+by deleting the volume. The command is idempotent and must leave an existing
+`/data/.runner` registration-state file unchanged. This utility container is
+networkless and non-privileged; it does not initialize DinD data or any host
+path.
 
 ```bash
 sudo docker volume create gitea-runner-data >/dev/null
-sudo docker run --rm --network none --read-only \
-  --cap-drop ALL --cap-add DAC_OVERRIDE --cap-add CHOWN \
+sudo docker run --rm --network none --read-only --user 0:0 \
+  --cap-drop ALL --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER \
   --security-opt no-new-privileges:true \
   --mount type=volume,src=gitea-runner-data,dst=/data \
   "$APP_ALPINE_IMAGE" sh -ec '
     mkdir -p /data/cache/actions
     chown 1000:1000 /data /data/cache /data/cache/actions
     chmod 0700 /data /data/cache /data/cache/actions
-    test "$(stat -c "%u:%g" /data)" = 1000:1000
-    test "$(stat -c "%u:%g" /data/cache/actions)" = 1000:1000
+    test "$(stat -c "%u:%g %a" /data)" = "1000:1000 700"
+    test "$(stat -c "%u:%g %a" /data/cache)" = "1000:1000 700"
+    test "$(stat -c "%u:%g %a" /data/cache/actions)" = "1000:1000 700"
   '
 ```
 

@@ -17,6 +17,20 @@ cleanup() { docker volume rm -f "$volume" >/dev/null 2>&1 || true; }
 trap cleanup EXIT HUP INT TERM
 
 docker volume create "$volume" >/dev/null
+initialize_cache_volume() {
+  docker run --rm --network none --read-only --user 0:0 \
+    --cap-drop ALL --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER \
+    --security-opt no-new-privileges:true \
+    --mount "type=volume,src=$volume,dst=/data" \
+    "$APP_ALPINE_IMAGE" sh -ec '
+      mkdir -p /data/cache/actions
+      chown 1000:1000 /data /data/cache /data/cache/actions
+      chmod 0700 /data /data/cache /data/cache/actions
+      test "$(stat -c "%u:%g %a" /data)" = "1000:1000 700"
+      test "$(stat -c "%u:%g %a" /data/cache)" = "1000:1000 700"
+      test "$(stat -c "%u:%g %a" /data/cache/actions)" = "1000:1000 700"
+    '
+}
 run_root() {
   docker run --rm --user 0:0 --mount "type=volume,src=$volume,dst=/data" \
     "$APP_ALPINE_IMAGE" sh -ec "$1"
@@ -43,7 +57,13 @@ run_production_defaults() {
     "$RUNNER_IMAGE"
 }
 
-run_root 'mkdir -p /data/cache/actions/nested /data/cache/other; chown -R 1000:1000 /data/cache; touch /data/cache/actions/keep /data/cache/actions/.hidden /data/cache/actions/nested/item /data/cache/other/untouched'
+run_root 'printf "%s\n" preserved-registration-state > /data/.runner; chown 1000:1000 /data/.runner; chmod 0600 /data/.runner'
+registration_state_before=$(run_root 'sha256sum /data/.runner; stat -c "%u:%g %a %s %X %Y %Z" /data/.runner')
+initialize_cache_volume
+initialize_cache_volume
+registration_state_after=$(run_root 'sha256sum /data/.runner; stat -c "%u:%g %a %s %X %Y %Z" /data/.runner')
+test "$registration_state_after" = "$registration_state_before"
+run_root 'test "$(stat -c "%u:%g %a" /data)" = "1000:1000 700"; test "$(stat -c "%u:%g %a" /data/cache)" = "1000:1000 700"; test "$(stat -c "%u:%g %a" /data/cache/actions)" = "1000:1000 700"; mkdir -p /data/cache/actions/nested /data/cache/other; chown -R 1000:1000 /data/cache; touch /data/cache/actions/keep /data/cache/actions/.hidden /data/cache/actions/nested/item /data/cache/other/untouched'
 run_production_defaults >/dev/null
 run_maintenance 100 101 >/dev/null
 run_root 'test -f /data/cache/actions/keep; test -f /data/cache/actions/.hidden; test -f /data/cache/actions/nested/item; test -f /data/cache/other/untouched; test -d /data/cache/actions'
