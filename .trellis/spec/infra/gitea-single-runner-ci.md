@@ -3,7 +3,8 @@
 ## 1. Scope / Trigger
 
 Use this contract whenever changing `.gitea/workflows/`, `.gitea/actions.lock`,
-`tools/gitea-ci.sh`, `tools/gitea-cache-key.sh`, or `deploy/gitea/runner/`.
+`tools/gitea-ci.sh`, `tools/gitea-cache-key.sh`, or `deploy/gitea/runner/`, and
+when validating the internal-PR or external-fork event boundary on live Gitea.
 
 The target is the existing self-hosted Gitea Runner. Its security boundary is
 part of the feature: keep `runner.capacity: 1`, rootless DinD, the existing CPU
@@ -68,6 +69,27 @@ The initializer creates only `/data/cache/actions`, normalizes `/data`,
 asserts all three owner/mode pairs. It is idempotent and must not read, rewrite,
 chmod, chown, or delete the sibling `/data/.runner` registration-state file.
 
+### Internal PR live-smoke API
+
+```http
+POST /api/v1/repos/{owner}/{repo}/pulls
+Content-Type: application/json
+
+{
+  "title": "WIP: <reviewed smoke title>",
+  "head": "<same-repository source branch>",
+  "base": "main",
+  "body": "<exact SHA and no-merge/no-Gateway boundary>",
+  "allow_maintainer_edit": false
+}
+```
+
+Gitea 1.26.4's live `CreatePullRequestOption` does not expose a `draft` request
+field. Use the configured `WIP:` title convention and require the create
+response and later GET to report `draft=true`, the exact head/base SHAs,
+`merged=false`, and `allow_maintainer_edit=false`. Never print or persist the
+root-only API credential while recording this evidence.
+
 ## 3. Contracts
 
 ### Workflow topology
@@ -85,6 +107,21 @@ lint, shell syntax, backend vulnerability, and frontend production dependency
 audit. A downstream Node job must validate the upstream Go result before
 checkout or dependency preparation. Release workflow branch/tag behavior is not
 changed by this contract.
+
+### Internal PR evidence boundary
+
+Snapshot the exact source and `main` SHAs, existing PRs, head-SHA runs, Runner
+idle state, cache size, and latest required contexts before creating the PR.
+Opening the reviewed WIP PR must leave the head with only its existing `push`
+runs and zero `pull_request` runs. Validate separately that `main` protection
+requires exactly `ci / required (push)` and `security / required (push)`, and
+that the head's latest statuses for those names are successful.
+
+Those observations prove the event boundary and an exact match between the
+head statuses and the protection contract. Do not claim that an API returned a
+PR-specific status rollup unless that concrete response field was observed.
+Treat opening a PR and later updating its head as separate live gates; a push
+while the PR is open must still create only the four expected `push` jobs.
 
 ### Dependency and cache wiring
 
@@ -152,6 +189,10 @@ permissions, because the same volume contains `.runner`.
 | Action ref is floating or absent from lock file | Static workflow contract test fails |
 | Host port `8088` is published | Runner configuration test fails |
 | A required verification step fails on `main` | Build/deploy must not run; final notification still runs |
+| Live create-PR schema has no `draft` field | Use a reviewed `WIP:` title and assert `draft=true` in the response; do not invent a request field |
+| Opening an internal PR adds a `pull_request` run or Runner job | Stop rollout and restore the event graph before merge |
+| Head statuses and `main` protection names differ | Treat the protection gate as unproved; do not infer success from PR state or `mergeable` |
+| Only PR opening has been observed | Keep PR head-update smoke pending until a later reviewed source push proves zero PR jobs again |
 
 ## 5. Good / Base / Bad Cases
 
@@ -159,6 +200,11 @@ permissions, because the same volume contains `.runner`.
   executes all seven gates once, and emits both protected contexts.
 - **Base**: the cache is empty or unavailable; the same push downloads upstream
   dependencies, passes all gates, and may populate cache afterward.
+- **Good (internal PR)**: a WIP Draft PR points at an already successful exact
+  head SHA, creates no new workflow run, and its two required head statuses
+  match the exact `main` protection context names.
+- **Base (PR head update)**: a later reviewed source push updates the open PR;
+  exactly four `push` jobs run and no `pull_request` job is created.
 - **Bad**: a fork PR, floating Action tag, published cache port, cache-root
   symlink, or failed upstream gate gains access to later trusted work. Static or
   live validation must reject each case.
@@ -188,6 +234,10 @@ Repository tests do not replace live Gitea validation. Before rollout is
 considered complete, verify branch/tag routing, exact protected contexts, cold
 fallback, save/restore/hit behavior, failure blocking, final notification,
 host/public port exposure, cleanup invocation, timing, and memory/OOM behavior.
+For the PR boundary, record opening and head-update observations separately:
+exact SHAs, run IDs/events/counts, latest required statuses, protection context
+names, Runner/cache state, and the absence of `pull_request` work. PR `draft` or
+`mergeable` alone is not proof that required statuses matched.
 
 ## 7. Wrong vs Correct
 
@@ -204,6 +254,19 @@ ports:
 This duplicates trusted work for internal PRs, schedules fork PRs on the trusted
 Runner, points nested jobs at the wrong network namespace, and exposes the cache
 on the host.
+
+```json
+{
+  "title": "CI smoke",
+  "head": "unreviewed-branch",
+  "base": "main",
+  "draft": true
+}
+```
+
+This invents a field absent from Gitea 1.26.4's live create-PR schema, omits the
+reviewed exact-SHA/no-merge boundary, and cannot by itself prove anything about
+Runner dispatch or protected contexts.
 
 ```bash
 docker run --rm --network none --read-only --user 0:0 \
@@ -233,8 +296,24 @@ expose:
   - "8088"
 ```
 
-Internal PRs consume their head-push statuses, while rootless DinD jobs reach
+An internal PR opening creates no new trusted workflow work, and its head's
+push-status names match the exact protection contract. Rootless DinD jobs reach
 the cache through its private network alias without a host-published port.
+
+```json
+{
+  "title": "WIP: ci: reviewed single-Runner smoke",
+  "head": "reviewed-source-branch",
+  "base": "main",
+  "body": "Exact head/base SHA; do not merge main or operate Gateway.",
+  "allow_maintainer_edit": false
+}
+```
+
+Create exactly once after fail-closed SHA/status preconditions, then assert the
+returned Draft/head/base fields and prove zero additional `pull_request` runs.
+Compare the head's latest two required statuses with the exact `main` protection
+context set instead of inferring that relationship from PR mergeability.
 
 ```bash
 docker run --rm --network none --read-only --user 0:0 \

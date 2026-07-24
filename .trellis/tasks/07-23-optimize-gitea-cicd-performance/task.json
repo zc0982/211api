@@ -16,11 +16,11 @@
   "base_branch": "sync/upstream-0.1.164",
   "worktree_path": null,
   "commit": null,
-  "pr_url": null,
+  "pr_url": "https://git.211api.com/211api/211api/pulls/10",
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "修复后 tip d283e13000c8fc957ff9832e196c43869fcf9b5a 的 branch push 证据已写入 evidence.md：attempt 1 为 Go 双 hit、pnpm miss/save 后 hit，attempt 2 为四次 exact hit 且无 miss/save，attempt 3 为精确清理后的 cold fallback；PostCSS 补丁 e40f3ff66 已提交并推送。main/Gateway、PR/fork、故障注入、后续观察及定时门禁未授权且未执行。",
+  "notes": "内部 PR opening smoke 已通过：Draft PR #10（head 484aba68c0d4d75417037a1adf3ee3375b9ad7f4）创建前后及延迟复核均只有 run 198/199 两个 push run，pull_request run 为 0；required push contexts 与 main 保护合同一致。自然后续 push 484 的 4 Job warm 观察也已写入 evidence.md。外部 fork、故障注入、合并后的 main/Gateway/部署/通知、另一后续 source push 与定时门禁仍未授权且未执行。",
   "meta": {}
 }

@@ -5,12 +5,13 @@
 - 授权范围：仅优化并灰度现有单机 Runner；允许推送当前分支、执行同 SHA 的
   cold/warm smoke 及停 Runner 后清空精确 action cache 的 cold fallback。
 - 分支：`sync/upstream-0.1.164`。
-- 当前被测提交：`d283e13000c8fc957ff9832e196c43869fcf9b5a`。PostCSS 安全补丁
+- 第 5 节 cold/warm 对照的被测提交：
+  `d283e13000c8fc957ff9832e196c43869fcf9b5a`。PostCSS 安全补丁
   `e40f3ff66` 已提交并随该 tip 推送；下文当前 SHA 的 attempt 1 是 Go warm / pnpm
   cold，attempt 2 是四次 exact hit，attempt 3 是精确清理后的 cold fallback。所有时间
   均为 UTC。
-- 未合并 `main`，未修改或部署 Gateway；内部 PR/fork、`main` 部署图和后续定时运行
-  仍是独立 live gate，不能由本文现有证据替代。
+- 未合并 `main`，未修改或部署 Gateway；内部 PR head update、外部 fork、`main` 部署图
+  和后续定时运行仍是独立 live gate，不能由本文现有证据替代。
 
 ## 2. 优化前基线
 
@@ -222,6 +223,64 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
 - cache 是可重建性能层；失败时可先停止 Runner、恢复 config/compose、移除
   maintenance 脚本，再只重建 Runner。不得删除 Runner 注册卷或 DinD 数据。
 - 当前证明单机 Runner 灰度、私网隔离，以及修复后源分支 push 的混合预热 attempt、
-  四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR 无新增 run、fork
-  负面行为、故障阻断、`main` 4 Job 自包含部署图、Gateway 与最终通知、后续源分支观察
-  及定时安全运行仍待单独授权或自然事件；任务保持 `in_progress`。
+  四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR opening、后续源分支观察
+  的新增证据见第 8 节；PR head update、外部 fork 负面行为、故障阻断、`main` 4 Job
+  自包含部署图、Gateway 与最终通知、另一后续源分支观察及定时安全运行仍待单独授权或
+  自然事件；任务保持 `in_progress`。
+
+## 8. 内部 PR opening smoke 与自然后续 push（2026-07-24）
+
+### 8.1 内部 PR opening smoke
+
+在未合并 `main`、未触碰 Gateway 或部署的前提下，创建了保持 Draft 的内部 PR
+[#10](https://git.211api.com/211api/211api/pulls/10)：
+
+| 字段 | 观察值 |
+| --- | --- |
+| 创建时间（UTC） | `2026-07-24T01:12:54Z` |
+| 标题 | `WIP: ci: 优化现有单机 Runner 流水线性能` |
+| 状态 | `open`；`draft=true`；`merged=false`；`mergeable=false`；`allow_maintainer_edit=false` |
+| head | `sync/upstream-0.1.164` / `484aba68c0d4d75417037a1adf3ee3375b9ad7f4` |
+| base | `main` / `34be916c487f261f9e034c726be13c773be8489a` |
+
+创建前、创建后及延迟复核均显示该 head 仅有 run `198`、`199` 两个已完成的
+`event=push` run；`pull_request` run 计数为 0，未出现新的 Job 或 Runner 接单。
+这只证明“打开内部 PR”不会追加受信 Runner 工作；尚未执行或证明 PR head update。
+
+`main` 分支保护保持 `enable_status_check=true`，contexts 精确为
+`ci / required (push)` 和 `security / required (push)`。该 head 的聚合 commit status
+为 `success`、`total_count=4`，最新四个 context 均为 success：
+
+| Context | 最新 status DB ID | 状态 |
+| --- | ---: | --- |
+| `ci / backend (push)` | `2723` | success |
+| `security / backend (push)` | `2726` | success |
+| `ci / required (push)` | `2729` | success |
+| `security / required (push)` | `2731` | success |
+
+因此，已确认受保护 context 的名称和成功状态与保护合同精确一致；不对 API 未直接暴露的
+额外 rollup 字段作出声明。
+
+### 8.2 自然后续 source push `484aba68...` 的 warm 观察
+
+PR opening 前，同一 head 的自然后续 source push 已产生 run `198`、`199`，合计 4 个
+Job；总关键跨度为 884 秒，四个 Job 耗时依次为 692、62、107、23 秒，合计同为 884
+秒。四次 Go/pnpm restore 均为精确 `cache-hit=true`，没有 miss/save。此为一次已发生的
+后续源分支 push warm 观察，不是 PR head update，也不替代仍缺的另一次后续 push、
+`main` 运行或定时安全运行证据。
+
+结束时 Runner 为 `online`、`busy=false`；action cache 保持 3 个直接子项、
+`1022864 KiB`，目录为 `1000:1000 0700`。Runner 与 DinD restart 均为 0，
+`OOMKilled=false`；DinD 峰值内存为 4.445 GiB，`memory.events` 为：
+
+```text
+low 0
+high 0
+max 296
+oom 0
+oom_kill 0
+oom_group_kill 0
+```
+
+外部 fork 负面 smoke、故障注入阻断、合并后的 `main`/Gateway/部署/通知、另一次后续
+source push 与定时安全运行仍未获授权且未执行；PR #10 保持 open Draft。

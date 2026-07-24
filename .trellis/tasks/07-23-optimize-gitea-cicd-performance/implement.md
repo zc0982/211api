@@ -197,8 +197,11 @@ git status --short
 - [x] 对同 SHA rerun：attempt 2 的 4 次 Go/pnpm restore 均为精确
   `cache-hit=true`，且没有 miss/save；已分别记录 warm 与清理后 cold fallback 总耗时。
 - [x] 停止 Runner 后只清空 `/data/cache/actions`，再运行同 SHA，证明 cold fallback。
-- [ ] 打开/更新内部 PR 不创建 pull_request run；外部 fork 负面 smoke 不调度受信
-  Runner 且不能满足 push contexts。
+- [x] 内部 PR opening smoke：打开 Draft PR 后不创建 `pull_request` run；head 聚合
+  commit status 为 success，两个 required context 的名称与成功状态和 `main` 保护合同
+  精确一致。仅已验证打开 PR，尚未验证 PR head update，也不声称 API 直接返回了 PR
+  消费 contexts 的额外 rollup 字段。
+- [ ] 外部 fork 负面 smoke：不调度受信 Runner，且不能满足 push contexts。
 - [ ] 故意失败的 smoke commit 不进入 build/deploy；不得使用真实 main/Gateway 制造
   失败实验。
 - [ ] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
