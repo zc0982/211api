@@ -41,9 +41,11 @@ max 大于 reserved。当前 GiB 数值仅为这一 image/storage 组合的观�
   `216`/`217` 的 CI/Security success），但尚未进入 `main`、未 deploy，也未产生新的真实通知
   路径；仍需 adapter outcome 与 Telegram 实际收件证据。
 - [ ] 自然触发的 scheduled security 2 Job 尚未发生。
-- [ ] design §3.1/§7.2 所要求、针对当前 workflow 的临时非 `v*` tag 负面 smoke 尚未执行。
-  历史 `v0.1.160-gitea-smoke.2`（run `140`/`141`/`142`）发生在触发器优化前，且当时 tag 会
-  触发 ci/security，不能替代当前负面 smoke。
+- [x] design §3.1/§7.2 所要求、针对当前 workflow 的临时非 `v*` tag 负面 smoke 已完成：
+  `ci-no-workflow-smoke-3d5d8ac8` 指向 `3d5d8ac8...`，在 `10:23:48Z`–`10:26:20Z` 的约
+  152 秒观察中远端 tag 保持指向该 SHA、max run ID 始终为 `219`、`new_runs=[]`、Runner idle；
+  ci/security/deploy/release 均未调度。远端 ref 已精确删除并由 `ls-remote` 验空，随后同名本地
+  tag 亦删除；不替代通知或自然 scheduled gate。详见 evidence.md §10.5。
 
 ## 1. 先建立失败的合同测试
 
@@ -290,6 +292,13 @@ git status --short
   （security）两条 success `push` run、四个严格串行 Job；七项门禁各一次、四次 Go/pnpm
   restore 均为精确 hit，且无 `pull_request`、deploy、release 或重复 run。该 SHA 仍未进入
   `main`，Gateway、Registry 与真实通知均未触碰；详见 evidence.md §10.4。
+- [x] 最新 `3d5d8ac8dc107eaaeb1e5b232a41eb037adeb880` source push 仅产生 run `218`（ci）
+  与 `219`（security）两条 success `push` run，四个 Job（873–876）在 Runner `1` 严格串行
+  923 秒；七项门禁各一次、2 次 Go 与 2 次 pnpm 精确 hit，`ci / backend (push)`、
+  `ci / required (push)`、`security / backend (push)`、`security / required (push)` 四个 context
+  全部 success，未产生 `pull_request`/deploy/release/重复 run。完成后执行并完全清理精确非 `v*` tag
+  `ci-no-workflow-smoke-3d5d8ac8`：152 秒内无新 run（max ID 219），故当前 tag 负向 live gate
+  已关闭；本次未触碰 main/Gateway/Registry/真实通知，且未执行 prune。详见 evidence.md §10.5。
 - [ ] 已观察一个 `main` run：`95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的唯一 deploy
   run `215` 已完成；但实际通知投递失败，整体 gate 仍未通过。下次定时安全运行的 2 Job
   证据仍待自然事件；若兼容点失败，执行回滚而非放宽门禁。

@@ -13,8 +13,8 @@
 - 第 1–8 节记录的灰度与 smoke 阶段未合并 `main`，也未修改或部署 Gateway；内部 PR 的
   opening/head update 与外部 Fork 隔离，以及故障传播和最终通知 Job 调度均已验证。故障
   smoke 不证明真实通知投递或 `main` 部署。后续经授权完成的 `main` 部署观察见第 9 节，
-  通知诊断补丁的保留源分支观察见第 10 节；实际通知、当前 workflow 的非 `v*` tag 负面
-  smoke 与后续定时运行仍是独立 live gate。PRD R3 的 BuildKit 容量语义已由锁定
+  通知诊断补丁的保留源分支观察与当前 workflow 的非 `v*` tag 负面 smoke 见第 10 节；实际通知
+  与后续定时运行仍是独立 live gate。PRD R3 的 BuildKit 容量语义已由锁定
   docker-driver 的默认自动 GC policy、无 daemon override 与 live inspect 解决；这证明
   运行态有界 policy，不声称已观察到阈值触发、GC sweep 或自动删除。
 
@@ -248,8 +248,9 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
   四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR opening 与 head update、
   后续源分支 push、外部 Fork 隔离，以及故障传播/最终通知 Job 调度的新增证据见第
   8 节；故障 smoke 只证明 `needs`/`always()` 与最终通知 Job 调度，不替代真实通知投递。
-  经批准合并后的真实 `main` 4 Job/七项各一次/镜像与部署/实际通知/Gateway，以及下一次
-  scheduled security run 仍待单独授权或自然事件；任务保持 `in_progress`。
+  经批准合并后的真实 `main` 4 Job、七项各一次、镜像/部署与 Gateway 证据见第 9 节，但
+  实际通知投递失败；通知补丁进入 `main` 后的 adapter 接受与 Telegram 收件，以及下一次
+  自然 scheduled security 2 Job 仍待完成。任务保持 `in_progress`。
 
 ## 8. 内部 PR lifecycle smoke 与后续 source push（2026-07-24）
 
@@ -560,7 +561,8 @@ Gateway 的 `main_head`、`state.commit` 与 `current_image` 同此 revision 对
 
 针对该次 `main` live 观察，独立 Trellis 最终判定为 FAIL，其中唯一失败项为实际通知投递；
 其余本次 main deploy、Registry、Gateway、cache 运行状态与资源不变量均已通过。这不表示任务
-整体只剩通知：下次 scheduled security 与当前 workflow 的非 `v*` tag 负面 smoke 也仍保持待办。
+整体仍需真实通知与下次自然 scheduled security；它们是独立 gate，不能由 source push 或 tag
+负向冒烟替代。
 
 只读历史诊断表明，这不是已知的连续通知故障：最近一次 adapter accepted 为 run `192` /
 job `817`（SHA `34be...`，`2026-07-23T14:17:16Z`–`14:17:20Z`），结论 success，实际
@@ -670,6 +672,46 @@ bindings 为 0，宿主 `8088`/`2375`/`2376` listener 为 0。DinD build cache �
 `buildx inspect default` 自动 GC policy 证据共同满足 R3 的容量语义，但不构成发生过自动删除的证明。
 
 这次观察不涉及 `main`、deploy、Gateway、Registry 或真实通知，不能作为 run `215` 修复、adapter
-接受或 Telegram 收件的证据。scheduled security 的自然事件、当前 workflow 的非 `v*` tag
-负面 smoke、合并后真实 `main` 通知验证仍待办；R3/BuildKit 容量语义已由上述默认自动
-GC policy 与 live inspect 解决。
+接受或 Telegram 收件的证据。R3/BuildKit 容量语义已由上述默认自动 GC policy 与 live inspect
+解决；自然 scheduled security 与合并后真实 `main` 通知验证仍待办。
+
+### 10.5 最新 source push 与非 `v*` tag 负向 smoke（2026-07-24 UTC）
+
+`3d5d8ac8dc107eaaeb1e5b232a41eb037adeb880` 已推送到保留源分支
+`sync/upstream-0.1.164`。该 SHA 恰好只创建两条新 run：CI run `218` 与 Security run
+`219`，均为 `push`、`completed/success`；没有 `pull_request`、deploy、release 或重复 run。
+在 `capacity: 1` 下四个成功 Job 均为 Runner `1`、attempt `1` 且严格串行，首尾窗口为
+923 秒：
+
+| Run / Job | Job / task | 时间（UTC） | 耗时 |
+| --- | --- | --- | ---: |
+| `218 ci` / `backend` | `873` / `822` | 10:00:53–10:12:56 | 723 s |
+| `219 security` / `backend` | `875` / `823` | 10:12:57–10:13:59 | 62 s |
+| `218 ci` / `required` | `874` / `824` | 10:13:59–10:15:53 | 114 s |
+| `219 security` / `required` | `876` / `825` | 10:15:53–10:16:16 | 23 s |
+
+原始 Job 日志的 `::group::Run` 恰有七项门禁各一次：`shell-syntax`、`backend-unit`、
+`backend-integration`、`lint`、`security-backend`、`frontend`、`security-frontend`。四次
+restore 均输出 `Cache restored successfully`，并恰有两次 `go-cache-hit=true` 与两次
+`pnpm-cache-hit=true`；没有 cache save、restore/save failure 或 miss。aggregate status 为
+`success`、`total_count=4`，四个 contexts（`ci / backend (push)`、`ci / required (push)`、
+`security / backend (push)`、`security / required (push)`）均为 success；`main` 保护仍只要求
+`ci / required (push)` 与 `security / required (push)`。
+
+完成后 Runner id `1` 为 `online`、`busy=false`；Runner/DinD 均 running、restart `0`、
+`OOMKilled=false`，cgroup `oom*=0`。内层容器为 0，published bindings 为空，宿主
+`8088`/`2375`/`2376` listener 均为 0。action cache 为 `1022864 KiB`、`1000:1000`、`0700`、
+3 个直接子项，所在文件系统使用率 17%；Build Cache 为 22.72 GB、`docker system df`
+reclaimable 为 20.01 GB。本轮没有执行 prune，不能把既有 Builder GC policy 表述为本轮清理。
+
+随后以精确临时 tag `ci-no-workflow-smoke-3d5d8ac8` 指向该 SHA。预检确认本地和远端均不存在
+该 tag、基线 max run ID 为 `219` 且 Runner idle。自 `10:23:48Z` 至 `10:26:20Z`（约 152 秒），
+远端 tag 始终解析为 `3d5d8ac8`、max run ID 始终为 `219`、`new_runs=[]`，Runner 一直
+`online/busy=false`。因此当前 `ci`、`security`、`deploy`、`release` workflow 均未被该非
+`v*` tag 调度。
+
+观察结束后先精确删除远端 `refs/tags/ci-no-workflow-smoke-3d5d8ac8`，并以 `ls-remote` 确认
+为空，再删除同名本地 tag；最终本地 tag list 与远端 `ls-remote` 均为空。source branch 仍为
+`3d5d8ac8...`、max run 仍为 `219`、`new_runs=[]`，Runner/DinD restart 仍为 0、OOM 为 false。
+这关闭当前 workflow 的非 `v*` tag 负向 smoke gate；它没有触碰 `main`、Gateway、Registry 或
+真实通知，也不替代仍待完成的 adapter/Telegram 投递和自然 scheduled security 2 Job 证据。
