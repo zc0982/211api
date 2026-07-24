@@ -226,13 +226,33 @@ git status --short
     通知 Job 最终调度，不替代真实 `main` 的构建、部署和实际消息投递证据。
 - [ ] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
   一次；记录内存峰值和 `memory.events`，无新增 OOM。
+  - [x] `95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的唯一 main `deploy.yml` run `215`
+    为 4 个严格串行 Job（865–868），七项检查各一次；BuildKit/export、Registry push 与
+    Gateway deploy 各一次，Go/pnpm exact hit，Runner/DinD restart 与 OOM 均为 0，
+    `memory.events max=296`、`oom*=0`。Registry/Gateway revision 和 immutable digest
+    对齐；详情见 evidence.md §9。
+  - [ ] job `868` 虽 API success，但实际日志为 `Deployment notification delivery failed;
+    deployment result is unchanged.`（`skip=0`、`delivery_failed=1`）。实际 adapter
+    接受与 Telegram 收件均未证明；独立 Trellis 最终 gate 因此 FAIL，不能勾选本项。只读历史
+    显示 run `192`/job `817` 与 run `185`/job `780` 曾实际 `guard accepted=1`、
+    `delivery_failed=0`，故 `215` 是当前单次失败而非已知连续故障；backup preflight 的
+    `non-2xx=0` 发生在 Telegram 分支之前，不能替代实际投递证据。
+  - [x] 已完成本地未上线的通知失败安全诊断补丁与 12/12 已执行回归；两轮独立
+    trellis-check 及主 Agent 最终静态/通知/工作流合同检查均 PASS。补丁采用严格 HTTPS
+    Pipedream endpoint 验证、单次 15 秒可取消 fetch、无敏感输出的 outcome marker 与外层
+    soft-fail；Phase 3.3 的 infra spec sync 亦已完成并经独立检查 PASS；详情见 evidence.md
+    §10。本项未推送、未部署、未触发真实通知，不能将其视为
+    run `215` 已修复、adapter 接受或 Telegram 收件的证据。
+  - [ ] 待单独授权上线本地通知诊断补丁，并在后续真实 `main` 通知路径证明 adapter 实际
+    接受与 Telegram 收件；在此之前 main/通知整体 gate 继续保持未完成。
 - [x] 观察至少两个后续源分支 push：`484aba68...` 的 run `198`/`199`、
   `803bda0a...` 的 run `200`/`201`、`7b9bc28...` 的 run `206`/`207`，以及最新 PR
   head `ee9d38f...` 的 run `209`/`210` 均为 4 Job 的 warm 路径；最新一次恰好只有两条
   success `push` run，无 `pull_request`、deploy、release 或重复 run，四次 restore 均为
   精确 `cache-hit=true`。若兼容点失败，执行回滚而非放宽门禁。
-- [ ] 观察一个 `main` run，并在下次定时安全运行补齐 2 Job 证据；两项均仍需单独授权或
-  自然事件，若兼容点失败，执行回滚而非放宽门禁。
+- [ ] 已观察一个 `main` run：`95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的唯一 deploy
+  run `215` 已完成；但实际通知投递失败，整体 gate 仍未通过。下次定时安全运行的 2 Job
+  证据仍待自然事件；若兼容点失败，执行回滚而非放宽门禁。
 
 ## 9. 风险文件与回滚点
 
