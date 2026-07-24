@@ -11,8 +11,9 @@
   cold，attempt 2 是四次 exact hit，attempt 3 是精确清理后的 cold fallback。所有时间
   均为 UTC。
 - 未合并 `main`，未修改或部署 Gateway；内部 PR 的 opening/head update 与外部 Fork
-  隔离均已验证，但故障阻断、`main` 部署图和后续定时运行仍是独立 live gate，不能由
-  本文现有证据替代。
+  隔离，以及故障传播和最终通知 Job 调度均已验证。故障 smoke 不证明真实通知投递或
+  `main` 部署；合并后的 `main` 部署图、Gateway、实际通知与后续定时运行仍是独立 live
+  gate，不能由本文现有证据替代。
 
 ## 2. 优化前基线
 
@@ -225,11 +226,12 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
   maintenance 脚本，再只重建 Runner。不得删除 Runner 注册卷或 DinD 数据。
 - 当前证明单机 Runner 灰度、私网隔离，以及修复后源分支 push 的混合预热 attempt、
   四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR opening 与 head update、
-  两次后续源分支 push 与外部 Fork 隔离的新增证据见第 8 节；故障阻断、`main` 4 Job
-  自包含部署图、Gateway 与最终通知及定时安全运行仍待单独授权或自然事件；任务保持
-  `in_progress`。
+  后续源分支 push、外部 Fork 隔离，以及故障传播/最终通知 Job 调度的新增证据见第
+  8 节；故障 smoke 只证明 `needs`/`always()` 与最终通知 Job 调度，不替代真实通知投递。
+  经批准合并后的真实 `main` 4 Job/七项各一次/镜像与部署/实际通知/Gateway，以及下一次
+  scheduled security run 仍待单独授权或自然事件；任务保持 `in_progress`。
 
-## 8. 内部 PR lifecycle smoke 与两次后续 source push（2026-07-24）
+## 8. 内部 PR lifecycle smoke 与后续 source push（2026-07-24）
 
 ### 8.1 内部 PR opening smoke
 
@@ -396,3 +398,41 @@ PR ref 读取，且唯一 parent 仍为 `803bda0a...`。这些是已接受的残
 临时 Fork 对象。`verify-repository --full ... 803bda0a...` 通过。此处证明的是 Fork 不会调度
 repo-scoped trusted Runner 且不能向 canonical 写入 status；不替代尚未授权的故障、main
 部署图或定时运行门禁。
+
+### 8.6 PR 当前 head `7b9bc28...` 的后续 source push warm 观察
+
+PR #10 当前仍为 `open`、`draft=true`、`merged=false`，base 仍为 `main`
+`34be916c487f261f9e034c726be13c773be8489a`，head 已更新为
+`7b9bc28b7a8a63e185c4f6b1d117bcf56250b04f`。该 head 仅产生 run `206`（`ci.yml` /
+`push`）和 run `207`（`security.yml` / `push`），各 2 个 Job，Job `845`–`848` 均成功；
+没有新增 `pull_request` run。四次 Go/pnpm restore 均为精确 `cache-hit=true`，没有 miss
+或 save。这是继 run `198`/`199` 与 `200`/`201` 后的又一次 4 Job warm 路径观察。
+
+### 8.7 一次性故障阻断 smoke（2026-07-24）
+
+在不触碰真实 `main`、Gateway、Registry 或真实通知的边界内，从当前 PR head
+`7b9bc28b7a8a63e185c4f6b1d117bcf56250b04f` 创建一次性精确分支
+`ci-smoke-fail-gate-7b9bc28b7a8a63e1`。审定补丁 SHA-256 为
+`88b46f46f3e98e99a2a73f9ec697e3588f6dd8e7eda33822401240091d43b397`；临时 commit
+`9f6842272adf52136543ad40c9254d27d75dd2fc` 的唯一 parent 是该 base，且仅改动三份文件、
+共 71 insertions。该 SHA 恰好创建 run `208`（`push`、disposable workflow）；overall
+`failure` 是预期通过，未产生额外 CI 或 Security run。
+
+| Job | Job / task / Runner | 结论与日志证据 |
+| --- | --- | --- |
+| `backend` | `849` / `799` / `1` | `failure`；记录 intentional exit `86`。 |
+| `verify` | `850` / `800` / `1` | `failure`；记录 `backend-result=failure`。 |
+| `build-and-deploy` | `851` / `0` / `0` | `skipped`；step log HTTP `404`，没有 `UNREACHABLE`。 |
+| `telegram-notification` | `852` / `801` / `1` | `success`；记录 `verify-result=failure build-deploy-result=skipped`。 |
+
+该 disposable workflow 没有 secrets、URL、外部 action、Registry、Gateway 或真实通知。
+因此它只证明生产等价 Job 图中的 `needs` 失败传播、`always()` 与最终通知 Job 调度；不证明
+真实通知投递，也不替代真实 `main` 的构建、部署或通知证据。
+
+运行后不变量保持：`main` 仍为
+`34be916c487f261f9e034c726be13c773be8489a`；PR #10 仍为 open/draft/unmerged，head 为
+`7b9bc28...`；Runner idle。Runner/DinD restart 均为 `0`、`OOMKilled=false`；cache 为 3 个
+直接子项、`1022864 KiB`、`1000:1000 0700`；DinD `memory.events` 的 `oom=0`、
+`oom_kill=0`。清理后精确远端 branch API 返回 `404`，本地精确 worktree/ref/directory
+均不存在；历史 run `208` 与四个 Job 保留，未触碰其他 worktree。独立 trellis-check 已
+PASS，未发现证据缺口。

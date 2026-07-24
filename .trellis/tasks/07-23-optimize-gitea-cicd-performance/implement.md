@@ -211,13 +211,24 @@ git status --short
   或 required contexts。所有临时活动对象已按 PR、Fork、collaborator、PAT、user 的顺序清理，
   full verifier 通过。run/job/Fork status 是删除 Fork 前的观测证据；删除后相应 live DB 行已
   级联清除。首次 `has_actions=false` fail-closed 记录仍保留于 evidence.md。
-- [ ] 故意失败的 smoke commit 不进入 build/deploy；不得使用真实 main/Gateway 制造
+- [x] 故意失败的 smoke commit 不进入 build/deploy；未使用真实 main/Gateway 制造
   失败实验。
+  - [x] 已新增并独立检查 fail-closed renderer、生产拓扑绑定合同及常用测试入口；只接受
+    `ci-smoke-fail-gate-` 加 16 位小写十六进制的精确分支，生成物无 secret、URL、
+    Registry、Gateway 或外部通知调用。
+  - [x] 经单独授权的 `ci-smoke-fail-gate-7b9bc28b7a8a63e1` 产生唯一 run `208`：
+    `backend` job/task `849`/`799` 在 Runner `1` 以 intentional exit `86` 失败，
+    `verify` `850`/`800` 以 `backend-result=failure` 失败，`build-and-deploy` `851`
+    无 task/Runner 而 skipped（log HTTP `404`、无 `UNREACHABLE`），
+    `telegram-notification` `852`/`801` 在 Runner `1` 以
+    `verify-result=failure build-deploy-result=skipped` 成功。精确远端 branch、本地
+    worktree/ref/directory 均已清理，历史 run/job 保留；生产不变量未变。该结果只证明
+    通知 Job 最终调度，不替代真实 `main` 的构建、部署和实际消息投递证据。
 - [ ] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
   一次；记录内存峰值和 `memory.events`，无新增 OOM。
-- [x] 观察两个后续源分支 push：`484aba68...` 的 run `198`/`199` 与
-  `803bda0a...` 的 run `200`/`201` 均为 4 Job 的 warm 路径；若兼容点失败，执行回滚而非
-  放宽门禁。
+- [x] 观察至少两个后续源分支 push：`484aba68...` 的 run `198`/`199`、
+  `803bda0a...` 的 run `200`/`201`，以及当前 head `7b9bc28...` 的 run `206`/`207`
+  均为 4 Job 的 warm 路径；若兼容点失败，执行回滚而非放宽门禁。
 - [ ] 观察一个 `main` run，并在下次定时安全运行补齐 2 Job 证据；两项均仍需单独授权或
   自然事件，若兼容点失败，执行回滚而非放宽门禁。
 
