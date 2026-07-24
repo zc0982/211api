@@ -177,6 +177,7 @@ if rg -n 'restore-keys|/var/run/docker\.sock|tcp://|2375|2376' \
   exit 1
 fi
 
+"$ROOT/deploy/gitea/tests/test-deploy-notification.sh"
 "$ROOT/deploy/gitea/tests/test-deploy-failure-gate-smoke.sh"
 
 printf 'workflow contract tests passed.\n'

@@ -7,6 +7,10 @@ Use this contract whenever changing `.gitea/workflows/`, `.gitea/actions.lock`,
 when validating the internal-PR, external-fork, or failed-deployment-gate
 boundary on live Gitea.
 
+Also use it when changing the terminal deployment notification in
+`.gitea/workflows/deploy.yml`. This notification is a diagnostic side effect of
+the deployment terminal state; it must not change the deployment result.
+
 The target is the existing self-hosted Gitea Runner. Its security boundary is
 part of the feature: keep `runner.capacity: 1`, rootless DinD, the existing CPU
 and memory limits, and no host Docker socket, host networking, host PID, or
@@ -97,6 +101,52 @@ It contains no `uses:`, secret expression, URL, network command, Docker build
 or publication command, Registry/Gateway reference, or external notification.
 Its `build_deploy` unreachable sentinel uses POSIX `sh`, because the locked
 Docker job image does not include Bash.
+
+### Terminal deployment-notification signature
+
+The YAML step receives exactly these external inputs:
+
+| Environment key | Contract |
+| --- | --- |
+| `BUILD_DEPLOY_RESULT` | `${{ needs.build_deploy.result }}`; exact `success` maps to payload status `success`, and every other result maps to `failed` |
+| `EVENT_SHA` | `${{ gitea.sha }}`; exactly 40 lowercase hexadecimal characters when an endpoint is configured |
+| `RUN_URL` | Exact `https://git.211api.com/211api/211api/actions/runs/<run-id>`, where `<run-id>` is 1–20 decimal digits, starts with 1–9, and has no suffix |
+| `PIPEDREAM_NOTIFY_URL` | Optional raw adapter endpoint; an empty value selects the shell-only `skipped` path, otherwise it must pass the endpoint contract below |
+
+The shell derives and exports `DEPLOYMENT_STATUS` (`success` or `failed`) and
+`FINISHED_AT` (`date -u +%Y-%m-%dT%H:%M:%SZ`). The POST body contains exactly
+these seven fields (no eighth field):
+
+```json
+{
+  "schema": "gitea-deployment-notification.v1",
+  "event": "deployment-finished",
+  "status": "success | failed",
+  "finished_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "repository": "211api/211api",
+  "commit": "<40-lowercase-hex>",
+  "run_url": "https://git.211api.com/211api/211api/actions/runs/<run-id>"
+}
+```
+
+`finished_at` is UTC with exactly four-digit year, two-digit month/day/hour/
+minute/second, and trailing `Z`. An accepted response is an HTTP-success
+(200–299) body that parses as JSON and has `ok === true` plus
+`event === "deployment-finished"`; extra response fields are permitted but are
+never recorded.
+
+Every path emits exactly one machine-readable marker whose outcome is one of:
+
+- `skipped`, `endpoint-validation`, `input-validation`, `timeout`, `network`,
+  `invalid-json`, `response-contract`, or `accepted`;
+- `http-3xx-<status>` for an integer 300–399, `http-4xx-<status>` for 400–499,
+  or `http-5xx-<status>` for 500–599;
+- `http-other-<status>` for another integer status in 100–599, or
+  `http-other` for a non-integer/out-of-range defensive status.
+
+The complete marker is
+`deployment-notification-outcome=<one-exact-outcome-above>`; do not admit a
+generic `[a-z0-9-]+` outcome.
 
 ### Internal PR live-smoke API
 
@@ -376,6 +426,34 @@ normalized `1000:1000` mode-`0700` parents. Do not add broader capabilities,
 make the container privileged, or replace the named volume to repair
 permissions, because the same volume contains `.runner`.
 
+### Terminal deployment-notification boundary
+
+Treat `PIPEDREAM_NOTIFY_URL` as an untrusted raw string: it must start with
+`https://`, contain no whitespace, parse as a URL, have no userinfo, have raw
+authority exactly equal to parsed `hostname` (therefore no explicit port or
+normalization ambiguity), and have a hostname with a non-empty prefix before
+the exact `.m.pipedream.net` suffix. A colon in the path is allowed; a colon in
+the raw authority is not. Endpoint validation runs before SHA/run-URL
+validation, and both finish before creating a timer or calling `fetch`.
+
+The implementation makes at most one `fetch` POST, with content type
+`application/json`, the exact seven-field body, a 15-second `AbortController`,
+and `redirect: "manual"`. Therefore a 3xx response is classified locally and
+its target is never followed. The timer is created only on the fetch path and
+is cleared exactly once in `finally`, whether fetch, response-body reading, or
+response validation succeeds or fails. There is no retry or second network
+client. The step never logs the endpoint (including host/path/query), payload,
+response body, or caught error.
+
+Endpoint/input validation and fetch failures set one safe outcome marker and a
+non-zero Node result. The enclosing `if ! node ...; then` emits exactly one
+generic failure warning and returns shell success; the empty-endpoint shell
+path instead emits `skipped`, a generic skip notice, and never starts Node.
+`accepted` emits no warning. This soft-fail boundary preserves the deployment
+result. `accepted` proves only that this request received the adapter's 2xx
+JSON contract; it neither proves a Telegram recipient received a message nor
+repairs evidence from an older run.
+
 ## 4. Validation & Error Matrix
 
 | Condition | Required behavior |
@@ -408,6 +486,23 @@ permissions, because the same volume contains `.runner`.
 | External PR creation used `maintainer_can_modify` | Treat the field as ignored; do not replay creation. Reconcile the created PR and, if approved, patch `allow_maintainer_edit=false` exactly once |
 | The sentinel request unexpectedly succeeds | Never attempt a required context; record the non-required status as a security finding and continue exact cleanup |
 | Fork deletion removes run/job/status live rows | Use the pre-delete snapshot as historical evidence and report the post-delete zero-row state separately |
+| Notification endpoint is absent | Emit `skipped` once and the generic skip notice; do not start Node, create a timer, or fetch; shell exits `0` |
+| Endpoint fails exact HTTPS/whitespace/parse/userinfo/raw-authority/host validation | Emit `endpoint-validation` once; do not create a timer or fetch; Node exits `2`, then shell emits one generic failure warning and exits `0` |
+| Configured endpoint is valid but commit or exact run URL is invalid | Emit `input-validation` once; do not create a timer or fetch; Node exits `2`, then shell emits one generic failure warning and exits `0` |
+| The 15-second timer aborts the in-flight fetch | Emit `timeout` once; clear the timer, do not retry; Node exits `4`, then shell emits one generic failure warning and exits `0` |
+| Fetch rejects before timeout, or reading the response body rejects | Emit `network` once; clear the timer, do not log the caught error or retry; Node exits `4`, then shell emits one generic failure warning and exits `0` |
+| Manual response is HTTP 3xx, 4xx, or 5xx | Do not follow it; emit the exact `http-3xx-<status>`, `http-4xx-<status>`, or `http-5xx-<status>` once; clear the timer; Node exits `3`, shell exits `0` after one generic failure warning |
+| Non-success response has another status | Emit `http-other-<status>` for an integer 100–599, otherwise defensive `http-other`; clear the timer; Node exits `3`, shell exits `0` after one generic failure warning |
+| HTTP-success body is syntactically invalid JSON | Emit `invalid-json` once; clear the timer; Node exits `3`, shell exits `0` after one generic failure warning |
+| HTTP-success JSON lacks `ok === true` or the exact event | Emit `response-contract` once; extra fields alone do not fail; clear the timer; Node exits `3`, shell exits `0` after one generic failure warning |
+| HTTP-success JSON has `ok === true` and `event === "deployment-finished"` | Emit `accepted` once; clear the timer; Node and shell exit `0`, emit no warning, and make no delivery claim beyond adapter acceptance |
+
+The empty endpoint takes precedence over all input validation; endpoint
+validation in turn precedes commit/run-URL validation. Every notification row
+emits exactly one marker and no secret-bearing diagnostic data. Failure rows
+set `process.exitCode` only after the marker (never call `process.exit()`), and
+the outer shell soft-fails them. `skipped` and `accepted` are successful paths,
+not notification failures.
 
 ## 5. Good / Base / Bad Cases
 
@@ -433,6 +528,22 @@ permissions, because the same volume contains `.runner`.
   unchanged.
 - **Base (failure smoke preflight)**: an invalid or wildcard branch is rejected
   locally with exit `64` and no YAML, so no Gitea mutation is attempted.
+- **Good (notification)**: success and failed deployment results produce the
+  exact seven-field payload with `success` and `failed` status respectively;
+  a valid endpoint whose path contains `:443` is allowed, one fetch returns the
+  accepted JSON contract, the timer is cleared once, and only the safe
+  `accepted` marker is recorded.
+- **Base (notification)**: an absent endpoint emits `skipped`, never starts the
+  Node mock, creates no timer, performs zero fetches, and leaves the shell
+  successful.
+- **Bad (notification)**: user/password/empty userinfo, leading/trailing/raw
+  whitespace, HTTP/extra-slash URLs, wrong/suffix-confused/bare hosts, and
+  explicit default/non-default authority ports fail endpoint validation with
+  zero fetches. Invalid input, timeout, network/body-read rejection, manual
+  3xx, 4xx, 5xx, other status, invalid JSON, and response-contract mismatch
+  emit only their exact marker plus one generic warning, never leak any
+  endpoint/payload/body/error canary, never retry, and leave the shell
+  successful.
 - **Bad**: a fork PR, floating Action tag, published cache port, cache-root
   symlink, failed upstream gate gains access to later trusted work, or a failure
   experiment contains a production secret/network step. Static or live
@@ -446,6 +557,7 @@ Run these repository checks for every related change:
 deploy/gitea/tests/test-ci-dispatcher.sh
 deploy/gitea/tests/test-ci-cache-key.sh
 deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
+deploy/gitea/tests/test-deploy-notification.sh
 deploy/gitea/tests/test-workflow-contract.sh
 deploy/gitea/runner/tests/test-cache-maintenance.sh
 deploy/gitea/runner/tests/test-runner-config.sh
@@ -463,6 +575,26 @@ invoke `test-deploy-failure-gate-smoke.sh`; the latter must reject unsafe
 renderer source/output, non-exact branches, graph/Runner-label drift, a
 job-level `if` on production `build_deploy`, and any difference in the
 production/smoke `needs` topology.
+
+`test-deploy-notification.sh` must locate the terminal step name exactly once,
+extract its unique `run: |` block fail-closed, and pass `bash -n`. Static guards
+must forbid direct `process.exit()`, require exactly one standalone Node
+invocation and one `fetch`, reject alternate network clients/APIs and inline
+`PATH` replacement, and fail if the canary guard itself does not reject a
+protected value.
+
+The 27 offline cases run under `env -i` with a `PATH` containing only mock-bin
+links for `node` and `date`; `NODE_OPTIONS` imports the sole fetch/timer mock.
+They assert exact seven-key payloads, both deployment statuses, accepted paths
+including a path colon, skip without loading Node, 13 endpoint rejections,
+input rejection, timeout, fetch rejection, response-body-read rejection, one
+representative 3xx/4xx/5xx/other status, invalid JSON, and response-contract
+failure. Every case asserts shell exit `0`, an exact single marker, zero or one
+fetch as applicable, exact generic-warning presence/absence, timer clearing on
+every fetch path, and absence of endpoint host/path/query, request/invalid
+input/run URL, response body, caught error, schema/event/repository canaries.
+`test-workflow-contract.sh` must invoke this test. These mocks and canaries do
+not replace live Pipedream adapter acceptance or Telegram-delivery evidence.
 
 Repository tests do not replace live Gitea validation. Before rollout is
 considered complete, verify branch/tag routing, exact protected contexts, cold
@@ -543,6 +675,51 @@ Runner dispatch or protected contexts.
 This uses the wrong Gitea field. The request may still create a PR with
 maintainer editing enabled, so replaying the create request can duplicate the
 PR. Reconcile the returned/created PR and use the live edit schema instead.
+
+```js
+// Wrong: it avoids raw errors and checks JSON, but follows an unvalidated
+// redirect target and has no bounded timeout.
+async function postWrong(endpoint, payload) {
+  let outcome = 'network';
+  let exitCode = 4;
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      redirect: 'follow',
+    });
+    const responseText = await response.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      outcome = 'invalid-json';
+      exitCode = 3;
+      return;
+    }
+    if (response.ok && result?.ok === true &&
+        result?.event === 'deployment-finished') {
+      outcome = 'accepted';
+      exitCode = 0;
+    } else {
+      outcome = 'response-contract';
+      exitCode = 3;
+    }
+  } catch {
+    outcome = 'network';
+    exitCode = 4;
+  } finally {
+    console.log(`deployment-notification-outcome=${outcome}`);
+    if (exitCode !== 0) process.exitCode = exitCode;
+  }
+}
+```
+
+Even without printing a caught error or response body, following redirects can
+send the payload to an unvalidated target, and an unbounded fetch can occupy the
+terminal job indefinitely. Catching errors is necessary but does not repair
+those transport-contract violations.
 
 ```bash
 docker run --rm --network none --read-only --user 0:0 \
@@ -635,3 +812,73 @@ docker run --rm --network none --read-only --user 0:0 \
 
 The least-capability initializer can enforce the owner/mode postcondition while
 leaving the existing registration file outside its mutation set.
+
+```js
+// Correct fetch phase: call exactly once after the endpoint and exact
+// seven-field payload have passed the contracts above.
+const httpOutcome = (status) => {
+  if (!Number.isInteger(status) || status < 100 || status > 599) {
+    return 'http-other';
+  }
+  if (status >= 300 && status < 400) return `http-3xx-${status}`;
+  if (status >= 400 && status < 500) return `http-4xx-${status}`;
+  if (status >= 500 && status < 600) return `http-5xx-${status}`;
+  return `http-other-${status}`;
+};
+
+async function postValidatedNotification(endpoint, payload) {
+  let outcome;
+  let exitCode = 0;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 15_000);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+      redirect: 'manual',
+    });
+    if (!response.ok) {
+      outcome = httpOutcome(response.status);
+      exitCode = 3;
+    } else {
+      // Body-read rejection belongs to the outer catch and maps to network.
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        outcome = 'invalid-json';
+        exitCode = 3;
+      }
+      if (exitCode === 0) {
+        if (result?.ok !== true ||
+            result?.event !== 'deployment-finished') {
+          outcome = 'response-contract';
+          exitCode = 3;
+        } else {
+          outcome = 'accepted';
+        }
+      }
+    }
+  } catch {
+    outcome = timedOut ? 'timeout' : 'network';
+    exitCode = 4;
+  } finally {
+    clearTimeout(timeout);
+  }
+  console.log(`deployment-notification-outcome=${outcome}`);
+  if (exitCode !== 0) process.exitCode = exitCode;
+}
+```
+
+Manual redirects prevent a second target request; the nested JSON parse keeps
+malformed JSON distinct from fetch/body-read rejection; `finally` always
+clears the timer; and `process.exitCode` is assigned only after the safe marker.
+The enclosing YAML step converts a non-zero Node result to one generic warning
+so notification failure cannot alter deployment.

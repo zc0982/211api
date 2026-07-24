@@ -86,8 +86,19 @@ Runner 固定为 `capacity: 1`，rootless DinD 固定为 6 GiB/3 CPU。内部 PR
 deploy/gitea/tests/test-ci-dispatcher.sh
 deploy/gitea/tests/test-ci-cache-key.sh
 deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
+deploy/gitea/tests/test-deploy-notification.sh
 deploy/gitea/tests/test-workflow-contract.sh
 ```
+
+The terminal deployment notification makes exactly one 15-second-bounded
+Pipedream attempt and does not follow redirects. It emits only the safe
+`deployment-notification-outcome=<token>` marker (including `accepted`) and
+never logs the endpoint, payload, response, or caught error. Delivery remains a
+soft failure and cannot change the deployment result. `accepted` proves only
+the configured adapter's expected 2xx JSON response, not Telegram receipt or a
+repair of an earlier failed live attempt. The offline notification test executes
+the unique exact workflow step with a fail-closed fetch mock, restricted command
+path, and rejection of additional network clients.
 
 ## 四、常见坑点 & 解决方案
 

@@ -1233,7 +1233,23 @@ value from `/etc/gitea/backup-notify-url`; never print it, place it in argv, or
 store a second plaintext copy. Full repository verification requires the secret
 name. The terminal `telegram-notification` job treats Pipedream delivery failure
 as a warning so notification availability cannot rewrite the actual deployment
-result.
+result. It makes exactly one request bounded by an explicit 15-second abort;
+redirects are not followed, so a 3xx response cannot forward the payload beyond
+the validated Pipedream host. The step emits only safe
+`deployment-notification-outcome=<token>` diagnostics. These markers classify
+adapter response acceptance, validation, timeout, network, HTTP, JSON, and
+response-contract outcomes without logging the endpoint, payload, response, or
+caught error. `deployment-notification-outcome=accepted` proves only that the
+configured adapter returned the expected 2xx JSON contract. It does not prove
+that Telegram received a message, does not repair an earlier failed live
+attempt, and still requires approved live evidence. Run the offline regression
+below after changing the workflow; it extracts and executes the unique exact
+workflow step with a fail-closed fetch mock, a restricted command path, and
+static rejection of any additional network client:
+
+```bash
+deploy/gitea/tests/test-deploy-notification.sh
+```
 
 Netcup and the Gitea Actions secret store only that endpoint. The bot token and
 chat ID remain solely in Pipedream; Gateway stores none of them. If the endpoint
