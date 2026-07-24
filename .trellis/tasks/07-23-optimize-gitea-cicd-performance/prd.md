@@ -61,16 +61,16 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1：`main` 推送中的七项重型验证各执行且只执行一次，完整验证失败时不构建、不发布、不部署。
-- [ ] AC2：内部 PR 的同一提交只通过源分支 push 执行 4 个 Job；打开或更新 PR 不再追加重型工作流。外部 fork 不获得受信 Runner、cache 或 secrets，且不能伪造必需 push 状态。
-- [ ] AC3：代表性 `main` 事件从 19 个 Job 降为 4 个 Job，七项重型校验从 14 次降为 7 次；失败验证阻止构建部署，通知 Job 仍最终执行。
-- [ ] AC4：连续两次相同 SHA/锁文件的验证中，第二次明确记录 Go 与 pnpm 精确 `cache-hit=true`；完全清空 Runner cache 后七项检查仍能通过。Docker 构建继续命中适用的既有 BuildKit 层。
-- [ ] AC5：Runner 保持 `capacity: 1` 与现有 6 GiB DinD 上限，代表性 cold/warm 运行不得出现新增 OOM。
-- [ ] AC6：`ci / required (push)` 与 `security / required (push)` 继续由真实成功检查产生，名称不能迁移、伪造或缺失。
-- [ ] AC7：缓存服务和 Docker daemon 均无新增公网监听；Runner 仍不挂载宿主 Docker socket，作业仍在 rootless DinD 内隔离。
-- [ ] AC8：所有受影响的工作流、Shell、Compose、Runner 配置、仓库控制测试和文档校验通过。
-- [ ] AC9：设计文档包含上线顺序、缓存预热、观测窗口、失败回滚和恢复到当前串行冷构建路径的方法。
-- [ ] AC10：Action/cache 持久目录超过 20 GiB 或所在文件系统使用率达到 80% 后，在当前任务结束后的维护阶段被安全清空；目标错误、符号链接或 owner 异常时脚本失败关闭且不删除其他路径。
+- [x] AC1：`main` 推送中的七项重型验证各执行且只执行一次，完整验证失败时不构建、不发布、不部署。
+- [x] AC2：内部 PR 的同一提交只通过源分支 push 执行 4 个 Job；打开或更新 PR 不再追加重型工作流。外部 fork 不获得受信 Runner、cache 或 secrets，且不能伪造必需 push 状态。
+- [x] AC3：代表性 `main` 事件从 19 个 Job 降为 4 个 Job，七项重型校验从 14 次降为 7 次；失败验证阻止构建部署，通知 Job 仍最终执行。
+- [x] AC4：连续两次相同 SHA/锁文件的验证中，第二次明确记录 Go 与 pnpm 精确 `cache-hit=true`；完全清空 Runner cache 后七项检查仍能通过。Docker 构建继续命中适用的既有 BuildKit 层。
+- [x] AC5：Runner 保持 `capacity: 1` 与现有 6 GiB DinD 上限，代表性 cold/warm 运行不得出现新增 OOM。
+- [x] AC6：`ci / required (push)` 与 `security / required (push)` 继续由真实成功检查产生，名称不能迁移、伪造或缺失。
+- [x] AC7：缓存服务和 Docker daemon 均无新增公网监听；Runner 仍不挂载宿主 Docker socket，作业仍在 rootless DinD 内隔离。
+- [x] AC8：所有受影响的工作流、Shell、Compose、Runner 配置、仓库控制测试和文档校验通过。
+- [x] AC9：设计文档包含上线顺序、缓存预热、观测窗口、失败回滚和恢复到当前串行冷构建路径的方法。
+- [x] AC10：Action/cache 持久目录超过 20 GiB 或所在文件系统使用率达到 80% 后，在当前任务结束后的维护阶段被安全清空；目标错误、符号链接或 owner 异常时脚本失败关闭且不删除其他路径。
 
 ## Out of Scope
 

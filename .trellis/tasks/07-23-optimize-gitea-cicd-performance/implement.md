@@ -2,15 +2,15 @@
 
 ## 实施前门禁
 
-- [ ] 使用 `python3 .trellis/scripts/task.py current` 确认 active task 正是本目录；只有
+- [x] 使用 `python3 .trellis/scripts/task.py current` 确认 active task 正是本目录；只有
   用户在最终规划摘要之后再次明确批准，才运行 `task.py start`。
-- [ ] 实施 Agent 读取 `prd.md`、`design.md`、本文件与 `implement.jsonl` 的全部上下文；
+- [x] 实施 Agent 读取 `prd.md`、`design.md`、本文件与 `implement.jsonl` 的全部上下文；
   检查 Agent 读取 `check.jsonl`。
-- [ ] 运行 `git status --short`，保留用户现有 `.agents/`、`.trellis/` 等改动，不覆盖
+- [x] 运行 `git status --short`，保留用户现有 `.agents/`、`.trellis/` 等改动，不覆盖
   无关 dirty worktree。
-- [ ] 在任何线上变更前，从现有 Gitea 记录一个 `main` run 和一个内部 PR head
+- [x] 在任何线上变更前，从现有 Gitea 记录一个 `main` run 和一个内部 PR head
   更新的 run ID、SHA、Job 列表、开始/结束时间。没有该基线就不声称耗时改善。
-- [ ] 线上 Runner/Gitea/Gateway 修改需要另行授权；仓库实施默认只生成代码、测试和
+- [x] 线上 Runner/Gitea/Gateway 修改需要另行授权；仓库实施默认只生成代码、测试和
   操作说明。
 
 ## 0. 已补齐的主路径证据与仍待门禁/需求决策
@@ -32,26 +32,47 @@ max 大于 reserved。当前 GiB 数值仅为这一 image/storage 组合的观�
 磁盘或出现 daemon.json override 必须重新 inspect。该证据不声称已发生阈值触发、GC sweep 或
 自动删除；宿主监控和停机人工 prune 是获授权的恢复/应急路径。
 
-以下 live gate 或需求缺口仍不得勾选：
+以下为 live gate 与需求缺口状态：已完成项勾选，未通过项保持未勾选。
 
 - [x] PRD R3（包括 BuildKit/`docker_data`）已满足：当前锁定 docker driver 的默认自动 GC
   policy 是自动软上限，design、infra contract、README 与 evidence 已同步；不新增 daemon.json
   或固定跨机器容量配置。仅 policy 运行态已获证，不把它误述为 GC 删除事件。
-- [ ] 通知诊断补丁虽已推送 source（`6bcdf666...` 与 `aadcc6cd...`，后者对应 source run
-  `216`/`217` 的 CI/Security success），但尚未进入 `main`、未 deploy，也未产生新的真实通知
-  路径；仍需 adapter outcome 与 Telegram 实际收件证据。
-- [ ] 自然触发的 scheduled security 2 Job 尚未发生。
+- [x] 通知诊断补丁先以 `6bcdf666...` 与 `aadcc6cd...` 推送 source，后者对应
+  source run `216`/`217` 的 CI/Security success；该 source 阶段未 deploy，不证明真实通知。
+  补丁后续进入 `main` 及通知路径的结果见下两项。
+- [x] PR #12 `fix(ci): 增强部署通知失败诊断` 已在 `2026-07-24T11:56:08Z` Ready 后以
+  fast-forward-only 合并；merge/head/base 与 main/source 均为
+  `ddd6e9390d87550bd6c159dd61088fd0b87cea6e`。仅合并产生 run `222`（deploy main push），
+  共 4 个严格串行 Job、957 秒；Go/pnpm exact hit、七项门禁各一次、15 个 BuildKit CACHED
+  step、Registry/Gateway 对齐且无 OOM。详情见 evidence.md §11。
+- [x] run `222` 的 job `884`/task `833` 首次执行虽因 soft-fail 显示 success，真实 marker 为
+  `http-5xx-502` 且 Telegram 未收件；Pipedream 脱敏探针随后以 `getMe`/`getChat` 的 HTTP `401`
+  确定 Bot token 已失效。修复 token 后探针为 HTTP `200`、原事件重放实收；再经明确授权使用
+  Gitea 官方 `rerunWorkflowJob` 仅重跑 job `884` 一次，HTTP `201`，其在
+  `13:29:33Z`–`13:29:37Z` success，最终 marker 为 `accepted`，用户确认 Telegram 群实收。
+  run 仍为 `222`/4 Job、无新 run，前三个 Job 时间戳未变，故没有重跑验证、构建或部署。
+  通知 live gate 已关闭；详见 evidence.md §11.1–§11.2。
+- [ ] 自然触发的 scheduled security 2 Job 尚未发生。2026-07-24 只读预检已确认
+  `security.yml` 在 Gitea 官方 API 中为 `active`，宿主 NTP 已同步、宿主/Gitea 容器时钟差 0 秒，
+  Runner `online`/`busy=false` 且标签齐全；Gitea DB 只读查询进一步确认仓库恰有一条
+  `action_schedule`/`action_schedule_spec`，绑定当前 `security.yml@refs/heads/main` 与
+  `ddd6e939...`，cron 为 `0 3 * * 1`、`prev=0`、`next=2026-07-27 03:00:00 UTC`。最近
+  100 个 run 中 `event=schedule` 为 0；首次自然观察仍待该时间，详见 evidence.md §12。
 - [x] design §3.1/§7.2 所要求、针对当前 workflow 的临时非 `v*` tag 负面 smoke 已完成：
   `ci-no-workflow-smoke-3d5d8ac8` 指向 `3d5d8ac8...`，在 `10:23:48Z`–`10:26:20Z` 的约
   152 秒观察中远端 tag 保持指向该 SHA、max run ID 始终为 `219`、`new_runs=[]`、Runner idle；
   ci/security/deploy/release 均未调度。远端 ref 已精确删除并由 `ls-remote` 验空，随后同名本地
-  tag 亦删除；不替代通知或自然 scheduled gate。详见 evidence.md §10.5。
+  tag 亦删除；不替代通知或自然 scheduled gate。历史真实 release request run `138` 与
+  `v0.1.160-gitea-smoke.2` tag run `141` 均为 2 Job completed/success，且当前
+  `release.yml` 与其被测 SHA `e289410d...` 字节级无差异，当前 release 合同测试亦 PASS；
+  因而 release 分支/tag 的正向路由与普通 tag 的负向路由均已有证据。详见 evidence.md
+  §10.5/§13.1。
 
 ## 1. 先建立失败的合同测试
 
 ### 1.1 Workflow 图合同
 
-- [ ] 新增 `deploy/gitea/tests/test-workflow-contract.sh`，从受控缩进解析三个 workflow
+- [x] 新增 `deploy/gitea/tests/test-workflow-contract.sh`，从受控缩进解析三个 workflow
   的事件和顶层 Job，至少断言：
   - `ci.yml` 2 Job，`security.yml` 2 Job，`deploy.yml` 4 Job；
   - CI/security 对 push 排除 main，所有 active workflow 均无 `pull_request`；
@@ -61,123 +82,125 @@ max 大于 reserved。当前 GiB 数值仅为这一 image/storage 组合的观�
   - admin template/verifier 仍精确包含两个 `(push)` context；
   - 每个 `uses:` 均为绝对 URL + 40 位 SHA，且与 `.gitea/actions.lock` 一一对应；
   - 禁止 host Docker endpoint、浮动 Action tag 和 cache `restore-keys`。
-- [ ] 测试必须在现状失败，避免写成只验证自身 fixture 的无效测试。
+- [ ] 历史 TDD red 顺序无法由当前工作树或提交顺序权威证明；实现 commit `8a133c006` 早于
+  测试 commit `da3ee16e1`，因此不追溯性勾选。本项是不可重建的过程证据缺口，不代表当前
+  workflow 合同、回归覆盖或 live gate 未实现。
 
 ### 1.2 Cache key 合同
 
-- [ ] 新增 `deploy/gitea/tests/test-ci-cache-key.sh`：把 key 脚本及其输入复制到临时
+- [x] 新增 `deploy/gitea/tests/test-ci-cache-key.sh`：把 key 脚本及其输入复制到临时
   仓库形状，证明相同输入结果稳定、Go/pnpm key 不同、任一对应 lock/config 输入
   改变会变 key、未知类型返回 64 且不输出 key。
 
 ### 1.3 Cache 清理合同
 
-- [ ] 新增 `deploy/gitea/runner/tests/test-cache-maintenance.sh`，在唯一临时目录或卷中
+- [x] 新增 `deploy/gitea/runner/tests/test-cache-maintenance.sh`，在唯一临时目录或卷中
   覆盖：阈值以下不删除、超过测试阈值只清空精确子项、根目录保留、符号链接拒绝、
   owner 不符拒绝、非目标文件不受影响。
-- [ ] 不对真实 `gitea-runner-data` 执行测试清理。
+- [x] 不对真实 `gitea-runner-data` 执行测试清理。
 
 ## 2. 实现统一依赖准备与 cache key
 
 ### 2.1 `tools/gitea-ci.sh`
 
-- [ ] 抽取前端依赖准备函数，固定 `COREPACK_HOME=/root/.cache/corepack`，把 install
+- [x] 抽取前端依赖准备函数，固定 `COREPACK_HOME=/root/.cache/corepack`，把 install
   改为 `pnpm install --frozen-lockfile --prefer-offline`。
-- [ ] 保留现有七个子命令和退出码；新增 `frontend-all`，一次依赖安装后先测试再审计。
-- [ ] 保持 `GITEA_CI` Testcontainers override、Go/Node 版本检查、lint
+- [x] 保留现有七个子命令和退出码；新增 `frontend-all`，一次依赖安装后先测试再审计。
+- [x] 保持 `GITEA_CI` Testcontainers override、Go/Node 版本检查、lint
   `GOMAXPROCS=1`、固定工具版本和 audit exception 语义不变。
-- [ ] 更新 `deploy/gitea/tests/test-ci-dispatcher.sh` 的精确命令序列，特别验证
+- [x] 更新 `deploy/gitea/tests/test-ci-dispatcher.sh` 的精确命令序列，特别验证
   `frontend-all` 只有一次 corepack/pnpm install，并执行两项门禁。
 
 ### 2.2 `tools/gitea-cache-key.sh`
 
-- [ ] 新增可执行 Bash 脚本，只接受 `go` 或 `pnpm`。
-- [ ] 使用固定排序的显式文件列表和 `sha256sum`；不得读取环境 secret、Git ref、
+- [x] 新增可执行 Bash 脚本，只接受 `go` 或 `pnpm`。
+- [x] 使用固定排序的显式文件列表和 `sha256sum`；不得读取环境 secret、Git ref、
   workspace 临时文件或网络。
-- [ ] 输出 `gitea-<type>-linux-amd64-v1-<64hex>`；输入缺失、路径异常或未知类型均
+- [x] 输出 `gitea-<type>-linux-amd64-v1-<64hex>`；输入缺失、路径异常或未知类型均
   失败关闭。
 
 ## 3. 启用私网 Runner cache 与有界清理
 
 ### 3.1 Runner 配置/Compose
 
-- [ ] 更新 `deploy/gitea/runner/config.yaml`：cache enabled，目录
+- [x] 更新 `deploy/gitea/runner/config.yaml`：cache enabled，目录
   `/data/cache/actions`，host `gitea-runner-cache`，port `8088`，无 external
   server/secret，offline mode enabled；配置 post-task 脚本与 2 分钟超时。
-- [ ] 继续显式保留 capacity、资源、TLS、valid volumes、rootless Unix socket、
+- [x] 继续显式保留 capacity、资源、TLS、valid volumes、rootless Unix socket、
   metrics disabled 等全部现有值。
-- [ ] 更新 `compose.yaml`：runner 在既有私网增加 cache alias，声明容器内 8088，
+- [x] 更新 `compose.yaml`：runner 在既有私网增加 cache alias，声明容器内 8088，
   以只读 config 挂载维护脚本并设可执行 mode；不得增加 `ports`、新服务、宿主 socket
   或可写 host bind。
 
 ### 3.2 `cache-maintenance.sh`
 
-- [ ] 使用 POSIX shell/Runner 镜像已有 BusyBox 命令；目标硬编码为
+- [x] 使用 POSIX shell/Runner 镜像已有 BusyBox 命令；目标硬编码为
   `/data/cache/actions`。
-- [ ] 校验非 symlink、目录、UID/GID 1000:1000；默认阈值 20 GiB 或文件系统 80%。
-- [ ] 目标路径不可覆盖；只允许单元测试通过严格数值环境变量降低阈值，生产 Compose
+- [x] 校验非 symlink、目录、UID/GID 1000:1000；默认阈值 20 GiB 或文件系统 80%。
+- [x] 目标路径不可覆盖；只允许单元测试通过严格数值环境变量降低阈值，生产 Compose
   不设置该变量。测试容器仍将唯一临时卷挂到精确 `/data/cache/actions`。
-- [ ] 只删除目标根目录下一层入口，保留根目录；打印不含文件名/秘密的大小与结果。
-- [ ] 任一校验/统计失败时不删除并非零退出；不要触碰 `.runner`、Action clone cache、
+- [x] 只删除目标根目录下一层入口，保留根目录；打印不含文件名/秘密的大小与结果。
+- [x] 任一校验/统计失败时不删除并非零退出；不要触碰 `.runner`、Action clone cache、
   workspace、`docker_data` 或 runtime volume。
 
 ### 3.3 Runner 测试与 smoke
 
-- [ ] 更新 `test-runner-config.sh` 对渲染模型、schema、cache 字段、alias、只读脚本
+- [x] 更新 `test-runner-config.sh` 对渲染模型、schema、cache 字段、alias、只读脚本
   config、无 published port/host endpoint 和原资源边界的断言。
-- [ ] 扩展 `smoke-rootless-dind.sh` 或新增同级 smoke：在唯一临时外层网络提供别名 HTTP
+- [x] 扩展 `smoke-rootless-dind.sh` 或新增同级 smoke：在唯一临时外层网络提供别名 HTTP
   endpoint，从 rootless DinD 内层非特权只读容器解析并访问；trap 只清理本次唯一
   project/network/volumes。
-- [ ] 不伪造真实 Runner 注册状态；真实 cache API 留给线上 smoke。
+- [x] 不伪造真实 Runner 注册状态；真实 cache API 留给线上 smoke。
 
 ## 4. 重写 Workflow 图
 
 ### 4.1 Action lock
 
-- [ ] 在 `.gitea/actions.lock` 加入
+- [x] 在 `.gitea/actions.lock` 加入
   `https://github.com/actions/cache 0057852bfaa89a56745cba8c7296529d2fc39830 v4.3.0`。
-- [ ] checkout pin 保持不变；不引入其他 Action。
+- [x] checkout pin 保持不变；不引入其他 Action。
 
 ### 4.2 `ci.yml`
 
-- [ ] 触发器改为非 main 的 push，不再声明 pull_request。
-- [ ] `backend` Go Job：checkout → go key → cache → Shell → unit → integration → lint。
-- [ ] `required` Node Job：`if: always()` + `needs: backend`；先检查 result，再 checkout
+- [x] 触发器改为非 main 的 push，不再声明 pull_request。
+- [x] `backend` Go Job：checkout → go key → cache → Shell → unit → integration → lint。
+- [x] `required` Node Job：`if: always()` + `needs: backend`；先检查 result，再 checkout
   → pnpm key → cache → frontend。
-- [ ] cache 失败容错并输出 hit 日志；所有真实检查继续硬失败。
+- [x] cache 失败容错并输出 hit 日志；所有真实检查继续硬失败。
 
 ### 4.3 `security.yml`
 
-- [ ] push 排除 main、移除 pull_request、保留原 cron。
-- [ ] `backend` 执行 Go vulnerability；`required` 先验证 backend，再执行 Node audit。
-- [ ] 保持 workflow/job 名，确保 push context 不变。
+- [x] push 排除 main、移除 pull_request、保留原 cron。
+- [x] `backend` 执行 Go vulnerability；`required` 先验证 backend，再执行 Node audit。
+- [x] 保持 workflow/job 名，确保 push context 不变。
 
 ### 4.4 `deploy.yml`
 
-- [ ] 用 `backend` Go Job 合并 Shell、unit、integration、lint、backend vulnerability。
-- [ ] 用 `verify` Node Job 验证 backend 后调用 `frontend-all`。
-- [ ] `build_deploy` 只依赖 verify；其发布/部署脚本内容除缩进/needs 所需调整外不改。
-- [ ] `notify` 保持 always，依赖 verify 与 build_deploy；验证失败时仍报告失败。
-- [ ] 确认 main 完整图正好 4 Job，七项检查正好各一次。
+- [x] 用 `backend` Go Job 合并 Shell、unit、integration、lint、backend vulnerability。
+- [x] 用 `verify` Node Job 验证 backend 后调用 `frontend-all`。
+- [x] `build_deploy` 只依赖 verify；其发布/部署脚本内容除缩进/needs 所需调整外不改。
+- [x] `notify` 保持 always，依赖 verify 与 build_deploy；验证失败时仍报告失败。
+- [x] 确认 main 完整图正好 4 Job，七项检查正好各一次。
 
 ## 5. 缩小 Docker build context
 
-- [ ] 对照 Dockerfile 每条 `COPY` 后更新 `.dockerignore`，排除明确不用的 AI/Trellis/
+- [x] 对照 Dockerfile 每条 `COPY` 后更新 `.dockerignore`，排除明确不用的 AI/Trellis/
   Gitea 运维/资产目录和 deploy 非入口文件。
-- [ ] 保留 `frontend/`、`backend/`、`docs/legal/`、`deploy/docker-entrypoint.sh` 以及
+- [x] 保留 `frontend/`、`backend/`、`docs/legal/`、`deploy/docker-entrypoint.sh` 以及
   Dockerfile 真正读取的所有源。
 - [x] 不增加外部 BuildKit cache；保留现有三个 cache mount 与持久 `docker_data`，其 docker-driver
   默认自动 GC policy 作为 R3 软边界；人工 prune 仅限获授权的 stopped-Runner 恢复窗口。
 
 ## 6. 更新当前文档与架构合同
 
-- [ ] `DEV_GUIDE.md`：事件矩阵、4/4 Job 图、源分支 push 状态、无 PR Runner、缓存与
+- [x] `DEV_GUIDE.md`：事件矩阵、4/4 Job 图、源分支 push 状态、无 PR Runner、缓存与
   本地命令。
-- [ ] `deploy/gitea/README.md`：cache 网络/目录/阈值、上线前后顺序、cold/warm 验证、
+- [x] `deploy/gitea/README.md`：cache 网络/目录/阈值、上线前后顺序、cold/warm 验证、
   磁盘/内存观测、精确清空与回滚；本地检查列表加入新 tests。
-- [ ] `docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md`：只更新 living design
+- [x] `docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md`：只更新 living design
   的状态、Runner cache、workflow 7.1-7.3 和 acceptance 段；保留历史迁移 plan 与
   evidence 文件不变。
-- [ ] 所有文档明确：线上主机操作另需授权，缓存是性能层而非门禁/授权层。
+- [x] 所有文档明确：线上主机操作另需授权，缓存是性能层而非门禁/授权层。
 
 ## 7. 本地验证
 
@@ -259,14 +282,15 @@ git status --short
     `verify-result=failure build-deploy-result=skipped` 成功。精确远端 branch、本地
     worktree/ref/directory 均已清理，历史 run/job 保留；生产不变量未变。该结果只证明
     通知 Job 最终调度，不替代真实 `main` 的构建、部署和实际消息投递证据。
-- [ ] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
+- [x] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
   一次；记录内存峰值和 `memory.events`，无新增 OOM。
   - [x] `95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的唯一 main `deploy.yml` run `215`
     为 4 个严格串行 Job（865–868），七项检查各一次；BuildKit/export、Registry push 与
     Gateway deploy 各一次，Go/pnpm exact hit，Runner/DinD restart 与 OOM 均为 0，
     `memory.events max=296`、`oom*=0`。Registry/Gateway revision 和 immutable digest
     对齐；详情见 evidence.md §9。
-  - [ ] job `868` 虽 API success，但实际日志为 `Deployment notification delivery failed;
+  - [x] job `868` 的历史负面观察已完整记录：虽 API success，但实际日志为
+    `Deployment notification delivery failed;
     deployment result is unchanged.`（`skip=0`、`delivery_failed=1`）。实际 adapter
     接受与 Telegram 收件均未证明；独立 Trellis 最终 gate 因此 FAIL，不能勾选本项。只读历史
     显示 run `192`/job `817` 与 run `185`/job `780` 曾实际 `guard accepted=1`、
@@ -278,10 +302,13 @@ git status --short
     soft-fail；Phase 3.3 的 infra spec sync 亦已完成并经独立检查 PASS；详情见 evidence.md
     §10。诊断实现 commit `6bcdf666fe8ead91fec9530522e7ffe9378be6d0` 及证据补充 commit
     `aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 均已推送至保留源分支
-    `sync/upstream-0.1.164`；尚未进入 `main`、未触发 deploy，Gateway、Registry 和真实通知
-    均未触碰，不能将其视为 run `215` 已修复、adapter 接受或 Telegram 收件的证据。
-  - [ ] 待单独授权将通知诊断补丁合并进 `main`，并在后续真实 `main` 通知路径证明 adapter 实际
-    接受与 Telegram 收件；在此之前 main/通知整体 gate 继续保持未完成。
+    `sync/upstream-0.1.164`；在该 source 观察阶段尚未进入 `main`、未触发 deploy，Gateway、
+    Registry 和真实通知均未触碰，因而该阶段不能作为 run `215` 已修复、adapter 接受或 Telegram
+    收件的证据。
+  - [x] 经单独授权，通知诊断补丁已随 PR #12 fast-forward 合并进 `main` 并执行真实
+    `main` 通知路径。run `222` 首次得到 `http-5xx-502` 且 Telegram 未收件；确认并修复失效的
+    Pipedream Bot token 后，官方单 Job rerun 得到 `accepted` 且用户确认群实收，main/通知
+    live gate 已完成。
 - [x] 观察至少两个后续源分支 push：`484aba68...` 的 run `198`/`199`、
   `803bda0a...` 的 run `200`/`201`、`7b9bc28...` 的 run `206`/`207`，以及最新 PR
   head `ee9d38f...` 的 run `209`/`210` 均为 4 Job 的 warm 路径；最新一次恰好只有两条
@@ -290,8 +317,8 @@ git status --short
 - [x] 已推送保留源分支 `sync/upstream-0.1.164` 的
   `aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 最终只产生 run `216`（ci）与 `217`
   （security）两条 success `push` run、四个严格串行 Job；七项门禁各一次、四次 Go/pnpm
-  restore 均为精确 hit，且无 `pull_request`、deploy、release 或重复 run。该 SHA 仍未进入
-  `main`，Gateway、Registry 与真实通知均未触碰；详见 evidence.md §10.4。
+  restore 均为精确 hit，且无 `pull_request`、deploy、release 或重复 run。在该 source run 观察阶段，
+  它尚未进入 `main`，Gateway、Registry 与真实通知均未触碰；后续合并结果见 evidence.md §11。
 - [x] 最新 `3d5d8ac8dc107eaaeb1e5b232a41eb037adeb880` source push 仅产生 run `218`（ci）
   与 `219`（security）两条 success `push` run，四个 Job（873–876）在 Runner `1` 严格串行
   923 秒；七项门禁各一次、2 次 Go 与 2 次 pnpm 精确 hit，`ci / backend (push)`、
@@ -299,9 +326,15 @@ git status --short
   全部 success，未产生 `pull_request`/deploy/release/重复 run。完成后执行并完全清理精确非 `v*` tag
   `ci-no-workflow-smoke-3d5d8ac8`：152 秒内无新 run（max ID 219），故当前 tag 负向 live gate
   已关闭；本次未触碰 main/Gateway/Registry/真实通知，且未执行 prune。详见 evidence.md §10.5。
-- [ ] 已观察一个 `main` run：`95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的唯一 deploy
-  run `215` 已完成；但实际通知投递失败，整体 gate 仍未通过。下次定时安全运行的 2 Job
-  证据仍待自然事件；若兼容点失败，执行回滚而非放宽门禁。
+- [x] 第一个 `main` run 的负面观察已完整记录：`95b94297ac236df9eb9fda68ebde53e8f81e2ba0`
+  的唯一 deploy run `215` 完成，但实际通知投递失败；它保留为失败诊断证据，不作为通过的
+  main live gate。
+- [x] 第二个 `main` run 的整体 gate：PR #12 合并后的
+  `ddd6e9390d87550bd6c159dd61088fd0b87cea6e` 仅产生 completed/success 的 deploy run `222`
+  （Job 881–884，严格串行 957 秒），且 main commit aggregate 为 success/8 contexts。失效的
+  Pipedream Bot token 修复后，仅对 job `884` 做一次官方 rerun，最终 marker 为 `accepted` 且
+  用户确认 Telegram 群实收；没有新 run，也未重跑前三个 Job。分支保护所需两个 `(push)`
+  context 未变；scheduled Security 自然运行仍待 2026-07-27 03:00 UTC。
 
 ## 9. 风险文件与回滚点
 
@@ -319,9 +352,8 @@ Gateway 数据。清 cache 前必须停止 Runner 并再次解析精确 volume/p
 
 ## 10. 完成定义
 
-- [ ] PRD R1–R5 与 AC1–AC10 均有对应实现及静态或 live 证据；未解决的需求冲突和未执行的
-  线上项明确标为待决策/待授权，不能
-  伪称完成。
-- [ ] 本地测试全绿，`git diff --check` 无问题，Action/image/full context lock 无漂移。
-- [ ] 代码审查确认七项门禁、release、部署和通知语义未弱化。
-- [ ] cold/warm、Job 数、耗时、磁盘、内存和回滚证据写回任务/运维记录。
+- [ ] PRD R1–R5 与 AC1–AC10 均已有对应实现及静态/live 证据；但 design §7.2/§9 要求的
+  当前版本首次自然 scheduled security 仍待 2026-07-27 03:00 UTC，完成前任务不得归档。
+- [x] 本地测试全绿，`git diff --check` 无问题，Action/image/full context lock 无漂移。
+- [x] 代码审查确认七项门禁、release、部署和通知语义未弱化。
+- [x] cold/warm、Job 数、耗时、磁盘、内存和回滚证据写回任务/运维记录。

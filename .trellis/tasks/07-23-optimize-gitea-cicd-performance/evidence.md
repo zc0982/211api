@@ -13,8 +13,9 @@
 - 第 1–8 节记录的灰度与 smoke 阶段未合并 `main`，也未修改或部署 Gateway；内部 PR 的
   opening/head update 与外部 Fork 隔离，以及故障传播和最终通知 Job 调度均已验证。故障
   smoke 不证明真实通知投递或 `main` 部署。后续经授权完成的 `main` 部署观察见第 9 节，
-  通知诊断补丁的保留源分支观察与当前 workflow 的非 `v*` tag 负面 smoke 见第 10 节；实际通知
-  与后续定时运行仍是独立 live gate。PRD R3 的 BuildKit 容量语义已由锁定
+  通知诊断补丁的保留源分支观察与当前 workflow 的非 `v*` tag 负面 smoke 见第 10 节，
+  PR #12 合并后的 `main` run、首次通知失败边界及修复后正式单 Job 重跑收件见第 11 节；
+  后续自然定时运行仍是独立 live gate。PRD R3 的 BuildKit 容量语义已由锁定
   docker-driver 的默认自动 GC policy、无 daemon override 与 live inspect 解决；这证明
   运行态有界 policy，不声称已观察到阈值触发、GC sweep 或自动删除。
 
@@ -248,9 +249,9 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
   四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR opening 与 head update、
   后续源分支 push、外部 Fork 隔离，以及故障传播/最终通知 Job 调度的新增证据见第
   8 节；故障 smoke 只证明 `needs`/`always()` 与最终通知 Job 调度，不替代真实通知投递。
-  经批准合并后的真实 `main` 4 Job、七项各一次、镜像/部署与 Gateway 证据见第 9 节，但
-  实际通知投递失败；通知补丁进入 `main` 后的 adapter 接受与 Telegram 收件，以及下一次
-  自然 scheduled security 2 Job 仍待完成。任务保持 `in_progress`。
+  经批准合并后的真实 `main` 4 Job、七项各一次、镜像/部署与 Gateway 证据见第 9 节；该次
+  通知失败是历史负面证据，通知补丁进入 `main` 后的 adapter 接受与 Telegram 实收见第 11 节。
+  当前仅下一次自然 scheduled security 2 Job 仍待完成，任务保持 `in_progress`。
 
 ## 8. 内部 PR lifecycle smoke 与后续 source push（2026-07-24）
 
@@ -560,9 +561,9 @@ Gateway 的 `main_head`、`state.commit` 与 `current_image` 同此 revision 对
 成功的部署结果，**不能证明 adapter 已接受通知，也不能证明 Telegram 收件**。
 
 针对该次 `main` live 观察，独立 Trellis 最终判定为 FAIL，其中唯一失败项为实际通知投递；
-其余本次 main deploy、Registry、Gateway、cache 运行状态与资源不变量均已通过。这不表示任务
-整体仍需真实通知与下次自然 scheduled security；它们是独立 gate，不能由 source push 或 tag
-负向冒烟替代。
+其余本次 main deploy、Registry、Gateway、cache 运行状态与资源不变量均已通过。这是 run `215`
+当时的历史结论；后续正式通知修复与实收见 §11。自然 scheduled security 仍是独立 gate，不能由
+source push、tag 负向冒烟或通知重跑替代。
 
 只读历史诊断表明，这不是已知的连续通知故障：最近一次 adapter accepted 为 run `192` /
 job `817`（SHA `34be...`，`2026-07-23T14:17:16Z`–`14:17:20Z`），结论 success，实际
@@ -575,16 +576,16 @@ run `178` 与 `171` 尚无 notification job。故 run `215` 是当前观察到�
 success/exit `0`，其 preflight `non-2xx=0`；但该 preflight 在 Telegram 配置或调用之前
 直接返回 HTTP 200。因此它只证明当时 endpoint 返回 2xx，不能证明 Telegram 分支已执行或
 投递成功。现有记录仍不足以区分瞬时网络、非 2xx、contract/JSON、Pipedream 配置或 Telegram
-失败，实际通知 gate 必须保持未完成。
+失败，因此在该阶段实际通知 gate 必须保持未完成；其后的关闭证据见 §11.2。
 
 ## 10. run 215 通知失败后的安全诊断增量与保留源分支观察
 
 本节记录通知诊断补丁的本地回归，以及其已推送到保留源分支后的只读观察。诊断实现 commit
 `6bcdf666fe8ead91fec9530522e7ffe9378be6d0` 及证据补充 commit
 `aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 均已推送至
-`sync/upstream-0.1.164`；但尚未进入 `main`、未触发 deploy，Gateway、Registry 和真实通知
-均未触碰。因此 **不表示 run 215 已修复，也不证明 adapter 接受或 Telegram 收件**；§9 的失败
-结论保持原样。
+`sync/upstream-0.1.164`。截至本节记录的 source 阶段，补丁尚未进入 `main`、未触发 deploy，
+Gateway、Registry 和真实通知均未触碰。因此该阶段 **不表示 run 215 已修复，也不证明
+adapter 接受或 Telegram 收件**；§9 的失败结论保持原样，后续合并与真实 `main` 观察见 §11。
 
 ### 10.1 本地补丁的边界与行为合同
 
@@ -623,18 +624,19 @@ deploy/gitea/tests/test-workflow-contract.sh（含 failure-gate）
 git diff --check
 ```
 
-广域本地回归已执行的 12/12 项均 PASS。相邻 image/lifecycle 检查中，
-`docker-actions` 与 `registration-token` 为 PASS；`go-actions-image` 因锁定 Node 基础镜像
-本机缺失、为避免再次联网而 SKIP，故本轮增量不宣称全量二元 PASS。`actionlint` 与 `yamllint`
-未安装；本增量没有适用的类型检查项。
+广域本地回归已执行的 12/12 项均 PASS。相邻 image/lifecycle 检查中的
+`go-actions-image`、`docker-actions-image`、`registration-token-lifecycle`、
+`admin-primitives` 与 `release-workflow` 已在最终复验中全部 PASS；因此较早阶段因本机缺少
+锁定 Node 基础镜像而出现的 `go-actions-image` SKIP 不再是最终验收缺口。`actionlint` 与
+`yamllint` 未安装；本增量没有适用的类型检查项。
 
 ### 10.3 DinD 偏差、清理与残余风险
 
 rootless DinD smoke 中，内层 daemon 因本地没有 Alpine 缓存而一次性从 Docker Hub 拉取锁定
 摘要；临时容器、网络和卷均已清理，主 Agent 复核不存在 `gitea-runner-smoke` 残留。该本地
-网络行为未触发真实通知或任何远端修改。补丁随后仅推送至保留源分支，仍需在获得授权后合并进
-`main`，并通过一次新的真实 `main` 通知路径观察 adapter 实际接受与 Telegram 收件；scheduled
-security 的自然事件证据也仍未完成。
+网络行为未触发真实通知或任何远端修改。截至本节记录的阶段，补丁仅推送至保留源分支；
+后续经授权的合并与真实 `main` 通知路径观察见 §11：首次投递失败，修复外部 Bot token 后的
+正式单 Job 重跑已得到 adapter 接受与 Telegram 实收；scheduled security 的自然事件证据仍未完成。
 
 ### 10.4 保留源分支 `aadcc6cd...` 的最终只读观察
 
@@ -673,7 +675,7 @@ bindings 为 0，宿主 `8088`/`2375`/`2376` listener 为 0。DinD build cache �
 
 这次观察不涉及 `main`、deploy、Gateway、Registry 或真实通知，不能作为 run `215` 修复、adapter
 接受或 Telegram 收件的证据。R3/BuildKit 容量语义已由上述默认自动 GC policy 与 live inspect
-解决；自然 scheduled security 与合并后真实 `main` 通知验证仍待办。
+解决；自然 scheduled security 仍待办，合并后真实 `main` 通知的首次失败与后续修复收件见 §11。
 
 ### 10.5 最新 source push 与非 `v*` tag 负向 smoke（2026-07-24 UTC）
 
@@ -714,4 +716,198 @@ reclaimable 为 20.01 GB。本轮没有执行 prune，不能把既有 Builder GC
 为空，再删除同名本地 tag；最终本地 tag list 与远端 `ls-remote` 均为空。source branch 仍为
 `3d5d8ac8...`、max run 仍为 `219`、`new_runs=[]`，Runner/DinD restart 仍为 0、OOM 为 false。
 这关闭当前 workflow 的非 `v*` tag 负向 smoke gate；它没有触碰 `main`、Gateway、Registry 或
-真实通知，也不替代仍待完成的 adapter/Telegram 投递和自然 scheduled security 2 Job 证据。
+真实通知，也不替代 §11.2 后续完成的 adapter/Telegram 投递或仍待自然发生的 scheduled
+security 2 Job 证据。
+
+## 11. PR #12 合并与 `main` deploy run 222（2026-07-24 UTC）
+
+PR #12 标题为 `fix(ci): 增强部署通知失败诊断`。在 `2026-07-24T11:56:08Z` 处于 Ready 后，
+以 fast-forward-only 合并；merge SHA、PR head、PR base 均为
+`ddd6e9390d87550bd6c159dd61088fd0b87cea6e`。合并后 `main` 与 source branch 均指向该
+SHA。打开 PR 或将其标记 Ready 均没有产生新的 workflow；合并仅产生 run `222`，其为
+`push`、`deploy.yml@refs/heads/main`、`completed/success`。
+
+在 `capacity: 1` 下，run `222` 的四个 Job 均为 attempt `1`、Runner `1`，严格串行的
+首尾窗口为 `2026-07-24T11:56:14Z`–`12:12:11Z`（957 秒）：
+
+| Job | Job / task | 时间（UTC） | 耗时 |
+| --- | --- | --- | ---: |
+| `backend` | `881` / `830` | 11:56:14–12:08:40 | 746 s |
+| `verify` | `882` / `831` | 12:08:42–12:10:44 | 122 s |
+| `build-and-deploy` | `883` / `832` | 12:10:46–12:12:02 | 76 s |
+| `telegram-notification` | `884` / `833` | 12:12:04–12:12:11 | 7 s |
+
+`backend` 的 Go cache 与 `verify` 的 pnpm cache 均为精确 hit。五项 backend gate 均仅执行
+一次；`frontend-all` 覆盖 frontend test 与 production audit，因此七项门禁语义没有减少。
+BuildKit 日志有 15 个 `CACHED` step：`#3`、`#12`、`#14`–`#20`、`#28`–`#33`；`#39 exporting
+layers` 完成。Registry push 的 digest 为
+`sha256:fc0379fee8a0fbb7e480fe25c063f1440ea99bca03b1ece9d0c3fb82bd52d4f6`。
+
+Gateway 状态为 `ready=true`、`health=true`、`state_env_consistent=true`、
+`intervention_required=false`；`main_head`、`state.commit` 与 `current_image` 均对齐至
+`ddd6e9390d87550bd6c159dd61088fd0b87cea6e` 和上述 digest。backup ID 为
+`20260724T121130Z-ddd6e9390d87550bd6c159dd61088fd0b87cea6e`，`deployed_at` 为
+`2026-07-24T12:12:00Z`。
+
+收尾只读检查与已记录的运行期间计数/离散采样未发现资源或暴露边界漂移：Runner/DinD restart
+均为 `0`、OOM 为 false、`memory.events` 的 `oom*` 均为 `0`、kernel OOM marker 为 `0`；收尾时内层
+容器为 `0`、宿主敏感 listener 为 `0`。运行期间的最高**离散采样** DinD 用量为
+`2.60 GiB / 6 GiB`，不将其表述为峰值。action
+cache 为 `1022864 KiB`、3 个子项、`1000:1000`、`0700`、文件系统使用率 17%；Build Cache
+为 `23.03 GB`、其中 `20.18 GB` reclaimable。本次未执行 prune。
+
+### 11.1 首次通知投递失败与根因（历史失败边界）
+
+job `884` 与整体 run 的 API 状态虽均为 success（通知为 soft-fail），唯一真实 runtime marker
+为 `deployment-notification-outcome=http-5xx-502`，随后日志记录 delivery failed。用户已明确
+确认没有收到 Telegram 群消息。因此首次执行的证据为 `adapter accepted=false`、`Telegram
+received=false`；不得把 workflow/run success 当作该次投递成功。
+
+随后按 runbook 从服务器文件发出的静默 preflight 不会调用 Telegram，HTTP 为 `200`。它只证明
+服务器侧存储的 Pipedream endpoint 与 preflight 分支可达；不能证明其值与 Actions secret 相等，
+也不能证明 Telegram 分支健康。当前环境没有 Pipedream 管理工具或相关环境变量；进一步根因需要
+Pipedream 的脱敏事件信息。随后 Pipedream Event History 证明 run `222` 的 webhook 请求已到达，
+adapter 返回 `telegram_delivery_failed`/HTTP `502`；只调用 Telegram `getMe` 与 `getChat` 的
+脱敏探针均返回 HTTP `401`，而 Bot 仍在目标群内，因此根因确定为 Pipedream 中的
+`TELEGRAM_BOT_TOKEN` 已失效。修复 token 后两项探针均返回 HTTP `200`，重放原事件也已得到一次
+Telegram 群实收。按用户决定保留既有 Pipedream endpoint，不执行 endpoint 轮换。
+
+### 11.2 正式单 Job 重跑与 Telegram 实收（通知 live gate 关闭）
+
+在修复 Bot token 后，经用户明确授权，使用 Gitea 1.26.4 Swagger 定义的官方
+`rerunWorkflowJob` API，仅对 run `222` 的 job `884` 发起一次重跑。请求
+`POST /api/v1/repos/211api/211api/actions/runs/222/jobs/884/rerun` 返回 HTTP `201`，job 先进入
+`queued`，随后在 `2026-07-24T13:29:33Z`–`13:29:37Z`（Asia/Shanghai
+`21:29:33`–`21:29:37`）由 Runner `1` 完成并保持 `success`。
+
+该次执行日志的最终 runtime marker 为
+`2026-07-24T13:29:37.2296480Z deployment-notification-outcome=accepted`；用户随后明确确认
+Telegram 群已收到这条新消息。因此本次证据为 `adapter accepted=true`、
+`Telegram received=true`，完整的 Gitea Job → Pipedream → Telegram 实际投递链路通过。
+
+重跑前后 run 仍为 `222` 且总 Job 数仍为 4，没有产生 ID 大于 `222` 的新 run；`backend`
+`881`、`verify` `882`、`build-and-deploy` `883` 的原始开始/结束时间均未变化，证明没有重跑验证、
+构建或部署。完成后 Runner `1` 为 `online`、`busy=false`。本次使用既有 root-only
+`admin-api.curl` 调用官方 API，没有读取、打印、创建或遗留新的 token，也没有直接调用 webhook。
+
+该 main commit 的 aggregate status 为 `success`、共 8 个 contexts；分支保护仍精确要求
+`ci / required (push)` 与 `security / required (push)`。自然触发的 scheduled Security 2 Job
+仍待 `2026-07-27 03:00 UTC`，不由本次 main run 替代。
+
+## 12. 自然 scheduled Security 的就绪预检（2026-07-24 UTC）
+
+在不触发 workflow、不修改 Gitea/Runner 状态的前提下，于 `2026-07-24T13:45:40Z` 完成只读
+预检。当前工作树与 `main` SHA `ddd6e9390d87550bd6c159dd61088fd0b87cea6e` 中的
+`.gitea/workflows/security.yml` 内容一致，保持 `cron: "0 3 * * 1"`，其图只有
+`backend` → `required` 两个 Job。后续只读 `ls-remote` 再次确认远端 `main` 与
+`sync/upstream-0.1.164` 均指向该 SHA；本地滞后的 `origin/main` tracking ref 未被当作线上证据，
+也未为此执行 fetch 或修改本地引用。
+
+Gitea 官方 workflow API 返回仓库共 4 个 workflow，`security.yml` 的 `state=active`；Gitea、
+Runner 与 rootless DinD 容器均 running，Gitea/DinD healthy，restart `0`、OOM false。Runner
+API id `1` 为 `online`、`busy=false`、`disabled=false`，并保留 `go-1.26.5` 与
+`node-20.20.2` 标签，能够接收这两个 Job。
+
+随后在 `2026-07-24T14:02:01Z` 通过 PostgreSQL 只读 `SELECT` 直接核对 Gitea 调度器登记状态，
+未读取 `content`/`event_payload` 或任何凭据。仓库 ID `1` 恰有一条 `action_schedule` 与一条
+`action_schedule_spec`：schedule/spec ID 均为 `17`，绑定
+`security.yml@refs/heads/main`、commit `ddd6e9390d87550bd6c159dd61088fd0b87cea6e`，spec 为
+`0 3 * * 1`；`prev=0`（尚未执行），`next=1785121200`，即
+`2026-07-27 03:00:00 UTC`。查询时距 next 为 `219478` 秒。该证据证明当前 workflow 已由
+Gitea scheduler 唯一登记并计算出正确下次时间，但仍不把登记状态冒充自然 run。
+
+宿主 `Timezone=Asia/Shanghai`、`NTP=yes`、`NTPSynchronized=yes`、`LocalRTC=no`；宿主与
+Gitea 容器 epoch 差为 0 秒。最近 100 个 run 中共有 22 个 `security.yml` push run，但
+`event=schedule` 的记录为 0，因此不能用历史 run 替代当前版本的首次自然调度证据。下一次
+权威观察点仍为 `2026-07-27 03:00 UTC`（Asia/Shanghai `11:00`）。届时要求恰好产生一条
+`security.yml@refs/heads/main` 的 `schedule` run，只有 `backend`/`required` 两个 Job、两项安全
+门禁各一次，并复核 cache hit、Runner/OOM 与无额外 deploy/CI/release run；在此之前该 live gate
+保持未完成。
+
+## 13. 最终自然调度前的逐项完成审计（2026-07-24 UTC）
+
+### 13.1 Release 分支/tag 路由的既有真实证据
+
+设计 §3.1/§7.2 要求用真实 Gitea 行为验证 tag 路由。§10.5 已证明非 `v*` 临时 tag 不会误触发
+任何 workflow；本轮再通过官方 Actions API 只读查询全部 218 条现存 run，而不是创建新 tag。
+其中已有同一被测 SHA `e289410d1c37d7aa93d26ea75103026845759587` 的正向证据：
+
+| 路由 | Run / ref | Job | 结论与时间（UTC） |
+| --- | --- | --- | --- |
+| release request | `138` / `release/v0.1.160-gitea-smoke.2` | `request-tag` `551` → `publish` `552` | 两项均 success，12:39:58–12:40:27 |
+| release tag | `141` / `refs/tags/v0.1.160-gitea-smoke.2` | `request-tag` `562` → `publish` `563` | 两项均 success，13:18:58–13:19:27 |
+
+当前 `ddd6e9390d87550bd6c159dd61088fd0b87cea6e` 的 `.gitea/workflows/release.yml` 与上述
+`e289410d...` 版本执行 `git diff --exit-code` 无差异，当前
+`deploy/gitea/tests/test-release-workflow.sh` 亦 PASS。因此这是当前未改 release workflow 的可复用
+真实正向兼容证据；结合 §10.5 的非 `v*` 负向 smoke，release 分支/tag 路由已闭合，无需制造新的
+发布或 tag。
+
+### 13.2 PRD、设计与 infra contract 映射
+
+| 条目 | 权威证据 | 审计结论 |
+| --- | --- | --- |
+| R1 消除重复执行 | §8、§9、§10.5、§11、§13.1 | 分支、PR、fork、main、release/tag 均闭合；只剩 weekly schedule 自然事件。 |
+| R2 单 Runner 串行图 | §2、§5、§8、§11 | 4/4 Job、七项一次、`capacity: 1` 与冷/热耗时均已证明。 |
+| R3 安全有界缓存 | §3–§6、§9.2、§10.4–§10.5 | 私网 action cache、冷回退、维护 hook 与 BuildKit 自动 GC policy 均已证明。 |
+| R4 安全/发布/回滚不变量 | §4、§8.5、§8.7、§9、§11 | required contexts、rootless/端口、失败阻断、不可变发布与通知均闭合。 |
+| R5 可测量/可运维 | §2–§7、§10、§12 | 基线、耗时、cache、磁盘、内存、回滚均齐；最终 live 观察只缺自然 schedule。 |
+| AC1 | §8.7、§11 | 七项各一次；失败时 build/deploy 无 task，成功 main 完整通过。 |
+| AC2 | §8.1、§8.3、§8.5 | 内部 PR 只消费 push；fork 无受信任务、secret 或 canonical status。 |
+| AC3 | §2.1、§8.7、§11 | main 19→4 Job、14→7 门禁，失败通知仍最终调度。 |
+| AC4 | §5.1–§5.4、§9.2、§11 | exact hit、精确清空后的 cold fallback 与 BuildKit CACHED 均有 live 证据。 |
+| AC5 | §3、§5、§8、§11 | `capacity: 1`、6 GiB 与 OOM/restart 不变量保持。 |
+| AC6 | §5.4、§8、§10.4–§10.5 | 两个真实 required push context 与保护配置精确一致。 |
+| AC7 | §4、§8.5、§10.4–§10.5 | 无宿主 listener/socket，作业仍在 rootless DinD。 |
+| AC8 | §10.2 与本节复验 | infra contract 要求的 9/9 测试及相邻 release 合同均 PASS。 |
+| AC9 | design §9–§10、evidence §7 | 上线、预热、观察、回滚和恢复路径均已记录。 |
+| AC10 | §5.1、§5.4 与 cache-maintenance fixture | post-task 已真实执行；阈值/路径/owner/symlink 清理合同均 PASS。 |
+| design §7.2/§9 | §5、§8、§10.5、§11、§12、§13.1 | 除 weekly schedule 的首次自然运行外，列出的 live 兼容点均有直接证据。 |
+
+本轮重新执行 infra contract §6 的 9 个必跑检查，结果 `9/9 PASS`。disposable rootless DinD
+smoke 拉取锁定 Alpine digest 后，唯一临时容器、网络和卷均由 trap 清理，随后按名称前缀回读均为
+空。Compose 对 file-backed config 的 `uid/gid/mode` 提示是已记录的本地实现语义：源脚本保持
+`0755`、实际挂载只读，且 §5.1 已有真实 post-task maintenance 日志，故不构成执行权限缺口。
+
+审计后产品/运行态唯一未完成项仍是 §12 的首次自然 scheduled Security 2 Job。实施计划中历史
+TDD red 顺序无法追溯，是不可重建的过程记录缺口，不改变当前实现、回归覆盖或 live 结果；任务在
+自然调度通过前继续保持 `in_progress`、`commit=null`、`completedAt=null`。
+
+## 14. 首次自然 scheduled Security 的 fail-closed 验收协议
+
+本协议只读观察既有自然事件，不修改 cron/workflow、不中途手动 dispatch、不 rerun、不创建 tag，
+也不直接写数据库。权威时间点为 `2026-07-27 03:00:00 UTC`（Asia/Shanghai `11:00:00`）。
+触发前 schedule/spec 的已知状态为单行 ID `17`、`prev=0`、`next=1785121200`。
+当前 `EXPECTED_SHA` 为 `ddd6e9390d87550bd6c159dd61088fd0b87cea6e`。若 03:00 UTC 前经授权的
+操作使远端 `main` 前进，不得沿用旧 SHA：先重新只读快照 `main`、schedule row 与 workflow 内容，
+只有三者绑定同一新 SHA 且 `security.yml` 与本任务被测版本无差异时才更新 `EXPECTED_SHA`；否则
+停止验收并保持任务未完成。
+
+自然事件只有同时满足以下条件才通过：
+
+1. **调度唯一性**：触发后只新增一条 `event=schedule` 的
+   `security.yml@refs/heads/main` run；其 SHA 精确为触发前冻结的 `EXPECTED_SHA`，最终为
+   `completed/success`。不得把同 SHA
+   的历史 `push` run 或手动 rerun 当作本次证据。
+2. **Job 图与串行性**：该 run 恰有 `backend`、`required` 两个 Job，均为 attempt `1`、
+   Runner `1`、`completed/success`；`required` 不早于 `backend` 完成后开始，没有第三个 Job、
+   无未分配 task 或重试 attempt。
+3. **门禁与缓存日志**：原始 Job 日志中 `security-backend` 与 `security-frontend` 各出现且只
+   出现一次；Go 与 pnpm restore 均成功并各有一个精确 `cache-hit=true`，没有 restore/save
+   failure。post-task maintenance 对两个 task 均执行且不泄露条目名或凭据。
+4. **scheduler 周期跃迁**：同一条 schedule/spec 仍唯一存在，`prev` 精确变为
+   `1785121200`，`next` 精确变为 `1785726000`（`2026-08-03 03:00:00 UTC`）；workflow/ref/SHA/
+   cron 不漂移。API run 与 DB 跃迁必须同时存在，任一侧不能替代另一侧。
+5. **无旁路与资源漂移**：同一观察窗口没有由该 schedule 事件产生的 CI、deploy 或 release
+   run；Runner 收尾为 `online`/`busy=false`，Runner/DinD restart 和 `OOMKilled` 不增加，
+   `memory.events` 的 `oom*` 保持 0；宿主 `8088`/`2375`/`2376` 仍无 listener，action cache
+   仍为普通目录、`1000:1000 0700`。记录 Job 首尾耗时、cache 大小、文件系统使用率与内存离散
+   采样，但不把离散采样称为峰值。
+
+如果 03:00 UTC 后没有自然 run、出现重复 run/Job、结论失败、cache 异常、DB 未跃迁或资源不变量
+漂移，保持任务 `in_progress`，先保存只读 API/Job/log/DB/Runner 证据；不得用 manual dispatch、
+rerun、改 cron 或删除失败 run 来“修复”验收历史。只有五项全部通过后，才可勾选 implement.md
+中的自然 schedule 与完成定义，并进入最终 task/commit 收口；提交和推送仍需按用户授权执行。
+该 API run + scheduler row 双证据规则已同步至
+`.trellis/spec/infra/gitea-single-runner-ci.md` 的 signature、contract、error matrix、cases、tests 与
+wrong/correct 段落，作为 Gitea 1.26.4 的可复用验收合同。
