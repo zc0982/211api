@@ -197,17 +197,29 @@ git status --short
 - [x] 对同 SHA rerun：attempt 2 的 4 次 Go/pnpm restore 均为精确
   `cache-hit=true`，且没有 miss/save；已分别记录 warm 与清理后 cold fallback 总耗时。
 - [x] 停止 Runner 后只清空 `/data/cache/actions`，再运行同 SHA，证明 cold fallback。
-- [x] 内部 PR opening smoke：打开 Draft PR 后不创建 `pull_request` run；head 聚合
-  commit status 为 success，两个 required context 的名称与成功状态和 `main` 保护合同
-  精确一致。仅已验证打开 PR，尚未验证 PR head update，也不声称 API 直接返回了 PR
-  消费 contexts 的额外 rollup 字段。
-- [ ] 外部 fork 负面 smoke：不调度受信 Runner，且不能满足 push contexts。
+- [x] 内部 PR opening + head update smoke：打开 Draft PR 本身未新增 workflow run；
+  opening 前的 head `484aba68...` 已由 source push 产生 run `198`/`199`。后续已批准
+  head update `803bda0a...` 仅创建 run `200`/`201` 两个 `push` run、共 4 个 Job；
+  全程没有 `pull_request` run。两个 head 的聚合 commit status 均为 success，required
+  context 的名称与成功状态和 `main` 保护合同精确一致。不声称 API 直接返回了 PR 消费
+  contexts 的额外 rollup 字段。
+- [x] 外部 fork 负面 smoke：第二次经单独授权仅临时启用 Fork Actions 后，唯一 Fork
+  SHA 真实产生 `ci.yml`/`security.yml` 两条 push run（204/205）和四个未分配 job（841–844，
+  `task_id=0`，没有 `action_task`/`runner_id=1`）；canonical 无该 SHA 或外部 PR 的
+  pull_request run，Fork secrets 为空，cache/Runner/OOM 不变。外部 WIP PR #11 opening 后
+  仍无 pull_request run；临时 PAT 对非 required sentinel 返回 403，canonical 不含 sentinel
+  或 required contexts。所有临时活动对象已按 PR、Fork、collaborator、PAT、user 的顺序清理，
+  full verifier 通过。run/job/Fork status 是删除 Fork 前的观测证据；删除后相应 live DB 行已
+  级联清除。首次 `has_actions=false` fail-closed 记录仍保留于 evidence.md。
 - [ ] 故意失败的 smoke commit 不进入 build/deploy；不得使用真实 main/Gateway 制造
   失败实验。
 - [ ] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
   一次；记录内存峰值和 `memory.events`，无新增 OOM。
-- [ ] 观察两个后续源分支 push、一个 main run，并在下次定时安全运行补齐 2 Job
-  证据；若兼容点失败，执行回滚而非放宽门禁。
+- [x] 观察两个后续源分支 push：`484aba68...` 的 run `198`/`199` 与
+  `803bda0a...` 的 run `200`/`201` 均为 4 Job 的 warm 路径；若兼容点失败，执行回滚而非
+  放宽门禁。
+- [ ] 观察一个 `main` run，并在下次定时安全运行补齐 2 Job 证据；两项均仍需单独授权或
+  自然事件，若兼容点失败，执行回滚而非放宽门禁。
 
 ## 9. 风险文件与回滚点
 

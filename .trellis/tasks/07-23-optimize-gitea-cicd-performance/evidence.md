@@ -10,8 +10,9 @@
   `e40f3ff66` 已提交并随该 tip 推送；下文当前 SHA 的 attempt 1 是 Go warm / pnpm
   cold，attempt 2 是四次 exact hit，attempt 3 是精确清理后的 cold fallback。所有时间
   均为 UTC。
-- 未合并 `main`，未修改或部署 Gateway；内部 PR head update、外部 fork、`main` 部署图
-  和后续定时运行仍是独立 live gate，不能由本文现有证据替代。
+- 未合并 `main`，未修改或部署 Gateway；内部 PR 的 opening/head update 与外部 Fork
+  隔离均已验证，但故障阻断、`main` 部署图和后续定时运行仍是独立 live gate，不能由
+  本文现有证据替代。
 
 ## 2. 优化前基线
 
@@ -223,12 +224,12 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
 - cache 是可重建性能层；失败时可先停止 Runner、恢复 config/compose、移除
   maintenance 脚本，再只重建 Runner。不得删除 Runner 注册卷或 DinD 数据。
 - 当前证明单机 Runner 灰度、私网隔离，以及修复后源分支 push 的混合预热 attempt、
-  四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR opening、后续源分支观察
-  的新增证据见第 8 节；PR head update、外部 fork 负面行为、故障阻断、`main` 4 Job
-  自包含部署图、Gateway 与最终通知、另一后续源分支观察及定时安全运行仍待单独授权或
-  自然事件；任务保持 `in_progress`。
+  四次 exact-hit warm rerun 和精确清理 cold fallback。内部 PR opening 与 head update、
+  两次后续源分支 push 与外部 Fork 隔离的新增证据见第 8 节；故障阻断、`main` 4 Job
+  自包含部署图、Gateway 与最终通知及定时安全运行仍待单独授权或自然事件；任务保持
+  `in_progress`。
 
-## 8. 内部 PR opening smoke 与自然后续 push（2026-07-24）
+## 8. 内部 PR lifecycle smoke 与两次后续 source push（2026-07-24）
 
 ### 8.1 内部 PR opening smoke
 
@@ -245,7 +246,7 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
 
 创建前、创建后及延迟复核均显示该 head 仅有 run `198`、`199` 两个已完成的
 `event=push` run；`pull_request` run 计数为 0，未出现新的 Job 或 Runner 接单。
-这只证明“打开内部 PR”不会追加受信 Runner 工作；尚未执行或证明 PR head update。
+这只证明“打开内部 PR”不会追加受信 Runner 工作；head update 的独立证据见 8.3 节。
 
 `main` 分支保护保持 `enable_status_check=true`，contexts 精确为
 `ci / required (push)` 和 `security / required (push)`。该 head 的聚合 commit status
@@ -265,8 +266,8 @@ Vitest 与真实 Vite/Tailwind/Autoprefixer/PostCSS production build 均通过�
 
 PR opening 前，同一 head 的自然后续 source push 已产生 run `198`、`199`，合计 4 个
 Job；总关键跨度为 884 秒，四个 Job 耗时依次为 692、62、107、23 秒，合计同为 884
-秒。四次 Go/pnpm restore 均为精确 `cache-hit=true`，没有 miss/save。此为一次已发生的
-后续源分支 push warm 观察，不是 PR head update，也不替代仍缺的另一次后续 push、
+秒。四次 Go/pnpm restore 均为精确 `cache-hit=true`，没有 miss/save。此为第一次已发生的
+后续源分支 push warm 观察；第二次及 PR head update 见 8.3 节，二者均不替代尚未执行的
 `main` 运行或定时安全运行证据。
 
 结束时 Runner 为 `online`、`busy=false`；action cache 保持 3 个直接子项、
@@ -282,5 +283,116 @@ oom_kill 0
 oom_group_kill 0
 ```
 
-外部 fork 负面 smoke、故障注入阻断、合并后的 `main`/Gateway/部署/通知、另一次后续
-source push 与定时安全运行仍未获授权且未执行；PR #10 保持 open Draft。
+### 8.3 PR head update 与第二次后续 source push `803bda0a...`
+
+已批准提交 `803bda0a3d81bdcf1854769c11420a8529ad0aa4` 在
+`2026-07-24T01:42:56Z` 更新 PR #10 head。更新时及随后复核，PR 始终保持
+`open`、`draft=true`、`merged=false`；base 仍为 `main` /
+`34be916c487f261f9e034c726be13c773be8489a`。因此本节记录的是一次真实内部 PR head
+update，而不是打开 PR 的重述，也不涉及合并、`main`、Gateway 或部署。
+
+该 SHA 只创建 run `200`（`ci.yml` / `push`）和 run `201`（`security.yml` / `push`），
+恰好为 Job `833`–`836` 四个 Job；没有 `pull_request` run、重复 run 或其他 Job，四个
+Job 均在 attempt 1 成功。run `200` 为 871 秒，run `201` 为 195 秒；capacity=1 下总关键
+跨度为 893 秒。Job 耗时依次为 698、65、108、21 秒；关键步骤耗时为 Go restore 32/34 秒、
+unit 199 秒、integration 164 秒、lint 293 秒、security-backend 23 秒、frontend 98 秒、
+security-frontend 14 秒。
+
+四次 Go/pnpm restore 都是精确 `cache-hit=true`，均记录 `Cache restored`，没有 miss 或
+save；安全审计输出 `0 vulnerabilities`，前端审计输出 `Audit exceptions validated.`。
+action cache 保持 `1022864 KiB`。四个真实 push context 均为 success：
+
+| Context | status DB ID | 状态 |
+| --- | ---: | --- |
+| `ci / backend (push)` | `2737` | success |
+| `security / backend (push)` | `2740` | success |
+| `ci / required (push)` | `2743` | success |
+| `security / required (push)` | `2745` | success |
+
+DinD 峰值为 4.179 GiB / 6 GiB；`memory.events` 保持 `low 0`、`high 0`、`max 296`、
+`oom 0`、`oom_kill 0`、`oom_group_kill 0`。Runner/DinD 身份保留，restart 均为 0，
+`OOMKilled=false`；结束时没有 active 或遗留 Job。至此，run `198`/`199` 的 `484aba68...`
+与 run `200`/`201` 的 `803bda0a...` 构成两个已观察的后续源分支 push。
+
+### 8.4 外部 Fork 首次 fail-closed 尝试（2026-07-24）
+
+在用户明确授权后，按临时对象边界创建了用户
+`runner-fork-smoke-0724`（ID `9`，`admin=false`、`restricted=false`、
+`visibility=private`）。对 canonical 仓库的 direct collaborator 纠正写入返回 HTTP
+`204`，随后回读为 `read`。唯一 PAT 的元数据为 ID `17`、名称
+`runner-fork-smoke-0724`、scope 仅 `write:repository`；令牌值从未输出或写入任务记录。
+
+创建的 Fork 为 ID `3`、`runner-fork-smoke-0724/211api`，`private=true`、`fork=true`，
+parent 为 canonical ID `1` / `211api/211api`。但 API 回读 `has_actions=false`。这是预设的
+fail-closed 条件，因此立即停止：没有 marker branch 或 commit、没有 Fork Action run、没有
+外部 PR、没有向 canonical status API 发出哨兵请求。故本次尝试不能证明“不调度受信
+Runner”或“不能满足 push contexts”，也不构成 AC2 外部 Fork 隔离完成证据。
+
+清理在 `2026-07-24T02:31:05Z` 完成，顺序为 Fork、canonical collaborator、精确 PAT、
+临时用户；四个 DELETE 均返回 HTTP `204`。回读 temporary user/repository/collaborator
+均不存在，canonical Fork 数恢复为 `0`，PR 列表仍只有 #1–#10；内部 PR #10 保持
+`open`、`draft=true`、`merged=false`，head 仍为 `803bda0a...`。主会话随后以 exact
+path/realpath/root-owner guard 单次删除 `/run/gitea-runner-fork-smoke-0724` 并验证不存在。
+
+清理后 cache 仍为 `1022864 KiB`、`1000:1000 0700`、3 个直接子项；
+`memory.events` 仍为 `low 0`、`high 0`、`max 296`、`oom 0`、`oom_kill 0`、
+`oom_group_kill 0`。Runner DB 仍为 `repo_id=1`，完整 verifier 输出
+`Gitea repository verification passed (full).`。未改动 main、Gateway、Runner 或 cache。
+
+在本次首次尝试结束时，若要完成真实外部 Fork smoke，尚需新增授权：仅临时 PATCH Fork 的
+`has_actions=true`，再重新创建隔离对象，完成有界观察与精确清理；不得将本次 fail-closed
+尝试本身描述为成功的 Runner 隔离验证。该新增授权后来已取得，结果见 8.5 节。
+
+截至首次尝试结束时，外部 Fork 完整负面 smoke 尚未完成；其后续完成证据见 8.5 节。故障
+注入阻断、合并后的 `main`/Gateway/部署/通知及定时安全运行仍未完成；PR #10 保持 open
+Draft。
+
+### 8.5 外部 Fork Actions 隔离负面 smoke（2026-07-24）
+
+在对“仅临时启用该 Fork Actions”获得单独授权后，重新创建临时用户 ID `10`（仍为
+`admin=false`、`restricted=false`、`visibility=private`）、canonical read collaborator 与
+仅含 `write:repository` 的 PAT ID `18`；敏感值仅位于 root-only `0700` 运行目录中的
+`0600` 文件，未写入本记录。创建私有 Fork ID `4` 后，回读其 `parent.id=1`、
+`private=true`、`fork=true`、Actions secrets 为空。唯一的额外配置 mutation 是对这个临时
+Fork 的 `PATCH {"has_actions":true}`，返回 HTTP `200` 并回读为 true；没有修改 canonical。
+
+从精确 base `803bda0a3d81bdcf1854769c11420a8529ad0aa4` 创建
+`smoke/fork-runner-boundary-20260724`，再单次添加唯一 marker
+`.gitea-fork-smoke-20260724.md`。产生的 commit 为
+`7a959a11c2747eb43a0cdf1bae7975688c099251`，其唯一 parent 精确为该 base。该 Gitea
+版本的 compare API 只返回 commits 而不返回 files；因此以 marker contents 路径、branch
+head 和 Git commit parent 三项交叉核验“仅 marker diff”，不将缺失的 compare files 字段
+伪称为 API 证据。
+
+该唯一 SHA 在 Fork ID `4` 上真实产生两条 `push` Action run：`204` (`ci.yml`) 与
+`205` (`security.yml`)；DB job 为 `841`–`844`。四个 job 的 `task_id` 均为 `0`，该 SHA/
+Fork 在 `action_task` 中没有记录，故不存在 `runner_id=1` 的接单。canonical API Runner
+保持 `busy=false`，canonical action_run 的最新记录仍为既有 `200`/`201`，没有该 unique SHA
+或随后外部 PR 的 `pull_request` run。Fork secrets 全程为空，cache 始终为
+`1000:1000 0700`、`1022864 KiB`、3 个直接子项；Runner/DinD ID、restart、OOM 和
+`memory.events` 也都未变化。
+
+随后创建 WIP 外部 PR #`11`（base `main`、Fork head 为上述 SHA）。首次 create body 误用了
+`maintainer_can_modify` 字段；Gitea 仍以 HTTP `201` 创建 PR，但忽略该未知字段，初始回读
+`allow_maintainer_edit=true`。没有重放创建，而是依据 live OpenAPI 用一次
+`PATCH {"allow_maintainer_edit":false}` 修正，返回 HTTP `201`。观察期间 PR 始终
+open/draft/unmerged，未尝试 merge；WIP 不暴露可合并性，因此不声称“因 contexts 不能合并”。
+保护合同仍精确要求两个 `(push)` context，而 unique SHA 在 canonical scope 中没有任何
+status。临时 PAT 对 canonical 仅提交非 required context
+`runner-fork-smoke / forbidden`，返回 HTTP `403`；canonical status API 为空，DB 也确认
+该 SHA 的四个 pending context 都只属于 Fork repo ID `4`，canonical repo ID `1` 中不含
+sentinel 或任一 required context。没有尝试写入真实 required context。
+
+清理顺序为关闭 PR #`11`（HTTP `201`，closed/unmerged）、删除 Fork（`204`）、删除
+canonical collaborator（`204`）、用临时用户 Basic API 撤销精确 PAT ID `18`（`204`）、
+purge 删除用户 ID `10`（`204`）。最终 API/DB 均显示 user、Fork 与 collaboration 为 0；
+Fork 数恢复 0，canonical collaborators 恢复四个 service accounts；内部 PR #`10` 仍为
+open/draft/unmerged、head `803bda0a...`。运行目录也已删除。删除 Fork 后，其 live
+`action_run`、`action_run_job` 与 Fork `commit_status` 行被级联清除，因此 run `204`/`205`、
+job `841`–`844` 及四个 Fork pending contexts 是清理前的有界观测证据，不能描述为当前仍
+存在的 Action 记录。关闭的外部 PR #`11` 与请求审计日志仍保留；PR API 仍返回 unique SHA，
+但删除 Fork 后 `head.repo` 为空，DB 则保留历史 `head_repo_id=4`。该 SHA 仍可从 canonical
+PR ref 读取，且唯一 parent 仍为 `803bda0a...`。这些是已接受的残留痕迹，而不是仍存活的
+临时 Fork 对象。`verify-repository --full ... 803bda0a...` 通过。此处证明的是 Fork 不会调度
+repo-scoped trusted Runner 且不能向 canonical 写入 status；不替代尚未授权的故障、main
+部署图或定时运行门禁。

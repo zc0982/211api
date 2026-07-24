@@ -90,6 +90,78 @@ response and later GET to report `draft=true`, the exact head/base SHAs,
 `merged=false`, and `allow_maintainer_edit=false`. Never print or persist the
 root-only API credential while recording this evidence.
 
+### External Fork live-smoke APIs
+
+The isolation smoke uses a disposable private fork and exact, one-shot API
+mutations. On the deployed Gitea 1.26.4 instance, a newly created fork defaults
+to `has_actions=false`; this is not Runner-isolation evidence. After separate
+operator approval, enable Actions on the disposable fork only:
+
+```http
+PATCH /api/v1/repos/{temporary-user}/{fork}
+Content-Type: application/json
+
+{"has_actions":true}
+```
+
+The response must be HTTP `200` and a later GET must report
+`has_actions=true`. Create the smoke branch from an exact reviewed commit,
+then add one marker file:
+
+```http
+POST /api/v1/repos/{temporary-user}/{fork}/branches
+{"new_branch_name":"smoke/<reviewed-name>","old_ref_name":"<40-hex-base>"}
+
+POST /api/v1/repos/{temporary-user}/{fork}/contents/<marker-path>
+{"branch":"smoke/<reviewed-name>","content":"<base64>","message":"<reviewed-message>"}
+```
+
+The external WIP PR create body uses `allow_maintainer_edit`, not
+`maintainer_can_modify`. The latter is silently ignored by this deployed
+version and can leave the new PR at the default `true` value.
+
+```http
+POST /api/v1/repos/{owner}/{repo}/pulls
+
+{
+  "title":"WIP: <reviewed external-fork smoke>",
+  "head":"<temporary-user>:smoke/<reviewed-name>",
+  "base":"main",
+  "allow_maintainer_edit":false
+}
+```
+
+A successful create returns HTTP `201`; require the response and a later GET to
+report `allow_maintainer_edit=false`. If an already-created PR used the ignored
+field, do not replay the create. Reconcile the exact PR, then perform at most one
+approved correction using the live edit schema:
+
+```http
+PATCH /api/v1/repos/{owner}/{repo}/pulls/{index}
+Content-Type: application/json
+
+{"allow_maintainer_edit":false}
+```
+
+On this deployed version the edit returns HTTP `201`; a later GET must confirm
+the field is false.
+
+To test status-write isolation, the disposable user's PAT may attempt exactly
+one non-required sentinel context against the unique SHA:
+
+```http
+POST /api/v1/repos/{owner}/{repo}/statuses/{unique-sha}
+
+{
+  "state":"pending",
+  "context":"runner-fork-smoke / forbidden",
+  "description":"permission-boundary probe"
+}
+```
+
+The deployed live-smoke returned HTTP `403`; accept only `403` or `404` and
+require a zero-row API/DB readback. Never probe either real required context.
+
 ## 3. Contracts
 
 ### Workflow topology
@@ -122,6 +194,63 @@ head statuses and the protection contract. Do not claim that an API returned a
 PR-specific status rollup unless that concrete response field was observed.
 Treat opening a PR and later updating its head as separate live gates; a push
 while the PR is open must still create only the four expected `push` jobs.
+
+### External Fork evidence and cleanup boundary
+
+Use a non-admin, non-restricted, private temporary user with no organization or
+team membership. Give it one direct `read` collaboration on the canonical
+repository and one PAT scoped exactly to `write:repository`. Store the random
+password, PAT value, Basic/token curl configs, and mutation stage only under a
+root-owned mode-`0700` runtime directory; secret files are mode `0600` and are
+never printed. Before every non-idempotent retry, reconcile through API and DB
+instead of assuming a failed client command means the server mutation failed.
+
+After enabling Actions on the temporary fork, the marker push must create the
+expected `ci.yml` and `security.yml` `push` runs. Isolation is proved only when
+all of the following hold in the same bounded observation window:
+
+- the fork has no Actions secrets;
+- the fork runs and jobs exist for the unique SHA;
+- every job remains unassigned (`task_id=0`), no matching `action_task` exists,
+  and no task row may record trusted Runner ID `1`;
+- the trusted Runner remains repository-scoped to canonical repo ID `1` and
+  does not become busy for the fork;
+- canonical runs gain no `pull_request` event for the external PR;
+- the unique SHA has no status in canonical repo ID `1`, including both
+  required contexts;
+- a single non-required sentinel status request made with the temporary PAT is
+  rejected (`403`/`404`) and produces no canonical API/DB row;
+- cache metadata, Runner/DinD identity, restart/OOM state, and
+  `memory.events` do not change.
+
+Commit statuses are repository-scoped. Pending contexts created under the fork
+repo ID do not satisfy canonical branch protection and must not be reported as
+canonical statuses. WIP status is an independent merge blocker, so do not
+claim that the PR is unmergeable *because* required contexts are absent; state
+the observed context and permission facts and do not attempt a merge.
+
+Close the exact external PR, then delete the exact fork, canonical
+collaboration, PAT ID, and temporary user in that order. The deployed API
+contract is:
+
+```http
+PATCH  /api/v1/repos/{owner}/{repo}/pulls/{index} {"state":"closed"} -> 201
+DELETE /api/v1/repos/{temporary-user}/{fork}                         -> 204
+DELETE /api/v1/repos/{owner}/{repo}/collaborators/{temporary-user}  -> 204
+DELETE /api/v1/users/{temporary-user}/tokens/{token-id}             -> 204
+DELETE /api/v1/admin/users/{temporary-user}?purge=true              -> 204
+```
+
+Revoke the PAT with the temporary user's Basic credentials before deleting the
+user. Treat an unknown mutation result as unresolved and reconcile the exact
+object before any retry. Run the full canonical repository verifier afterward,
+and delete the runtime directory only after all objects are absent and
+non-secret evidence has been recorded. Deleting the fork
+cascades its live `action_run`, `action_run_job`, and fork-scoped
+`commit_status` rows, so snapshot those IDs and assignment fields before
+deletion. After cleanup, distinguish that historical observation from current
+live DB state. The closed PR, audit log, PR ref, or unique commit may remain;
+never promise zero historical traces.
 
 ### Dependency and cache wiring
 
@@ -193,6 +322,12 @@ permissions, because the same volume contains `.runner`.
 | Opening an internal PR adds a `pull_request` run or Runner job | Stop rollout and restore the event graph before merge |
 | Head statuses and `main` protection names differ | Treat the protection gate as unproved; do not infer success from PR state or `mergeable` |
 | Only PR opening has been observed | Keep PR head-update smoke pending until a later reviewed source push proves zero PR jobs again |
+| A new disposable fork reports `has_actions=false` | Stop; do not count the absence of runs as Runner isolation. Obtain separate approval before enabling Actions on that fork only |
+| Fork Actions are enabled but no push run appears in the bounded window | Record the failed smoke and clean up; do not modify the trusted Runner or workflow to manufacture evidence |
+| A create/update client exits after the server may have mutated | Preserve root-only state and reconcile exact API/DB identity before deciding whether another write is safe |
+| External PR creation used `maintainer_can_modify` | Treat the field as ignored; do not replay creation. Reconcile the created PR and, if approved, patch `allow_maintainer_edit=false` exactly once |
+| The sentinel request unexpectedly succeeds | Never attempt a required context; record the non-required status as a security finding and continue exact cleanup |
+| Fork deletion removes run/job/status live rows | Use the pre-delete snapshot as historical evidence and report the post-delete zero-row state separately |
 
 ## 5. Good / Base / Bad Cases
 
@@ -205,6 +340,13 @@ permissions, because the same volume contains `.runner`.
   match the exact `main` protection context names.
 - **Base (PR head update)**: a later reviewed source push updates the open PR;
   exactly four `push` jobs run and no `pull_request` job is created.
+- **Good (external fork)**: Actions are temporarily enabled on the disposable
+  fork, the marker push creates two real push runs and four unassigned jobs,
+  the trusted repo-scoped Runner never receives a task, and a non-required
+  canonical status probe is rejected.
+- **Base (fork default)**: the new fork has Actions disabled. The smoke stops,
+  cleans up, and records no isolation claim until separate approval allows a
+  second attempt with fork-only Actions enabled.
 - **Bad**: a fork PR, floating Action tag, published cache port, cache-root
   symlink, or failed upstream gate gains access to later trusted work. Static or
   live validation must reject each case.
@@ -239,6 +381,14 @@ exact SHAs, run IDs/events/counts, latest required statuses, protection context
 names, Runner/cache state, and the absence of `pull_request` work. PR `draft` or
 `mergeable` alone is not proof that required statuses matched.
 
+For an external-fork smoke, record the temporary repo/user/PAT IDs without
+their secret values, fork `has_actions` transition, exact base/unique SHAs,
+fork run/job IDs, pre-delete job/task assignment rows, fork secret names,
+canonical status count, sentinel HTTP result, cache/Runner/OOM invariants, PR
+state, every cleanup HTTP result, and the post-cleanup full verifier. Assert
+both states around fork deletion: the required run/job/status rows existed
+before deletion, and their live fork-scoped rows no longer exist afterward.
+
 ## 7. Wrong vs Correct
 
 ### Wrong
@@ -267,6 +417,19 @@ on the host.
 This invents a field absent from Gitea 1.26.4's live create-PR schema, omits the
 reviewed exact-SHA/no-merge boundary, and cannot by itself prove anything about
 Runner dispatch or protected contexts.
+
+```json
+{
+  "title": "WIP: external smoke",
+  "head": "temporary-user:smoke/fork-boundary",
+  "base": "main",
+  "maintainer_can_modify": false
+}
+```
+
+This uses the wrong Gitea field. The request may still create a PR with
+maintainer editing enabled, so replaying the create request can duplicate the
+PR. Reconcile the returned/created PR and use the live edit schema instead.
 
 ```bash
 docker run --rm --network none --read-only --user 0:0 \
@@ -314,6 +477,20 @@ Create exactly once after fail-closed SHA/status preconditions, then assert the
 returned Draft/head/base fields and prove zero additional `pull_request` runs.
 Compare the head's latest two required statuses with the exact `main` protection
 context set instead of inferring that relationship from PR mergeability.
+
+```json
+{
+  "title": "WIP: external fork Runner-boundary smoke",
+  "head": "temporary-user:smoke/fork-boundary",
+  "base": "main",
+  "allow_maintainer_edit": false
+}
+```
+
+Enable Actions only on the disposable fork, require real fork push runs with
+unassigned jobs, and send at most one non-required sentinel status request.
+Snapshot fork-scoped run/job/status rows before exact cleanup; never use their
+later cascade deletion to claim that no run was created.
 
 ```bash
 docker run --rm --network none --read-only --user 0:0 \
