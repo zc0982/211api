@@ -10,12 +10,32 @@
   `e40f3ff66` 已提交并随该 tip 推送；下文当前 SHA 的 attempt 1 是 Go warm / pnpm
   cold，attempt 2 是四次 exact hit，attempt 3 是精确清理后的 cold fallback。所有时间
   均为 UTC。
-- 未合并 `main`，未修改或部署 Gateway；内部 PR 的 opening/head update 与外部 Fork
-  隔离，以及故障传播和最终通知 Job 调度均已验证。故障 smoke 不证明真实通知投递或
-  `main` 部署；合并后的 `main` 部署图、Gateway、实际通知与后续定时运行仍是独立 live
-  gate，不能由本文现有证据替代。
+- 第 1–8 节记录的灰度与 smoke 阶段未合并 `main`，也未修改或部署 Gateway；内部 PR 的
+  opening/head update 与外部 Fork 隔离，以及故障传播和最终通知 Job 调度均已验证。故障
+  smoke 不证明真实通知投递或 `main` 部署。后续经授权完成的 `main` 部署观察见第 9 节，
+  通知诊断补丁的保留源分支观察见第 10 节；实际通知、当前 workflow 的非 `v*` tag 负面
+  smoke 与后续定时运行仍是独立 live gate。PRD R3 的 BuildKit 容量语义已由锁定
+  docker-driver 的默认自动 GC policy、无 daemon override 与 live inspect 解决；这证明
+  运行态有界 policy，不声称已观察到阈值触发、GC sweep 或自动删除。
 
 ## 2. 优化前基线
+
+### 2.1 代表性 `main` 路径基线（与优化后观察性对比）
+
+优化前，`main` 的同一次 push（SHA
+`34be916c487f261f9e034c726be13c773be8489a`）恰好创建三条 run：`191`（`ci.yml`，6
+Job）、`192`（`deploy.yml`，10 Job）和 `193`（`security.yml`，3 Job），合计 19 Job。受
+`capacity: 1` 的单 Runner 严格串行约束，该事件的总窗口为
+`2026-07-23T12:54:41Z`–`2026-07-23T14:17:20Z`，即 4959 秒；其中 deploy run `192`
+自身为 `2026-07-23T13:33:00Z`–`2026-07-23T14:17:20Z`。
+
+优化后，SHA `95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的 `main` push 只产生 run
+`215`（`deploy.yml`，4 Job），窗口为 `2026-07-24T07:00:26Z`–`07:18:29Z`，即 1083
+秒。与上述旧 `main` 事件相比，总窗口减少 3876 秒（78.2%），Job 从 19 降至 4，七项重型
+检查从重复执行 14 次降至各一次、共 7 次。两个样本的 SHA 与日期不同；此处仅记录事件路径的
+观察性对比，不能把全部时延差异归因于任何单一优化因素。
+
+### 2.2 源分支与内部 PR 的重复执行基线
 
 同一 head SHA `a6a70ecaf06b...` 的源分支 push 与内部 PR 同时产生 run
 `187`–`190`：
@@ -495,11 +515,30 @@ context 均为 success。独立 check 为 PASS。
 
 ### 9.2 `main` 的唯一 deploy run、镜像与 Gateway 对齐
 
-该 `main` push 只产生唯一 `deploy.yml` run `215`，结论 `completed/success`，总时长
-18 分 03 秒。四个 Job 在 Runner `1`、attempt `1` 严格串行：`backend` job `865` 为
+该 `main` push 只产生唯一 `deploy.yml` run `215`，结论 `completed/success`，窗口为
+`2026-07-24T07:00:26Z`–`07:18:29Z`、总时长 1083 秒（18 分 03 秒）。四个 Job 在 Runner
+`1`、attempt `1` 严格串行：`backend` job `865` 为
 751 秒、`verify` `866` 为 119 秒、`build-and-deploy` `867` 为 200 秒、
 `telegram-notification` `868` 为 6 秒。Go/pnpm 均为精确 cache hit，七项门禁仍各执行
 一次；BuildKit/export、Registry push 与 Gateway deploy 均各执行一次，`early-exit=0`。
+
+job `867` 原始 BuildKit 日志显示既有层有 10 个精确 `CACHED` step：`#3`、`#12`、`#14`、
+`#15`、`#28`、`#29`、`#30`、`#31`、`#32`、`#33`，随后 `#39 exporting layers` 完成。这
+关闭 AC4 对 BuildKit 命中的证据缺口；它只证明这些适用的既有层命中，不表示所有构建层均命中。
+PRD R3 的 BuildKit 容量语义也已由随后取得的权威 live inspect 关闭：锁定
+`docker:29.6.1-dind-rootless@sha256:371962f4344295a1eb185f1c9e62064bf4503a7beb8c6e73be3405500041784b`
+运行 Docker Engine Community 29.6.1、BuildKit v0.31.1，builder `default`、driver
+`docker`、status running。没有 `/home/rootless/.config/docker/daemon.json` 或
+`/etc/docker/daemon.json` override，持久 `docker_data` 位于
+`/home/rootless/.local/share/docker`。inspect 直接显示四条自动 GC policy：rule0 为
+filtered `type==source.local`、`type==exec.cachemount`、`type==source.git.checkout`，
+Keep Duration 48h、Max Used Space 4.118GiB；rule1–2 为非 `All` 的有界 policy；rule3 为
+最终 `All=true` policy。后三条均显示 Reserved 29.8GiB、Max Used Space 234.7GiB、
+Min Free Space 58.67GiB，满足正值且 max 大于 reserved。数值只作为当前
+image/storage 环境证据；升级 DIND digest、改变磁盘或出现 daemon override 后必须重新
+inspect/验证。Docker 文档说明 docker driver 通过 daemon 配置按 policy 周期 GC；本次
+以 live inspect 为更高权威来源。该证据证明 active bounded policy，而非一次 GC sweep、
+阈值触发或自动删除事件；未执行 prune。
 
 Registry 不可变 SHA tag 与 `:main` 的 digest 都为
 `sha256:0ee9306b679ca1cc4e0c437b63796aeb0a9c8ff905607333136b8f6c802a15e2`，并且是单一
@@ -519,8 +558,9 @@ Gateway 的 `main_head`、`state.commit` 与 `current_image` 同此 revision 对
 `skip=0`、`delivery_failed=1`。因此本次只能证明最终通知 Job 被调度及其失败未改变已经
 成功的部署结果，**不能证明 adapter 已接受通知，也不能证明 Telegram 收件**。
 
-独立 Trellis 最终判定为 FAIL，唯一失败项即为实际通知投递；其余 main deploy、Registry、
-Gateway、cache 与资源不变量均已通过。下次 scheduled security gate 也尚未观察，仍保持待办。
+针对该次 `main` live 观察，独立 Trellis 最终判定为 FAIL，其中唯一失败项为实际通知投递；
+其余本次 main deploy、Registry、Gateway、cache 运行状态与资源不变量均已通过。这不表示任务
+整体只剩通知：下次 scheduled security 与当前 workflow 的非 `v*` tag 负面 smoke 也仍保持待办。
 
 只读历史诊断表明，这不是已知的连续通知故障：最近一次 adapter accepted 为 run `192` /
 job `817`（SHA `34be...`，`2026-07-23T14:17:16Z`–`14:17:20Z`），结论 success，实际
@@ -535,18 +575,21 @@ success/exit `0`，其 preflight `non-2xx=0`；但该 preflight 在 Telegram 配
 投递成功。现有记录仍不足以区分瞬时网络、非 2xx、contract/JSON、Pipedream 配置或 Telegram
 失败，实际通知 gate 必须保持未完成。
 
-## 10. run 215 通知失败后的本地安全诊断增量（未上线）
+## 10. run 215 通知失败后的安全诊断增量与保留源分支观察
 
-本节只记录本地待发布补丁的诊断与回归结果；没有推送、部署、远端修改或真实通知调用，因而
-**不表示 run 215 已修复，也不证明 adapter 接受或 Telegram 收件**。生产观察和 §9 的失败
+本节记录通知诊断补丁的本地回归，以及其已推送到保留源分支后的只读观察。诊断实现 commit
+`6bcdf666fe8ead91fec9530522e7ffe9378be6d0` 及证据补充 commit
+`aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 均已推送至
+`sync/upstream-0.1.164`；但尚未进入 `main`、未触发 deploy，Gateway、Registry 和真实通知
+均未触碰。因此 **不表示 run 215 已修复，也不证明 adapter 接受或 Telegram 收件**；§9 的失败
 结论保持原样。
 
 ### 10.1 本地补丁的边界与行为合同
 
-本地改动范围为 `.gitea/workflows/deploy.yml`、已跟踪的
-`.trellis/spec/infra/gitea-single-runner-ci.md`、新增
-`deploy/gitea/tests/test-deploy-notification.sh`、`test-workflow-contract.sh`、
-`deploy/gitea/README.md` 与 `DEV_GUIDE.md`。通知适配器将结果限制为安全 outcome marker：
+该已推送诊断补丁新增 `deploy/gitea/tests/test-deploy-notification.sh`，并修改
+`.gitea/workflows/deploy.yml`、已跟踪的 `.trellis/spec/infra/gitea-single-runner-ci.md`、
+`deploy/gitea/tests/test-workflow-contract.sh`、`deploy/gitea/README.md` 与 `DEV_GUIDE.md`。
+通知适配器将结果限制为安全 outcome marker：
 `skipped`、`endpoint-validation`、`input-validation`、`timeout`、`network`、
 `http-3xx-<status>`、`http-4xx-<status>`、`http-5xx-<status>`、`http-other` /
 `http-other-<status>`、`invalid-json`、`response-contract`、`accepted`。其中
@@ -587,6 +630,46 @@ git diff --check
 
 rootless DinD smoke 中，内层 daemon 因本地没有 Alpine 缓存而一次性从 Docker Hub 拉取锁定
 摘要；临时容器、网络和卷均已清理，主 Agent 复核不存在 `gitea-runner-smoke` 残留。该本地
-网络行为未触发真实通知或任何远端修改。仍需在获得授权后将补丁上线，并通过一次新的真实
-`main` 通知路径观察 adapter 实际接受与 Telegram 收件；scheduled security 的自然事件证据
-也仍未完成。
+网络行为未触发真实通知或任何远端修改。补丁随后仅推送至保留源分支，仍需在获得授权后合并进
+`main`，并通过一次新的真实 `main` 通知路径观察 adapter 实际接受与 Telegram 收件；scheduled
+security 的自然事件证据也仍未完成。
+
+### 10.4 保留源分支 `aadcc6cd...` 的最终只读观察
+
+已推送的 `aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 位于保留源分支
+`sync/upstream-0.1.164`。该 SHA 只创建两条 `push` run：run `216`
+`ci.yml@refs/heads/sync/upstream-0.1.164` 在 `2026-07-24T08:50:10Z`–
+`09:05:34Z` completed/success；run `217`
+`security.yml@refs/heads/sync/upstream-0.1.164` 在 `09:02:25Z`–`09:05:57Z`
+completed/success。没有 `pull_request`、deploy、release 或重复 run。
+
+在 `capacity: 1` 下，四个 Job 均为 Runner `1`、attempt `1`、success，严格串行，总窗口
+947 秒：
+
+| Run / Job | Job / task | 时间（UTC） | 耗时 |
+| --- | --- | --- | ---: |
+| `216 ci` / `backend` | `869` / `818` | 08:50:10–09:02:25 | 735 s |
+| `217 security` / `backend` | `871` / `819` | 09:02:25–09:03:33 | 68 s |
+| `216 ci` / `required` | `870` / `820` | 09:03:33–09:05:34 | 121 s |
+| `217 security` / `required` | `872` / `821` | 09:05:35–09:05:57 | 22 s |
+
+七项门禁均只执行一次且成功：shell-syntax 0 s、backend-unit 209 s、backend-integration
+168 s、lint 312 s、security-backend 25 s、frontend 111 s、security-frontend 14 s。四次
+restore 均成功且均为精确 `cache-hit=true`（Go 2 次、pnpm 2 次）；miss、save、restore failure
+和 save failure 均为 0。action cache 为 `1022864 KiB`、`1000:1000`、`0700` 的普通目录，
+文件系统使用率为 17%。
+
+该 commit 的 aggregate status 为 `success`、`total_count=4`，四个 context 均为 success；
+`main` 保护仍精确要求 `ci / required (push)` 与 `security / required (push)`。完成后
+pending/queued/in_progress run 均为 0；Runner API id `1` 为 `online`、`busy=false`，Runner 与
+DinD 均 running（DinD healthy），restart 为 0、`OOMKilled=false`。Runner `memory.events`
+`max=83534`、`oom*=0`，DinD `max=296`、`oom*=0`，且 08:45Z 后 kernel OOM marker 为 0；资源
+快照为 Runner `38.93 MiB / 512 MiB`、DinD `764.4 MiB / 6 GiB`。内层容器为 0/0、published
+bindings 为 0，宿主 `8088`/`2375`/`2376` listener 为 0。DinD build cache 为 22.72 GB（其中
+20.01 GB reclaimable），文件系统仍仅使用 17%；这些仅作记录，未执行清理。与本节随后取得的
+`buildx inspect default` 自动 GC policy 证据共同满足 R3 的容量语义，但不构成发生过自动删除的证明。
+
+这次观察不涉及 `main`、deploy、Gateway、Registry 或真实通知，不能作为 run `215` 修复、adapter
+接受或 Telegram 收件的证据。scheduled security 的自然事件、当前 workflow 的非 `v*` tag
+负面 smoke、合并后真实 `main` 通知验证仍待办；R3/BuildKit 容量语义已由上述默认自动
+GC policy 与 live inspect 解决。

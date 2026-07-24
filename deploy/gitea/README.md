@@ -671,6 +671,42 @@ production Compose. Any validation/statistics/deletion error is a warning-level
 maintenance failure and leaves later jobs able to rebuild cold; it must not be
 worked around by widening the deletion target.
 
+#### BuildKit GC observation and recovery contract
+
+The persistent rootless DinD BuildKit cache is capacity-bounded by the active
+Docker daemon's periodic GC policy, not solely by host monitoring or manual
+prune. For the locked `DIND_IMAGE` (`docker:29.6.1-dind-rootless` digest
+`sha256:371962f4344295a1eb185f1c9e62064bf4503a7beb8c6e73be3405500041784b`),
+the authoritative live observation is Docker Engine Community 29.6.1, BuildKit
+v0.31.1, builder `default`, driver `docker`, status running. It has no current
+`/home/rootless/.config/docker/daemon.json` or `/etc/docker/daemon.json`
+override; persistent data is under `/home/rootless/.local/share/docker`.
+
+Read the active policy and concise capacity state without mutation:
+
+```bash
+sudo docker exec gitea-runner-docker docker buildx inspect default
+sudo docker exec gitea-runner-docker docker builder du
+sudo docker exec gitea-runner-docker docker system df
+```
+
+The inspection must show at least one filtered 48-hour bounded policy and a
+final `All=true` policy with positive reserved/max-used/min-free values and
+max-used greater than reserved. The current observed policy values and cache
+usage are environment evidence, not portable constants; Docker image digest
+upgrades, disk/layout changes, or either daemon.json override require a new
+read-only inspection before relying on the policy. BuildKit initialization logs
+do not prove a GC sweep, and policy presence does not prove a threshold has been
+crossed or data automatically deleted. Docker's [Build cache garbage collection
+documentation](https://docs.docker.com/build/cache/garbage-collection/) describes
+the docker-driver daemon policy behavior; the live inspection remains authoritative
+for this deployed builder.
+
+Do not use routine `docker system prune -af` or `docker builder prune -af`.
+Manual pruning is recovery only: stop the Runner, obtain explicit authorization,
+record the relevant read-only state before and after, and use a reviewed,
+scoped maintenance procedure. It is not the normal capacity-control mechanism.
+
 Live Runner, Gitea, or Gateway changes require separate authorization. Before
 rollout, record one current `main` run and one internal PR head update with SHA,
 run/job IDs, start/end time, job count, and peak memory. Deploy the Runner
@@ -749,7 +785,8 @@ reconcile the exact branch/SHA/run read-only before deciding whether one retry
 is safe.
 
 During the cold/warm observation window, record `du -sk` and `df -P` for the
-cache directory, rootless `docker system df`, DinD `memory.events`, job count,
+cache directory, rootless `docker buildx inspect default`, `docker builder du`,
+`docker system df`, DinD `memory.events`, job count,
 duration, and cache-hit logs for at least two later source pushes, one `main`
 run, and the next scheduled security run. `capacity: 1`, the 6 GiB DinD limit,
 the 512 MiB Runner limit, and rootless isolation remain fixed; any new OOM or

@@ -7,6 +7,12 @@ Use this contract whenever changing `.gitea/workflows/`, `.gitea/actions.lock`,
 when validating the internal-PR, external-fork, or failed-deployment-gate
 boundary on live Gitea.
 
+Use it also for rootless DinD BuildKit capacity. The digest-locked Docker
+driver's automatic garbage-collection (GC) policy is the soft capacity boundary;
+host monitoring and stopped-Runner manual prune are recovery operations, not the
+sole capacity control. Re-inspect after a DinD digest upgrade, storage change,
+or any daemon configuration override.
+
 Also use it when changing the terminal deployment notification in
 `.gitea/workflows/deploy.yml`. This notification is a diagnostic side effect of
 the deployment terminal state; it must not change the deployment result.
@@ -73,6 +79,21 @@ The initializer creates only `/data/cache/actions`, normalizes `/data`,
 `/data/cache`, and `/data/cache/actions` to `1000:1000` mode `0700`, then
 asserts all three owner/mode pairs. It is idempotent and must not read, rewrite,
 chmod, chown, or delete the sibling `/data/.runner` registration-state file.
+
+### BuildKit GC read-only signature
+
+```text
+docker exec gitea-runner-docker docker buildx inspect default
+docker exec gitea-runner-docker docker builder du
+docker exec gitea-runner-docker docker system df
+```
+
+These commands only observe persistent rootless DinD data. The expected builder
+is `default` with driver `docker`, `Status: running`, and a reported BuildKit
+version. The current choice has no `/home/rootless/.config/docker/daemon.json`
+or `/etc/docker/daemon.json` override; `docker_data` is under
+`/home/rootless/.local/share/docker`. Current observed GiB values are evidence,
+not portable configuration constants.
 
 ### Failed-deployment-gate live-smoke renderer
 
@@ -426,6 +447,21 @@ normalized `1000:1000` mode-`0700` parents. Do not add broader capabilities,
 make the container privileged, or replace the named volume to repair
 permissions, because the same volume contains `.runner`.
 
+### BuildKit GC boundary
+
+The Docker daemon's docker-driver BuildKit GC runs periodically according to its
+active policy. `buildx inspect default` must show a filtered, bounded policy with
+a 48-hour keep duration and a final `All=true` policy. The final policy must
+have positive reserved, max-used, and min-free space, with max-used greater than
+reserved. Current live values apply only to the locked image/storage combination.
+
+This task introduces no `daemon.json`. A daemon override, DinD image digest
+change, or disk-layout change requires a new read-only inspection and validation
+before treating the policy as the R3 boundary. Do not claim a GC sweep or
+deletion unless separately observed. Routine `prune -af` is forbidden; manual
+prune is only an approved stopped-Runner recovery with before/after state
+recorded.
+
 ### Terminal deployment-notification boundary
 
 Treat `PIPEDREAM_NOTIFY_URL` as an untrusted raw string: it must start with
@@ -467,6 +503,10 @@ repairs evidence from an older run.
 | Volume initializer is run again with an existing `.runner` | Succeed with identical directory postconditions and leave `.runner` byte-for-byte and metadata unchanged |
 | Initializer omits `FOWNER` after chowning directories to UID 1000 | `chmod` may fail; treat initialization as failed and do not recreate the Runner |
 | Cache size `>20 GiB` or filesystem use `>=80%` | Delete direct children only; keep cache root |
+| BuildKit inspection has another builder/driver, non-running status, or no version | Treat R3 capacity evidence as unproved; do not change daemon settings speculatively |
+| No filtered 48-hour bounded policy or no valid final `All=true` policy | Stop rollout and inspect locked DinD/daemon configuration read-only |
+| DinD digest, daemon override, or storage layout changes | Re-run read-only BuildKit inspection; prior observed GiB values are not authoritative |
+| Routine BuildKit cleanup is proposed | Reject `prune -af`; only an approved stopped-Runner maintenance window may use scoped recovery with before/after records |
 | Action ref is floating or absent from lock file | Static workflow contract test fails |
 | Host port `8088` is published | Runner configuration test fails |
 | A required verification step fails on `main` | Build/deploy must not run; final notification still runs |
@@ -510,6 +550,12 @@ not notification failures.
   executes all seven gates once, and emits both protected contexts.
 - **Base**: the cache is empty or unavailable; the same push downloads upstream
   dependencies, passes all gates, and may populate cache afterward.
+- **Good (BuildKit capacity)**: locked rootless DinD reports a running `default`
+  docker-driver builder with a BuildKit version, a filtered 48-hour bounded
+  policy, and a positive final `All=true` reserved/max/min-free policy where max
+  exceeds reserved; no daemon override is present.
+- **Base (BuildKit observation)**: high or reclaimable cache usage with that
+  policy active does not prove a GC sweep or deletion occurred.
 - **Good (internal PR)**: a WIP Draft PR points at an already successful exact
   head SHA, creates no new workflow run, and its two required head statuses
   match the exact `main` protection context names.
@@ -605,6 +651,14 @@ exact SHAs, run IDs/events/counts, latest required statuses, protection context
 names, Runner/cache state, and the absence of `pull_request` work. PR `draft` or
 `mergeable` alone is not proof that required statuses matched.
 
+The live R3 observation must additionally record `docker buildx inspect default`
+and verify driver `docker`, running status, a BuildKit version, a filtered
+48-hour policy, and a positive final `All=true` reserved/max/min-free policy
+where max exceeds reserved. `docker builder du` and `docker system df` are
+read-only capacity snapshots; do not dump unrelated entries. Record whether
+either daemon.json path exists. This proves an active bounded policy, not a
+threshold crossing or automatic deletion event.
+
 For an external-fork smoke, record the temporary repo/user/PAT IDs without
 their secret values, fork `has_actions` transition, exact base/unique SHAs,
 fork run/job IDs, pre-delete job/task assignment rows, fork secret names,
@@ -649,6 +703,16 @@ ports:
 This duplicates trusted work for internal PRs, schedules fork PRs on the trusted
 Runner, points nested jobs at the wrong network namespace, and exposes the cache
 on the host.
+
+```bash
+docker exec gitea-runner-docker docker system prune -af
+```
+
+This makes a destructive emergency operation normal capacity control and erases
+useful cache without proving the active policy. Correct: inspect the `default`
+docker-driver builder read-only, retain its daemon-default GC policy, and use
+only a separately approved stopped-Runner, recorded maintenance window for
+recovery.
 
 ```json
 {

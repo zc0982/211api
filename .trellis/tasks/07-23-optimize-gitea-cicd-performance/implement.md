@@ -13,6 +13,38 @@
 - [ ] 线上 Runner/Gitea/Gateway 修改需要另行授权；仓库实施默认只生成代码、测试和
   操作说明。
 
+## 0. 已补齐的主路径证据与仍待门禁/需求决策
+
+优化前 `main` SHA `34be916c487f261f9e034c726be13c773be8489a` 的同一次 push 恰好创建
+run `191`（`ci.yml`，6 Job）、`192`（`deploy.yml`，10 Job）与 `193`（`security.yml`，3
+Job），在单 Runner 下的总窗口为 `2026-07-23T12:54:41Z`–`14:17:20Z`（4959 秒）。优化后
+SHA `95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的 `main` push 只创建 run `215`
+（`deploy.yml`，4 Job），窗口为 `2026-07-24T07:00:26Z`–`07:18:29Z`（1083 秒）：观察到
+Job 19→4、七项重型检查 14→7、窗口减少 3876 秒（78.2%）。两次事件的 SHA/日期不同，故仅
+是观察性路径比较，不能将全部差异归因于单一优化因素；完整原始证据见 `evidence.md` §2.1/§9。
+
+run `215` 的 job `867` BuildKit 原始日志有 10 个既有层命中：`#3`、`#12`、`#14`、`#15`、
+`#28`–`#33` 均为 `CACHED`，随后 `#39 exporting layers` 完成。因此 AC4 的 BuildKit 命中
+证据已具备，但不声称所有层均命中。PRD R3 的 BuildKit 容量语义已由锁定 rootless DinD 的
+docker-driver 默认自动 GC policy、无 daemon override 与 live `buildx inspect default` 解决：
+存在 filtered 48h 有界 policy 及最终 `All=true` 的正 reserved/max/min-free policy，且
+max 大于 reserved。当前 GiB 数值仅为这一 image/storage 组合的观察；升级 DIND digest、改变
+磁盘或出现 daemon.json override 必须重新 inspect。该证据不声称已发生阈值触发、GC sweep 或
+自动删除；宿主监控和停机人工 prune 是获授权的恢复/应急路径。
+
+以下 live gate 或需求缺口仍不得勾选：
+
+- [x] PRD R3（包括 BuildKit/`docker_data`）已满足：当前锁定 docker driver 的默认自动 GC
+  policy 是自动软上限，design、infra contract、README 与 evidence 已同步；不新增 daemon.json
+  或固定跨机器容量配置。仅 policy 运行态已获证，不把它误述为 GC 删除事件。
+- [ ] 通知诊断补丁虽已推送 source（`6bcdf666...` 与 `aadcc6cd...`，后者对应 source run
+  `216`/`217` 的 CI/Security success），但尚未进入 `main`、未 deploy，也未产生新的真实通知
+  路径；仍需 adapter outcome 与 Telegram 实际收件证据。
+- [ ] 自然触发的 scheduled security 2 Job 尚未发生。
+- [ ] design §3.1/§7.2 所要求、针对当前 workflow 的临时非 `v*` tag 负面 smoke 尚未执行。
+  历史 `v0.1.160-gitea-smoke.2`（run `140`/`141`/`142`）发生在触发器优化前，且当时 tag 会
+  触发 ci/security，不能替代当前负面 smoke。
+
 ## 1. 先建立失败的合同测试
 
 ### 1.1 Workflow 图合同
@@ -131,7 +163,8 @@
   Gitea 运维/资产目录和 deploy 非入口文件。
 - [ ] 保留 `frontend/`、`backend/`、`docs/legal/`、`deploy/docker-entrypoint.sh` 以及
   Dockerfile 真正读取的所有源。
-- [ ] 不增加外部 BuildKit cache；保留现有三个 cache mount 与持久 `docker_data`。
+- [x] 不增加外部 BuildKit cache；保留现有三个 cache mount 与持久 `docker_data`，其 docker-driver
+  默认自动 GC policy 作为 R3 软边界；人工 prune 仅限获授权的 stopped-Runner 恢复窗口。
 
 ## 6. 更新当前文档与架构合同
 
@@ -237,19 +270,26 @@ git status --short
     显示 run `192`/job `817` 与 run `185`/job `780` 曾实际 `guard accepted=1`、
     `delivery_failed=0`，故 `215` 是当前单次失败而非已知连续故障；backup preflight 的
     `non-2xx=0` 发生在 Telegram 分支之前，不能替代实际投递证据。
-  - [x] 已完成本地未上线的通知失败安全诊断补丁与 12/12 已执行回归；两轮独立
+  - [x] 已完成通知失败安全诊断补丁与 12/12 已执行回归；两轮独立
     trellis-check 及主 Agent 最终静态/通知/工作流合同检查均 PASS。补丁采用严格 HTTPS
     Pipedream endpoint 验证、单次 15 秒可取消 fetch、无敏感输出的 outcome marker 与外层
     soft-fail；Phase 3.3 的 infra spec sync 亦已完成并经独立检查 PASS；详情见 evidence.md
-    §10。本项未推送、未部署、未触发真实通知，不能将其视为
-    run `215` 已修复、adapter 接受或 Telegram 收件的证据。
-  - [ ] 待单独授权上线本地通知诊断补丁，并在后续真实 `main` 通知路径证明 adapter 实际
+    §10。诊断实现 commit `6bcdf666fe8ead91fec9530522e7ffe9378be6d0` 及证据补充 commit
+    `aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 均已推送至保留源分支
+    `sync/upstream-0.1.164`；尚未进入 `main`、未触发 deploy，Gateway、Registry 和真实通知
+    均未触碰，不能将其视为 run `215` 已修复、adapter 接受或 Telegram 收件的证据。
+  - [ ] 待单独授权将通知诊断补丁合并进 `main`，并在后续真实 `main` 通知路径证明 adapter 实际
     接受与 Telegram 收件；在此之前 main/通知整体 gate 继续保持未完成。
 - [x] 观察至少两个后续源分支 push：`484aba68...` 的 run `198`/`199`、
   `803bda0a...` 的 run `200`/`201`、`7b9bc28...` 的 run `206`/`207`，以及最新 PR
   head `ee9d38f...` 的 run `209`/`210` 均为 4 Job 的 warm 路径；最新一次恰好只有两条
   success `push` run，无 `pull_request`、deploy、release 或重复 run，四次 restore 均为
   精确 `cache-hit=true`。若兼容点失败，执行回滚而非放宽门禁。
+- [x] 已推送保留源分支 `sync/upstream-0.1.164` 的
+  `aadcc6cd78e9651bbfc0375e0db97f72d3e8a846` 最终只产生 run `216`（ci）与 `217`
+  （security）两条 success `push` run、四个严格串行 Job；七项门禁各一次、四次 Go/pnpm
+  restore 均为精确 hit，且无 `pull_request`、deploy、release 或重复 run。该 SHA 仍未进入
+  `main`，Gateway、Registry 与真实通知均未触碰；详见 evidence.md §10.4。
 - [ ] 已观察一个 `main` run：`95b94297ac236df9eb9fda68ebde53e8f81e2ba0` 的唯一 deploy
   run `215` 已完成；但实际通知投递失败，整体 gate 仍未通过。下次定时安全运行的 2 Job
   证据仍待自然事件；若兼容点失败，执行回滚而非放宽门禁。
@@ -270,7 +310,8 @@ Gateway 数据。清 cache 前必须停止 Runner 并再次解析精确 volume/p
 
 ## 10. 完成定义
 
-- [ ] PRD AC1–AC10 均有对应静态或 live 证据；未执行的线上项明确标为待授权，不能
+- [ ] PRD R1–R5 与 AC1–AC10 均有对应实现及静态或 live 证据；未解决的需求冲突和未执行的
+  线上项明确标为待决策/待授权，不能
   伪称完成。
 - [ ] 本地测试全绿，`git diff --check` 无问题，Action/image/full context lock 无漂移。
 - [ ] 代码审查确认七项门禁、release、部署和通知语义未弱化。

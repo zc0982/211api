@@ -223,13 +223,31 @@ SSH key、audit 输出或测试产物。外部 fork 不运行 workflow，因此�
 回到空 cache。清空整个 cache 而非猜测内部条目格式，避免留下半条目。
 
 Action clone cache 的条目数由两条 full-SHA lock 约束，默认不自动删除；Action
-升级或损坏时，在 Runner 停止后按文档清空对应 Runner action cache。BuildKit
-继续位于既有 `docker_data`，通过现有宿主磁盘监控和停机人工 prune 管理。
+升级或损坏时，在 Runner 停止后按文档清空对应 Runner action cache。
+
+BuildKit 继续位于既有持久 `docker_data`，但其容量并非只靠宿主监控或人工
+prune：锁定的 rootless DinD `docker` driver 使用 Docker daemon 的周期性自动 GC
+policy 作为软边界。当前权威 live inspection 的 builder 为 `default`、`docker`
+driver、running，BuildKit v0.31.1；其中含一条 filtered 的 48h/有界 policy，最终
+`All=true` policy 的 reserved/max-used/min-free 均为正且 max 大于 reserved。该 policy
+随当前 Docker Engine Community 29.6.1 与锁定 DIND digest 生效，而不是新增
+`daemon.json` 或激进的固定 30GB 配置。
+
+宿主磁盘监控与停机后的人工 prune 仅是恢复/应急路径，不能表述为唯一容量控制。升级
+DIND digest、变更磁盘布局或出现 `/home/rootless/.config/docker/daemon.json` 或
+`/etc/docker/daemon.json` override 时，必须重新执行只读 `docker buildx inspect default`
+并验证 active policy；当前观察到的 GiB 数值仅是该 live 环境证据，不能写成跨机器常量。
+不得从初始化日志推断发生过 GC sweep，也不得声称已经触发阈值或自动删除。
 
 ## 6. Docker Build 优化
 
 不新增 `cache-to/cache-from`：当前 Dockerfile 已对 pnpm store、Go modules 和 Go
 build 使用 BuildKit cache mount，rootless DinD 的 `docker_data` 也已持久化。
+
+容量观察使用 `docker exec gitea-runner-docker docker buildx inspect default`，并以
+`docker builder du`、`docker system df` 只读记录摘要。禁止把常态运维替换为
+`prune -af`；如确需人工回收，必须在 Runner 已停止、获得明确授权且记录前后状态的
+维护窗口内执行。
 
 只收紧 `.dockerignore` 中明确不会被 Dockerfile `COPY` 的仓库元数据和运维目录，
 尤其是 `.gitea/`、`.trellis/`、`.agents/`、`.ace-tool/`、`.codex/`、`openspec/`、
@@ -275,7 +293,7 @@ build 使用 BuildKit cache mount，rootless DinD 的 `docker_data` 也已持久
 | 缓存 key | fixture 证明同输入稳定、任一锁定输入变化后 miss | 同 SHA rerun 首次 miss/save、第二次 `cache-hit=true` |
 | 冷回退 | cache step 容错、dispatcher fixture | 停 Runner 后清空 cache，再运行同一套检查成功 |
 | 私网 cache | Compose render 无 ports，rootless disposable DNS/HTTP smoke | 内层 Job 访问别名；宿主 `ss`/`docker port` 无 8088 |
-| 容量清理 | 临时目录测试阈值、symlink/owner fail-closed、只删目标 | Runner post-task 日志；可控小阈值演练后恢复 20 GiB |
+| 容量清理 | 临时目录测试阈值、symlink/owner fail-closed、只删目标；BuildKit 合同断言 `docker` driver/运行态/48h filtered policy/最终 `All=true` 有界 policy | Runner post-task 日志；只读 inspect 确认 active policy，单独记录人工恢复（如获授权） |
 | 资源边界 | config 测试仍断言 capacity/memory/CPU | `memory.events` 无新增 OOM，记录代表性峰值/耗时 |
 | 构建/部署阻断 | workflow needs contract | 故意失败 smoke 不创建镜像/不调用 Gateway；成功 main 仅部署一次 |
 
@@ -312,7 +330,9 @@ cache-hit、DinD peak memory/OOM、最终状态。结构基线为 main 19 Job、
    post-task 脚本和网络别名，重建 Runner。
 3. cache 数据可原样保留为惰性数据；若怀疑损坏，先停止 Runner，再只清空
    `/data/cache/actions`。不得删除整个 `runner_data`，其中包含注册状态。
-4. `docker_data` 与现有 BuildKit cache 不因回滚删除；不触碰 Registry 或 Gateway。
+4. `docker_data` 与现有 BuildKit cache 不因回滚删除；自动 GC 继续由当前 docker-driver
+   policy 管理。人工回收仅限 Runner 停止、明确授权且记录前后状态的维护窗口；不触碰
+   Registry 或 Gateway。
 5. 用旧路径执行一次源分支冷构建，确认两个 required context 恢复成功。
 
 单独的 cache 故障不要求回退 workflow：cache 步骤容错，先禁用 cache 即可恢复
