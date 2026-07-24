@@ -699,6 +699,55 @@ sudo docker run --rm --network none --read-only --user 1000:1000 \
 runner_compose up -d runner
 ```
 
+#### Disposable failed-deployment-gate smoke
+
+Run this only with separate approval. It deliberately creates one failed
+Actions run to prove that Gitea's native failed-`needs` semantics skip
+`build_deploy` while `notify` with `always()` still runs. It must never use
+`main`, the production deploy workflow body, Registry/Gateway credentials, or
+the real notification endpoint.
+
+Start from an exact reviewed PR-head commit and choose one previously absent
+branch matching `^ci-smoke-fail-gate-[0-9a-f]{16}$`. Before any push, run:
+
+```bash
+deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
+deploy/gitea/tests/render-deploy-failure-gate-smoke.sh \
+  ci-smoke-fail-gate-0123456789abcdef
+```
+
+In a disposable worktree, add only the exact branch to the temporary copies of
+`ci.yml` and `security.yml` `branches-ignore`, and write the rendered output as
+`.gitea/workflows/deploy-failure-gate-smoke.yml`. Review that the scratch diff
+contains exactly those two one-line exclusions plus the rendered workflow. The
+generated workflow has no `uses:`, secret expression, URL, network command,
+Docker publication, Registry/Gateway reference, or Pipedream/Telegram call.
+Do not merge, open a PR, create a tag, or copy any scratch change back to the
+source branch.
+
+The one-shot push is successful evidence only when it creates exactly one
+smoke run and four jobs with these conclusions:
+
+| Job | Required conclusion and evidence |
+| --- | --- |
+| `backend` | `failure`; intentional exit-86 sentinel is present |
+| `verify` | `failure`; log records `backend-result=failure` before the hard gate |
+| `build-and-deploy` | `skipped`; no Runner task, step log, or `UNREACHABLE` sentinel |
+| `telegram-notification` | `success`; log records the locally asserted `verify-result=failure` and `build-deploy-result=skipped` |
+
+The workflow conclusion remains `failure`; that red run is expected. The last
+job proves final notification *scheduling*, not delivery to the real endpoint.
+If any CI/security/deploy/release run appears, if the build job receives a task,
+or if the final local assertion does not succeed, stop and preserve the
+unexpected evidence. Never add `if: false` to manufacture the desired skip.
+
+Record the reviewed patch hash, exact base/branch/unique SHA, run/job/task IDs,
+sentinel logs, and Runner/cache/OOM plus production-state snapshots. Then delete
+only the exact remote scratch branch and local disposable worktree. Preserve the
+Action run as historical evidence. If a push or delete result is unknown,
+reconcile the exact branch/SHA/run read-only before deciding whether one retry
+is safe.
+
 During the cold/warm observation window, record `du -sk` and `df -P` for the
 cache directory, rootless `docker system df`, DinD `memory.events`, job count,
 duration, and cache-hit logs for at least two later source pushes, one `main`
@@ -1301,6 +1350,7 @@ deploy/gitea/runner/tests/smoke-rootless-dind.sh
 deploy/gitea/tests/test-admin-primitives.sh
 deploy/gitea/tests/test-ci-dispatcher.sh
 deploy/gitea/tests/test-ci-cache-key.sh
+deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
 deploy/gitea/tests/test-immutable-tag-hook.sh
 deploy/gitea/tests/test-gateway-deployer.sh
 deploy/gitea/tests/test-release-workflow.sh

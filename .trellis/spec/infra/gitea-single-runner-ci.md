@@ -4,7 +4,8 @@
 
 Use this contract whenever changing `.gitea/workflows/`, `.gitea/actions.lock`,
 `tools/gitea-ci.sh`, `tools/gitea-cache-key.sh`, or `deploy/gitea/runner/`, and
-when validating the internal-PR or external-fork event boundary on live Gitea.
+when validating the internal-PR, external-fork, or failed-deployment-gate
+boundary on live Gitea.
 
 The target is the existing self-hosted Gitea Runner. Its security boundary is
 part of the feature: keep `runner.capacity: 1`, rootless DinD, the existing CPU
@@ -68,6 +69,34 @@ The initializer creates only `/data/cache/actions`, normalizes `/data`,
 `/data/cache`, and `/data/cache/actions` to `1000:1000` mode `0700`, then
 asserts all three owner/mode pairs. It is idempotent and must not read, rewrite,
 chmod, chown, or delete the sibling `/data/.runner` registration-state file.
+
+### Failed-deployment-gate live-smoke renderer
+
+```text
+deploy/gitea/tests/render-deploy-failure-gate-smoke.sh \
+  ci-smoke-fail-gate-<16-lowercase-hex>
+```
+
+Exactly one branch argument is required, and it must match
+`^ci-smoke-fail-gate-[0-9a-f]{16}$`. Invalid arity, a wildcard, `main`, or any
+other branch returns `64` and writes no partial workflow to stdout. The command
+only renders YAML; it never creates a worktree, installs a workflow, commits,
+pushes, or calls Gitea.
+
+The rendered workflow has the production job IDs, `runs-on` labels, `needs`,
+and job-level `if` topology, but replaces all real work with bounded local
+sentinels:
+
+```text
+backend(failure:86) -> verify(failure) -> build_deploy(skipped)
+                                          \
+                                           -> notify(success)
+```
+
+It contains no `uses:`, secret expression, URL, network command, Docker build
+or publication command, Registry/Gateway reference, or external notification.
+Its `build_deploy` unreachable sentinel uses POSIX `sh`, because the locked
+Docker job image does not include Bash.
 
 ### Internal PR live-smoke API
 
@@ -179,6 +208,51 @@ lint, shell syntax, backend vulnerability, and frontend production dependency
 audit. A downstream Node job must validate the upstream Go result before
 checkout or dependency preparation. Release workflow branch/tag behavior is not
 changed by this contract.
+
+### Failed-validation live-smoke boundary
+
+The live failure smoke proves Gitea/Runner `needs` and `always()` behavior; it
+must not manufacture a failure on real `main` or execute a redacted version of
+the production deployment body. Bind the disposable graph to production with
+`test-deploy-failure-gate-smoke.sh`, which requires the same four job IDs,
+Runner labels, exact `needs`, `verify`/`notify` `always()`, and default
+successful-needs gating on `build_deploy`.
+
+Use one reviewed commit descended from the PR head and one exact disposable
+branch accepted by the renderer. To prevent an unrelated 15-minute CI/security
+run, the disposable commit may add that *exact* branch to the temporary copies
+of `ci.yml` and `security.yml` `branches-ignore`; it must make no other change
+to those workflows. Add the rendered smoke workflow only on the disposable
+branch. Never create a PR or tag, change `main`, add `workflow_dispatch`, or
+copy production secrets/build/deploy/notification steps into the smoke.
+
+The only passing observation is:
+
+- the SHA creates exactly one `deploy-failure-gate-smoke` push run with four
+  jobs and no CI, security, deploy, or release run;
+- `backend` is assigned to the trusted Runner, logs the intentional sentinel,
+  and fails with the dedicated exit code `86`;
+- `verify` is assigned, observes `needs.backend.result=failure`, and fails its
+  production-equivalent hard gate;
+- `build_deploy` is `skipped`, receives no Runner task, has no step log, and
+  never prints its `UNREACHABLE` sentinel;
+- `notify` is assigned despite the failed/skipped dependencies, asserts
+  `verify=failure` and `build_deploy=skipped`, logs only the local sentinel, and
+  succeeds;
+- the workflow conclusion remains `failure`.
+
+This proves final notification *job scheduling* on failure, not delivery to the
+real Telegram/Pipedream endpoint. Actual deployment and notification delivery
+remain part of the later approved successful-`main` gate.
+
+Before the one-shot push, snapshot branch absence, exact base SHA, `main`/PR
+heads, recent runs, Runner/cache/OOM state, and any Registry state used for the
+no-publication assertion. After the run, record branch/SHA, workflow hash,
+run/job/task IDs, conclusions, sentinel logs, absence of the build task, and
+unchanged production state. Delete only the exact remote branch and disposable
+local worktree after evidence capture; keep the Gitea run as historical
+evidence. An unknown push/delete result requires read-only reconciliation, not
+a blind replay.
 
 ### Internal PR evidence boundary
 
@@ -318,6 +392,12 @@ permissions, because the same volume contains `.runner`.
 | Action ref is floating or absent from lock file | Static workflow contract test fails |
 | Host port `8088` is published | Runner configuration test fails |
 | A required verification step fails on `main` | Build/deploy must not run; final notification still runs |
+| Failure-smoke renderer branch/arity is invalid | Exit `64` and emit no workflow |
+| Rendered smoke or production graph fails the static binding | Do not push; fix/review the contract instead of weakening assertions |
+| The disposable SHA creates CI/security/deploy/release or more than one smoke run | Treat routing as failed, capture the unexpected runs, and clean the exact branch |
+| Failure-smoke `build_deploy` gets a task or prints `UNREACHABLE` | Treat failed-needs propagation as broken; the harmless sentinel exits `99`, and no production endpoint is available |
+| Failure-smoke `notify` is skipped or its local assertions fail | Keep final-notification scheduling unproved; do not substitute `if: false` or a soft assertion |
+| Scratch push/delete response is unknown | Reconcile the exact branch/SHA/run before deciding whether one retry is safe |
 | Live create-PR schema has no `draft` field | Use a reviewed `WIP:` title and assert `draft=true` in the response; do not invent a request field |
 | Opening an internal PR adds a `pull_request` run or Runner job | Stop rollout and restore the event graph before merge |
 | Head statuses and `main` protection names differ | Treat the protection gate as unproved; do not infer success from PR state or `mergeable` |
@@ -347,9 +427,16 @@ permissions, because the same volume contains `.runner`.
 - **Base (fork default)**: the new fork has Actions disabled. The smoke stops,
   cleans up, and records no isolation claim until separate approval allows a
   second attempt with fork-only Actions enabled.
+- **Good (failed deployment gate)**: one exact disposable branch produces one
+  four-job smoke run; backend/verify fail, build/deploy is skipped without a
+  task, the local final-notification sentinel succeeds, and production state is
+  unchanged.
+- **Base (failure smoke preflight)**: an invalid or wildcard branch is rejected
+  locally with exit `64` and no YAML, so no Gitea mutation is attempted.
 - **Bad**: a fork PR, floating Action tag, published cache port, cache-root
-  symlink, or failed upstream gate gains access to later trusted work. Static or
-  live validation must reject each case.
+  symlink, failed upstream gate gains access to later trusted work, or a failure
+  experiment contains a production secret/network step. Static or live
+  validation must reject each case.
 
 ## 6. Tests Required
 
@@ -358,6 +445,7 @@ Run these repository checks for every related change:
 ```text
 deploy/gitea/tests/test-ci-dispatcher.sh
 deploy/gitea/tests/test-ci-cache-key.sh
+deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
 deploy/gitea/tests/test-workflow-contract.sh
 deploy/gitea/runner/tests/test-cache-maintenance.sh
 deploy/gitea/runner/tests/test-runner-config.sh
@@ -370,7 +458,11 @@ Assertions must cover command failure propagation, one frontend install in
 counts and dependency order, no host cache port, cache cleanup thresholds and
 path/owner guards, restricted-capability volume initialization, two consecutive
 initializer runs preserving `.runner` content and metadata, and DNS/HTTP
-reachability from a real rootless DinD job.
+reachability from a real rootless DinD job. `test-workflow-contract.sh` must
+invoke `test-deploy-failure-gate-smoke.sh`; the latter must reject unsafe
+renderer source/output, non-exact branches, graph/Runner-label drift, a
+job-level `if` on production `build_deploy`, and any difference in the
+production/smoke `needs` topology.
 
 Repository tests do not replace live Gitea validation. Before rollout is
 considered complete, verify branch/tag routing, exact protected contexts, cold
@@ -389,9 +481,30 @@ state, every cleanup HTTP result, and the post-cleanup full verifier. Assert
 both states around fork deletion: the required run/job/status rows existed
 before deletion, and their live fork-scoped rows no longer exist afterward.
 
+For a failed-deployment-gate smoke, record the reviewed patch hash, exact
+branch/base/unique SHA, the single run and four job/task IDs, expected
+failure/failure/skipped/success conclusions, the intentional and final local
+sentinels, absence of the unreachable build sentinel/task/log, route counts,
+and production/Runner/cache/OOM invariants before and after exact branch
+cleanup. Do not report the local `notify` sentinel as real message delivery.
+
 ## 7. Wrong vs Correct
 
 ### Wrong
+
+```yaml
+on:
+  workflow_dispatch:
+jobs:
+  build_deploy:
+    if: false
+    env:
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+```
+
+This both weakens the test and widens its blast radius: `if: false` does not
+exercise Gitea's default failed-needs propagation, while copying a production
+secret makes an unexpected scheduler result dangerous.
 
 ```yaml
 on: [push, pull_request]
@@ -448,6 +561,18 @@ After `chown`, UID 0 no longer owns the directory and has neither `FOWNER` nor
 the full root capability set, so the `chmod` is not a valid deployment contract.
 
 ### Correct
+
+```text
+render-deploy-failure-gate-smoke.sh \
+  ci-smoke-fail-gate-0123456789abcdef
+
+backend(failure) -> verify(failure) -> build_deploy(skipped)
+                                      -> notify(local assertion succeeds)
+```
+
+The exact disposable branch and sanitized workflow test the same job topology
+without a production endpoint. Static binding plus live job/task evidence is
+required; neither half alone closes the compatibility gate.
 
 ```yaml
 on:

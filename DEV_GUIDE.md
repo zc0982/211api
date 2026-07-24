@@ -85,6 +85,7 @@ Runner 固定为 `capacity: 1`，rootless DinD 固定为 6 GiB/3 CPU。内部 PR
 # CI/缓存/工作流合同
 deploy/gitea/tests/test-ci-dispatcher.sh
 deploy/gitea/tests/test-ci-cache-key.sh
+deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
 deploy/gitea/tests/test-workflow-contract.sh
 ```
 

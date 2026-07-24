@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-readonly ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
+readonly ROOT
 readonly CI="$ROOT/.gitea/workflows/ci.yml"
 readonly SECURITY="$ROOT/.gitea/workflows/security.yml"
 readonly DEPLOY="$ROOT/.gitea/workflows/deploy.yml"
@@ -10,6 +11,7 @@ readonly RELEASE="$ROOT/.gitea/workflows/release.yml"
 readonly LOCK="$ROOT/.gitea/actions.lock"
 readonly CHECKOUT_ACTION=https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 readonly CACHE_ACTION=https://github.com/actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+readonly GITEA_OUTPUT_REDIRECT=">>\"\$GITEA_OUTPUT\""
 
 on_section() {
   awk '
@@ -126,7 +128,7 @@ assert_exact 'notification needs' \
 for workflow in "$CI" "$SECURITY" "$DEPLOY"; do
   [[ "$(grep -Fc "uses: $CACHE_ACTION" "$workflow")" -eq 2 ]]
   [[ "$(grep -Fc 'continue-on-error: true' "$workflow")" -eq 2 ]]
-  [[ "$(grep -Fc '>>"$GITEA_OUTPUT"' "$workflow")" -eq 2 ]]
+  [[ "$(grep -Fc "$GITEA_OUTPUT_REDIRECT" "$workflow")" -eq 2 ]]
   awk -v action="        uses: $CACHE_ACTION" '
     $0 == action && previous != "        continue-on-error: true" { exit 1 }
     { previous = $0 }
@@ -174,5 +176,7 @@ if rg -n 'restore-keys|/var/run/docker\.sock|tcp://|2375|2376' \
   printf 'workflow or Runner runtime config contains a prohibited cache/Docker fallback\n' >&2
   exit 1
 fi
+
+"$ROOT/deploy/gitea/tests/test-deploy-failure-gate-smoke.sh"
 
 printf 'workflow contract tests passed.\n'
