@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "PR #10 仍为 open/draft/unmerged，base 为 main 34be916c487f261f9e034c726be13c773be8489a，head 已为 7b9bc28b7a8a63e185c4f6b1d117bcf56250b04f；其 run 206/207 均为成功的 2 Job push run，四次 Go/pnpm restore 均为精确 cache-hit=true，未产生 pull_request run。一次性故障阻断 smoke 分支 ci-smoke-fail-gate-7b9bc28b7a8a63e1 仅产生 disposable run 208：backend failure（intentional exit 86）、verify failure（backend-result=failure）、build-and-deploy skipped（无 task/Runner）及 telegram-notification success（verify failure/build-deploy skipped）；已精确清理远端 branch 与本地 worktree/ref/directory，历史 run/job 保留，生产不变量未变。外部 Fork 隔离、内部 PR lifecycle 与 cold/warm cache 证据均已写入 evidence.md。任务仍 in_progress、commit 为空、PR URL 保持 #10；剩余经批准合并后的真实 main 4 Job/七项各一次/镜像与部署/实际通知/Gateway，以及下一次 scheduled security run。",
+  "notes": "PR #10 仍为 open/draft/unmerged，base 为 main 34be916c487f261f9e034c726be13c773be8489a，当前 head 为 ee9d38f851e602d7bc0c65c81e8de75cc228ba9d。该 SHA 恰好产生成功的 2 Job push run 209（ci.yml，878s）与 210（security.yml，192s），四 Job 串行关键窗口 900s；七项门禁各一次，四次 Go/pnpm restore 均为精确 cache-hit=true，未产生 pull_request/deploy/release/重复 run。聚合 status 与四个最新 context 均 success，分支保护仍只要求两个 required push context；Runner/DinD 无重启或 OOM，cache/资源/无端口发布不变量保持。run 208 的一次性故障阻断 smoke 历史保留：backend/verify failure、build-and-deploy skipped、telegram-notification success，生产不变量未变；外部 Fork 隔离、内部 PR lifecycle 与 cold/warm cache 证据见 evidence.md。任务仍 in_progress、commit 为空、PR URL 保持 #10；剩余经批准合并后的真实 main 4 Job/七项各一次/镜像与部署/实际通知/Gateway，以及下一次 scheduled security run。",
   "meta": {}
 }

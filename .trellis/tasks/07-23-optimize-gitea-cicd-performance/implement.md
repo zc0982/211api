@@ -227,8 +227,10 @@ git status --short
 - [ ] 经批准合并后，main 只有 deploy 的 4 Job、七项检查各一次、镜像/部署/通知各
   一次；记录内存峰值和 `memory.events`，无新增 OOM。
 - [x] 观察至少两个后续源分支 push：`484aba68...` 的 run `198`/`199`、
-  `803bda0a...` 的 run `200`/`201`，以及当前 head `7b9bc28...` 的 run `206`/`207`
-  均为 4 Job 的 warm 路径；若兼容点失败，执行回滚而非放宽门禁。
+  `803bda0a...` 的 run `200`/`201`、`7b9bc28...` 的 run `206`/`207`，以及最新 PR
+  head `ee9d38f...` 的 run `209`/`210` 均为 4 Job 的 warm 路径；最新一次恰好只有两条
+  success `push` run，无 `pull_request`、deploy、release 或重复 run，四次 restore 均为
+  精确 `cache-hit=true`。若兼容点失败，执行回滚而非放宽门禁。
 - [ ] 观察一个 `main` run，并在下次定时安全运行补齐 2 Job 证据；两项均仍需单独授权或
   自然事件，若兼容点失败，执行回滚而非放宽门禁。
 

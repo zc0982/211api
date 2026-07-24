@@ -436,3 +436,35 @@ PR #10 当前仍为 `open`、`draft=true`、`merged=false`，base 仍为 `main`
 `oom_kill=0`。清理后精确远端 branch API 返回 `404`，本地精确 worktree/ref/directory
 均不存在；历史 run `208` 与四个 Job 保留，未触碰其他 worktree。独立 trellis-check 已
 PASS，未发现证据缺口。
+
+### 8.8 PR 当前 head `ee9d38f...` 的最新 source push warm 观察
+
+PR #10 仍为 `open`、`draft=true`、`merged=false`，base 仍为 `main`
+`34be916c487f261f9e034c726be13c773be8489a`；当前 head 为
+`ee9d38f851e602d7bc0c65c81e8de75cc228ba9d`。该 SHA 恰好产生 run `209`
+（`ci.yml` / `push` / success，878 秒）和 run `210`（`security.yml` / `push` /
+success，192 秒）；没有 `pull_request`、`deploy`、`release` 或重复 run。本次观察未
+触碰 `main`、Gateway、Registry、真实通知或部署；历史 run `208` 保留。
+
+在 `capacity: 1` 下，四个 Job 的首尾精确串行为
+`2026-07-24T05:23:39Z`–`05:38:39Z`，关键窗口为 900 秒：
+
+| Run / Job | Job / task / Runner / attempt | 时间（UTC） | 耗时 |
+| --- | --- | --- | ---: |
+| `209 ci.yml` / `backend` | `853` / `802` / `1` / `1` | 05:23:39–05:35:27 | 708 s |
+| `210 security.yml` / `backend` | `855` / `803` / `1` / `1` | 05:35:27–05:36:30 | 63 s |
+| `209 ci.yml` / `required` | `854` / `804` / `1` / `1` | 05:36:30–05:38:17 | 107 s |
+| `210 security.yml` / `required` | `856` / `805` / `1` / `1` | 05:38:17–05:38:39 | 22 s |
+
+七项门禁各执行一次并成功：Shell 1 秒、unit 201 秒、integration 164 秒、lint
+302 秒、backend vulnerability 22 秒、frontend 98 秒、frontend audit 13 秒。四个 Job
+各有一次成功 restore，均为精确 `cache-hit=true`；`false`、空值、miss 与 save 均为 0。
+两个 Go restore 各为 32 秒，两个 pnpm restore 均小于 1 秒。
+
+该 SHA 的聚合 commit status 为 `success`，最新四个 context 均为 success；`main` 分支
+保护仍只要求 `ci / required (push)` 与 `security / required (push)`。结束时 Runner 为
+`online`、`busy=false`、`capacity=1`；Runner/DinD restart 均为 0，`OOMKilled=false`，
+没有端口发布，资源边界仍为 Runner `512 MiB / 0.5 CPU` 与 DinD `6 GiB / 3 CPU`。
+action cache 是 `1000:1000`、`0700` 的普通目录，大小 `1022864 KiB`、3 个直接子项；
+`memory.events` 为 `max 296`、`oom 0`、`oom_kill 0`。`memory.peak=6442455040` 仅记录为
+容器生命周期累计峰值，不能归因于本轮运行。独立 trellis-check 已 PASS。
