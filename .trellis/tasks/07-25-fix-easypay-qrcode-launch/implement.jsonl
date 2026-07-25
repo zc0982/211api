@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"EasyPay Provider 的 Go 测试、格式化和质量门禁"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"保持上游支付错误与统一服务错误边界"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"核对 mapi 响应到前端 pay_url 的跨层数据流"}
+{"file":".trellis/tasks/07-25-fix-easypay-qrcode-launch/research/easypay-mapi-contract.md","reason":"EasyPay mapi.php 标准成功响应及 urlscheme 兼容证据"}
