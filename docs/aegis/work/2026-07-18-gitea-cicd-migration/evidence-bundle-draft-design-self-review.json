@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "design-self-review",
-  "type": "review",
-  "source": "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
-  "summary": "Self-review resolved deployment freshness, migration gating, runner isolation, registry immutability, backup consistency, cutover ordering, and exact acceptance evidence. The notification amendment now separates retired legacy Telegram release/deploy behavior from the dedicated Pipedream backup-failure adapter, fixes payload and error contracts, records credential ownership and endpoint-rotation risk, and adds positive and negative acceptance evidence. No TODO/TBD placeholders remain.",
-  "verifier": "Primary agent structural and consistency review on 2026-07-18"
-}

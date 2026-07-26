@@ -1,5 +1,8 @@
 # Automatic deploy and Telegram result notification - Intent
 
+> Retired (2026-07-26): this work record belongs to the self-hosted Gitea
+> delivery era, which has been reverted and retired. Historical record only.
+
 ## TaskIntentDraft
 
 - Requested outcome: Remove migration approval and notify final post-merge deployment result through Pipedream and Telegram
