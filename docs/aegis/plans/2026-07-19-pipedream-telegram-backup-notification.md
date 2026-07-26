@@ -1,5 +1,11 @@
 # Pipedream Telegram Backup Notification Implementation Plan
 
+> Retired (2026-07-26): this plan targeted the self-hosted Gitea delivery
+> chain, which has been reverted and retired. GitHub Actions and GHCR own
+> delivery again, and no Pipedream sender exists in the current tree. Kept as a
+> historical record only; do not use it for alignment. Its parent design and
+> plan under the `2026-07-18-gitea-cicd-migration` name were removed.
+
 > Historical plan note (2026-07-22): the backup contract remains compatible,
 > but `2026-07-22-automatic-deploy-telegram-notification.md` supersedes this
 > plan's backup-only adapter scope and filename.

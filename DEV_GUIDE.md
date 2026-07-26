@@ -7,7 +7,7 @@
 | 项目 | 说明 |
 |------|------|
 | **上游仓库** | Wei-Shaw/sub2api |
-| **主仓库** | `git.211api.com/211api/211api`（私有 Gitea） |
+| **主仓库** | `github.com/zc0982/211api`（GitHub 私有仓库） |
 | **技术栈** | Go 后端 (Ent ORM + Gin) + Vue3 前端 (pnpm) |
 | **数据库** | PostgreSQL 16 + Redis |
 | **包管理** | 后端: go modules, 前端: **pnpm**（不是 npm） |
@@ -44,33 +44,42 @@ corepack prepare pnpm@9.15.9 --activate
 
 ## 三、CI/CD 流水线
 
-### Gitea Actions Workflows
+### GitHub Actions Workflows
 
 | Workflow | 触发条件 | 检查内容 |
 |----------|----------|----------|
-| **ci.yml** | push、仓库内部 pull request | 单元测试、集成测试、前端检查、golangci-lint、Shell 语法 |
-| **security.yml** | push、仓库内部 pull request、每周一 03:00 UTC | govulncheck + pnpm audit |
-| **deploy.yml** | 受保护 `main` push | 重跑全部检查、发布不可变 SHA 镜像、部署 Gateway |
-| **release.yml** | 新建 `release/v*` 请求分支、受保护 `v*` tag | 创建不可变 tag、按既有 digest 发布镜像和 Gitea Release |
+| **backend-ci.yml** | push、pull request | 部署脚本 Shell 语法、单元测试、集成测试、前端检查、golangci-lint |
+| **security-scan.yml** | push、pull request、每周一 03:00 UTC | govulncheck + pnpm audit（例外表 `.github/audit-exceptions.yml`） |
+| **deploy.yml** | `main` push、手动触发 | 构建并推送 `ghcr.io/<owner>/<repo>:main` 与 `:<sha>`，SSH 到生产机 `docker compose pull && up -d` |
+| **release.yml** | `v*` tag push、手动触发 | 发布 GHCR 镜像与 Release 产物 |
+| **cla.yml** | PR / issue 评论 | CLA 签署检查 |
 
 ### CI 要求
 
 - Go 版本必须是 **1.26.5**
 - golangci-lint 必须是 **2.9.0**，pnpm 必须是 **9.15.9**
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
-- GitHub 不再承载本 fork 的 CI/CD；`upstream` 仍用于拉取公开上游更新
+- CI/CD 全部在 GitHub Actions 上运行；镜像仓库为 GHCR（`ghcr.io`）
+- `upstream` remote 仍用于拉取公开上游（Wei-Shaw/sub2api）更新
 
 ### 本地测试命令
 
 ```bash
-# 与 Gitea Actions 完全一致的分派命令
-./tools/gitea-ci.sh backend-unit
-./tools/gitea-ci.sh backend-integration
-./tools/gitea-ci.sh frontend
-./tools/gitea-ci.sh lint
-./tools/gitea-ci.sh security-backend
-./tools/gitea-ci.sh security-frontend
-./tools/gitea-ci.sh shell-syntax
+# 与 GitHub Actions 对应的本地命令
+make -C backend test-unit          # backend-ci.yml: test
+make -C backend test-integration   # backend-ci.yml: test（需要 Docker）
+make test-frontend                 # backend-ci.yml: frontend
+golangci-lint run --timeout=30m    # backend-ci.yml: golangci-lint（在 backend/ 下执行）
+
+# 安全扫描（security-scan.yml）
+cd backend && govulncheck ./...
+cd frontend && pnpm audit --prod --audit-level=high --json > audit.json || true
+python tools/check_pnpm_audit_exceptions.py \
+  --audit frontend/audit.json --exceptions .github/audit-exceptions.yml
+
+# 部署脚本语法（backend-ci.yml: shell）
+bash -n deploy/apple-container.sh
+bash deploy/tests/apple-container-test.sh
 ```
 
 ## 四、常见坑点 & 解决方案
@@ -237,12 +246,12 @@ git add ent/       # 生成的文件也要提交
 
 提交 PR 前务必本地验证：
 
-- [ ] `./tools/gitea-ci.sh backend-unit` 通过
-- [ ] `./tools/gitea-ci.sh backend-integration` 通过
-- [ ] `./tools/gitea-ci.sh frontend` 通过
-- [ ] `./tools/gitea-ci.sh lint` 无新增问题
-- [ ] `./tools/gitea-ci.sh security-backend` 与 `security-frontend` 通过
-- [ ] `./tools/gitea-ci.sh shell-syntax` 通过
+- [ ] `make -C backend test-unit` 通过
+- [ ] `make -C backend test-integration` 通过（需要 Docker）
+- [ ] `make test-frontend` 通过
+- [ ] `golangci-lint run --timeout=30m`（在 `backend/` 下执行）无新增问题
+- [ ] `govulncheck ./...`（backend）与 `pnpm audit --prod --audit-level=high`（frontend）通过
+- [ ] `bash -n deploy/apple-container.sh` 通过
 - [ ] `pnpm-lock.yaml` 已同步（如果改了 package.json）
 - [ ] 所有 test stub 补全新接口方法（如果改了 interface）
 - [ ] Ent 生成的代码已提交（如果改了 schema）
@@ -273,7 +282,7 @@ git fetch upstream
 git checkout -b sync/upstream-YYYYMMDD main
 git merge upstream/main
 git push origin HEAD
-# 然后在 Gitea 创建内部 pull request；受保护 main 禁止直接 push
+# 然后在 GitHub 创建 pull request（gh pr create）；受保护 main 禁止直接 push
 
 # 创建功能分支
 git checkout -b feature/xxx

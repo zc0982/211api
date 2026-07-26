@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "independent-design-review",
-  "type": "review",
-  "source": "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md",
-  "summary": "Two independent read-only reviews checked workflow/cutover consistency and security boundaries; reported issues were incorporated and rechecked.",
-  "verifier": "Subagent consistency and security reviews on 2026-07-18"
-}

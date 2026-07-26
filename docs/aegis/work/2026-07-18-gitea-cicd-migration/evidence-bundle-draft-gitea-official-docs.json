@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "gitea-official-docs",
-  "type": "official documentation",
-  "source": "Gitea 1.26 Actions, runner, comparison, secrets, token, and registry documentation",
-  "summary": "Confirmed workflow directory, runner isolation, ignored GitHub semantics, package-token boundary, and Registry naming.",
-  "verifier": "Context7 CLI and independent official-source subagent verification"
-}

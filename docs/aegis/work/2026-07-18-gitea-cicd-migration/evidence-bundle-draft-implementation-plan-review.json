@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "implementation-plan-review",
-  "type": "review",
-  "source": "docs/aegis/plans/2026-07-18-gitea-cicd-migration.md",
-  "summary": "Three independent read-only reviews checked specification coverage, Gitea/Runner/Compose/Gateway executability, cutover races, backup restoration, and Aegis governance; all reported blocking and medium issues were incorporated before handoff.",
-  "verifier": "Primary agent plus independent consistency, technical, operations, security, and governance reviews on 2026-07-18"
-}

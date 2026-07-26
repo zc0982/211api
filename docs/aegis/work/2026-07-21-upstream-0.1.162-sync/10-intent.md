@@ -1,5 +1,10 @@
 # 同步上游 0.1.162 - Intent
 
+> 历史记录（2026-07-26 补注）：本次同步真实发生过，但其中的 Gitea fork 所有权、
+> Gitea CI/CD 边界与「不启用 GitHub Actions」等约束已随自建 Gitea 退役而失效。
+> 当前交付所有权为 GitHub Actions + GHCR，业务版本已到 0.1.164。仅作历史记录，
+> 不再作为对齐依据。
+
 ## TaskIntentDraft
 
 - Requested outcome: 将 upstream/main 的 0.1.162 业务版本同步到受保护 Gitea fork，并保留现有 Gitea CI/CD 与 AMD64-only 发布边界

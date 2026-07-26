@@ -1,14 +1,20 @@
 # 211API Initial Baseline
 
 Date: `2026-07-18`
-Status: `initial dual-baseline snapshot`
+Revised: `2026-07-26`
+Status: `dual baseline, active`
 
 ## 1. Purpose
 
-This snapshot records the requirement and architecture state immediately before
-the fork's CI/CD owner moves from GitHub to self-hosted Gitea. Later alignment
-checks must use it to distinguish the requested delivery migration from an
+This snapshot records the fork's requirement and architecture state. Later
+alignment checks must use it to distinguish delivery-chain changes from an
 unrequested production-service or business-data migration.
+
+The 2026-07-18 edition was written for a migration of the CI/CD owner from
+GitHub to a self-hosted Gitea instance. That migration was reverted and the
+self-hosted Gitea has been retired: GitHub Actions and GHCR own delivery again.
+Sections below were revised on 2026-07-26 to state the current truth; the
+retired Gitea target is retained only where it explains a past decision.
 
 ## 2. Workspace Structure
 
@@ -27,10 +33,8 @@ unrequested production-service or business-data migration.
 - User-approved design decisions in the current migration conversation.
 - `README_CN.md`, `DEV_GUIDE.md`, and `deploy/README.md`.
 - Current workflow definitions under `.github/workflows/`.
-- Gitea 1.26 official Actions, runner, compatibility, secrets, token, and
-  container registry documentation.
-- Read-only host inspection captured on 2026-07-18 for Netcup
-  `37.221.194.27` and Gateway `157.254.234.244`.
+- Read-only host inspection captured on 2026-07-18 for Gateway
+  `157.254.234.244`.
 - No pre-existing project ADR, `CONTEXT.md`, `CONTEXT-MAP.md`, or Aegis
   baseline existed before this snapshot.
 
@@ -38,12 +42,9 @@ unrequested production-service or business-data migration.
 
 ### 4.1 Current Truth
 
-- The requested outcome is to replace this fork's GitHub CI/CD with a private,
-  self-hosted Gitea delivery chain.
-- Gitea is to be hosted on the Netcup Germany server and exposed as
-  `https://git.211api.com`, with Git SSH on port `2222`.
-- The repository is private, self-registration is disabled, and only invited
-  team members may access or trigger CI.
+- GitHub is this fork's CI/CD owner. The 2026-07-18 plan to replace it with a
+  self-hosted Gitea delivery chain was carried out and then reverted; the
+  self-hosted Gitea instance is retired and is no longer an authority surface.
 - The selected release posture is AMD64-only: automatic `main` deployment,
   immutable commit images, protected `v*` releases, and no DockerHub,
   legacy Telegram release notifications, ARM64, macOS, or Windows release
@@ -56,19 +57,15 @@ unrequested production-service or business-data migration.
 
 ### 4.2 Non-negotiables
 
-1. Gitea is the only canonical owner for this fork's repository, Registry, CI,
+1. GitHub is the only canonical owner for this fork's repository, Registry, CI,
    release, and production deployment.
-2. Netcup must not host the 211API business application or its business data.
-3. Gateway `157.254.234.244` remains the sole 211API production runtime owner.
-4. CI jobs must not mount the Netcup host Docker socket.
-5. Production deployments use immutable commit image tags and must not expose
-   the production `.env` through Gitea.
-6. GitHub Actions must be disabled before Gitea becomes the active deployment
-   owner.
+2. Gateway `157.254.234.244` remains the sole 211API production runtime owner.
+3. CI jobs must not mount a host Docker socket.
+4. Production deployments use immutable commit image tags and must not expose
+   the production `.env` through CI.
 
 ### 4.3 Product Non-goals
 
-- Public Gitea registration or public repository access.
 - Business database, Redis, ingress, domain, or application relocation.
 - Complete removal of GitHub as the public upstream source.
 - DockerHub publication, Telegram deployment control or general business
@@ -87,25 +84,18 @@ unrequested production-service or business-data migration.
   `ghcr.io/zc0982/211api:main`, pushes to GHCR, and deploys over SSH.
 - Gateway production currently runs healthy containers for 211API,
   PostgreSQL, and Redis under `/opt/211api/deploy`.
-- Netcup is the retired former production host. It has no 211API containers or
-  business data and has capacity for the Gitea platform.
-- Gitea 1.26 does not provide drop-in behavior for every GitHub workflow
-  feature used here: `workflow_dispatch` and job `environment` cannot be
-  treated as active protection gates, and package publication needs a
-  dedicated PAT rather than relying on `GITEA_TOKEN`.
+- The self-hosted delivery platform that the 2026-07-18 edition planned on a
+  second host is retired. No self-hosted Git, Registry, or runner host is part
+  of this architecture.
 
 ### 5.2 Architecture Non-negotiables
 
-1. Netcup platform stack and rootless runner stack are separate Compose
-   projects, networks, and lifecycle units.
-2. PostgreSQL used by Gitea is platform state only and is unrelated to the
-   Gateway business PostgreSQL.
-3. Deployment direction is one-way:
-   `Netcup runner -> Gitea Registry -> SSH -> Gateway production`.
-4. The Gateway business database has forward-only migrations; automatic
+1. Deployment direction is one-way:
+   `GitHub Actions -> GHCR -> SSH -> Gateway production`.
+2. The Gateway business database has forward-only migrations; automatic
    database restoration or blind image rollback is forbidden.
-5. Existing Hermes, Komari, host SSH, and Gateway ingress services remain
-   outside this migration.
+3. Existing Hermes, Komari, host SSH, and Gateway ingress services remain
+   outside the delivery chain's scope.
 
 ### 5.3 Architecture Non-goals
 
@@ -116,16 +106,15 @@ unrequested production-service or business-data migration.
 
 ## 6. Ownership / Contract Snapshot
 
-| Surface | Current owner | Approved target owner |
-| --- | --- | --- |
-| Fork repository | GitHub fork | Gitea `211api/211api` |
-| CI and security scan | GitHub Actions | Gitea Actions |
-| Container registry | GHCR | Gitea Container Registry |
-| Main deployment | GitHub deploy workflow | Gitea deploy workflow |
-| Private fork release | GitHub/GoReleaser | Gitea protected tag workflow |
-| Public upstream update check | GitHub Releases | GitHub Releases, retained |
-| 211API production runtime | Gateway Los Angeles | Gateway Los Angeles |
-| Gitea platform runtime | none | Netcup Germany |
+| Surface | Owner |
+| --- | --- |
+| Fork repository | GitHub fork `zc0982/211api` |
+| CI and security scan | GitHub Actions |
+| Container registry | GHCR |
+| Main deployment | GitHub deploy workflow |
+| Private fork release | GitHub/GoReleaser |
+| Public upstream update check | GitHub Releases |
+| 211API production runtime | Gateway Los Angeles |
 
 ## 7. Current State and Risks
 
@@ -134,10 +123,6 @@ unrequested production-service or business-data migration.
 - The current deploy workflow transfers the full production environment,
   increasing secret exposure.
 - The current deploy workflow does not provide a database-aware rollback.
-- Netcup time synchronization was not active during inspection and must be
-  corrected before TLS and token-based automation are trusted.
-- Local-only Gitea backups do not protect against total Netcup disk loss; an
-  off-host backup destination is a follow-up operational requirement.
 
 ## 8. Alignment Use
 
@@ -157,4 +142,3 @@ unrequested production-service or business-data migration.
 - Preserve public upstream update checks against `Wei-Shaw/sub2api`.
 - Preserve the existing backend/frontend test intent while retiring the
   macOS-only CI lane selected out of scope.
-- Do not preserve GitHub CI/CD as a fallback after Gitea cutover.

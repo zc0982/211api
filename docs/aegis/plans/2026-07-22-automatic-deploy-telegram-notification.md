@@ -1,5 +1,11 @@
 # Automatic Deployment and Telegram Result Notification Plan
 
+> Retired (2026-07-26): this plan assumed the self-hosted Gitea delivery owner,
+> which has been reverted and retired. GitHub Actions and GHCR own delivery
+> again, `deploy.yml` has no approval gate and no notification job, and no
+> Pipedream sender exists in the current tree. Kept as a historical record only;
+> do not use it for alignment.
+
 ## Goal
 
 Remove the migration-sensitive human approval gate so every protected `main`
