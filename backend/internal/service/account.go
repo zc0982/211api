@@ -779,15 +779,14 @@ func resolveRequestedModelInMapping(mapping map[string]string, requestedModel st
 // 未知/自定义别名仍保持允许（兼容渠道级映射），见 isOpenAIOAuthServableModel。
 //
 // OpenAI 透传账号（openai_passthrough）仅替换认证、放行所有模型：
-// 其 model_mapping 只用于改名，不作为准入白名单（与
-// GatewayService.isModelSupportedByAccount 语义一致）。
+// 其 model_mapping 只用于改名，不作为准入白名单。
 func (a *Account) IsModelSupported(requestedModel string) bool {
 	if a.IsOpenAIPassthroughEnabled() {
 		return true
 	}
 	mapping := a.GetModelMapping()
 	if len(mapping) == 0 {
-		if a.IsOpenAIOAuth() && !a.IsOpenAIPassthroughEnabled() {
+		if a.IsOpenAIOAuth() {
 			return isOpenAIOAuthServableModel(requestedModel)
 		}
 		return true // 无映射 = 允许所有

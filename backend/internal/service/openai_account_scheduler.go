@@ -1700,10 +1700,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	}) {
 		return false, "shadow_parent_unhealthy"
 	}
-	// OpenAI 透传模式仅替换认证、放行所有模型（与
-	// GatewayService.isModelSupportedByAccount 的语义一致）；此时
-	// model_mapping 只用于改名，不再作为准入白名单。
-	if req.RequestedModel != "" && !account.IsOpenAIPassthroughEnabled() && !account.IsModelSupported(req.RequestedModel) {
+	if req.RequestedModel != "" && !account.IsModelSupported(req.RequestedModel) {
 		return false, "model_not_supported"
 	}
 	if req.GroupID != nil && s != nil && s.service != nil &&
