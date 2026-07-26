@@ -37,9 +37,6 @@ printf '%s\n' \
   'if [[ "$command_name:$*" == "golangci-lint:run --timeout=30m" ]]; then' \
   '  printf "|gomaxprocs=%s" "${GOMAXPROCS:-}" >>"$CI_TEST_LOG"' \
   'fi' \
-  'if [[ "$command_name" == corepack ]]; then' \
-  '  printf "|corepack-home=%s" "${COREPACK_HOME:-}" >>"$CI_TEST_LOG"' \
-  'fi' \
   'printf "\\n" >>"$CI_TEST_LOG"' \
   'case "$command_name:$*" in' \
   '  "go:version") printf "%s\\n" "go version go1.26.5 linux/amd64" ;;' \
@@ -138,9 +135,9 @@ fi
 
 run_case frontend "$(printf '%s\n' \
   'node|<repo>|--version' \
-  'corepack|<repo>|enable|corepack-home=/root/.cache/corepack' \
-  'corepack|<repo>|prepare|pnpm@9.15.9|--activate|corepack-home=/root/.cache/corepack' \
-  'pnpm|<repo>/frontend|install|--frozen-lockfile|--prefer-offline' \
+  'corepack|<repo>|enable' \
+  'corepack|<repo>|prepare|pnpm@9.15.9|--activate' \
+  'pnpm|<repo>/frontend|install|--frozen-lockfile' \
   'make|<repo>|test-frontend')"
 
 run_case lint "$(printf '%s\n' \
@@ -155,18 +152,9 @@ run_case security-backend "$(printf '%s\n' \
 
 run_case security-frontend "$(printf '%s\n' \
   'node|<repo>|--version' \
-  'corepack|<repo>|enable|corepack-home=/root/.cache/corepack' \
-  'corepack|<repo>|prepare|pnpm@9.15.9|--activate|corepack-home=/root/.cache/corepack' \
-  'pnpm|<repo>/frontend|install|--frozen-lockfile|--prefer-offline' \
-  'pnpm|<repo>/frontend|audit|--prod|--audit-level=high|--json' \
-  'python3|<repo>|tools/check_pnpm_audit_exceptions.py|--audit|<tmp>|--exceptions|.gitea/audit-exceptions.yml')"
-
-run_case frontend-all "$(printf '%s\n' \
-  'node|<repo>|--version' \
-  'corepack|<repo>|enable|corepack-home=/root/.cache/corepack' \
-  'corepack|<repo>|prepare|pnpm@9.15.9|--activate|corepack-home=/root/.cache/corepack' \
-  'pnpm|<repo>/frontend|install|--frozen-lockfile|--prefer-offline' \
-  'make|<repo>|test-frontend' \
+  'corepack|<repo>|enable' \
+  'corepack|<repo>|prepare|pnpm@9.15.9|--activate' \
+  'pnpm|<repo>/frontend|install|--frozen-lockfile' \
   'pnpm|<repo>/frontend|audit|--prod|--audit-level=high|--json' \
   'python3|<repo>|tools/check_pnpm_audit_exceptions.py|--audit|<tmp>|--exceptions|.gitea/audit-exceptions.yml')"
 

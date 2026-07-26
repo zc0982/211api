@@ -89,7 +89,6 @@ const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 	OpenAIEndpointCapabilityAlphaSearch     OpenAIEndpointCapability = "alpha_search"
-	OpenAIEndpointCapabilityLive            OpenAIEndpointCapability = "live"
 	// OpenAIEndpointCapabilityGrokMediaGeneration keeps image/video generation
 	// away from Grok accounts that are explicitly disabled or whose billing
 	// entitlement probe was forbidden. Video status lookups intentionally do not
@@ -778,16 +777,10 @@ func resolveRequestedModelInMapping(mapping map[string]string, requestedModel st
 // 会把未知模型原样透传，Codex 上游对这类模型必然返回不可重试的 400，导致
 // 请求卡死在该账号上、无法 failover 到真正支持该模型的 API Key 账号（#3662）。
 // 未知/自定义别名仍保持允许（兼容渠道级映射），见 isOpenAIOAuthServableModel。
-//
-// OpenAI 透传账号（openai_passthrough）仅替换认证、放行所有模型：
-// 其 model_mapping 只用于改名，不作为准入白名单。
 func (a *Account) IsModelSupported(requestedModel string) bool {
-	if a.IsOpenAIPassthroughEnabled() {
-		return true
-	}
 	mapping := a.GetModelMapping()
 	if len(mapping) == 0 {
-		if a.IsOpenAIOAuth() {
+		if a.IsOpenAIOAuth() && !a.IsOpenAIPassthroughEnabled() {
 			return isOpenAIOAuthServableModel(requestedModel)
 		}
 		return true // 无映射 = 允许所有
@@ -1442,11 +1435,6 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	switch capability {
 	case OpenAIEndpointCapabilityChatCompletions:
-	case OpenAIEndpointCapabilityLive:
-		return a.Platform == PlatformOpenAI &&
-			a.Type == AccountTypeOAuth &&
-			!a.IsOpenAIPersonalAccessToken() &&
-			!a.IsOpenAIAgentIdentity()
 	case OpenAIEndpointCapabilityResponses:
 		// Responses 支持状态由 accounts.extra 的自动探测标记决定，而非
 		// credentials 能力集。已探测确认不支持 /v1/responses 的 APIKey 上游

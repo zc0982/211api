@@ -2621,50 +2621,6 @@ func TestOpenAIAccountScheduler_SkipsAccountBlockedForRequestedModel(t *testing.
 	require.True(t, scheduler.isAccountRequestCompatible(context.Background(), account, OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.6-sol"}))
 }
 
-// 透传模式仅替换认证、放行所有模型：即使 model_mapping 非空且未命中，
-// 调度门控也不得拦截（与 GatewayService.isModelSupportedByAccount 语义一致）。
-func TestOpenAIAccountScheduler_PassthroughBypassesModelMappingGate(t *testing.T) {
-	account := &Account{
-		ID:       21634,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
-		Extra:    map[string]any{"openai_passthrough": true},
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{"gpt-5.5": "gpt-5.5"},
-		},
-	}
-	svc := &OpenAIGatewayService{openaiModelTransient: newOpenAIAccountModelTransientState(128)}
-	scheduler := &defaultOpenAIAccountScheduler{service: svc}
-
-	require.True(t, scheduler.isAccountRequestCompatible(context.Background(), account, OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.6-sol"}))
-
-	// 未开启透传时同样的映射配置仍应拦截
-	account.Extra = map[string]any{}
-	require.False(t, scheduler.isAccountRequestCompatible(context.Background(), account, OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.6-sol"}))
-}
-
-// 根因修复：IsModelSupported 对透传账号直接放行，默认调度路径
-// （isOpenAICompatibleAccountEligibleForRequest）随之放行，无需逐调用点特判。
-func TestIsModelSupported_PassthroughAdmitsUnmappedModel(t *testing.T) {
-	account := &Account{
-		ID:       21635,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
-		Extra:    map[string]any{"openai_passthrough": true},
-		Credentials: map[string]any{
-			"model_mapping": map[string]any{"gpt-5.5": "gpt-5.5"},
-		},
-		Status:      StatusActive,
-		Schedulable: true,
-	}
-	require.True(t, account.IsModelSupported("gpt-5.6-sol"))
-	require.True(t, isOpenAICompatibleAccountEligibleForRequest(context.Background(), account, PlatformOpenAI, "gpt-5.6-sol", false, ""))
-
-	// 非透传账号同样配置仍应拦截
-	account.Extra = map[string]any{}
-	require.False(t, account.IsModelSupported("gpt-5.6-sol"))
-}
-
 func TestReportOpenAIAccountScheduleResult_SuccessClearsModelTransientState(t *testing.T) {
 	svc := &OpenAIGatewayService{openaiModelTransient: newOpenAIAccountModelTransientState(128)}
 	now := time.Now()

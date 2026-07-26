@@ -6,15 +6,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 LOCK="$ROOT/deploy/gitea/images.lock.env"
 COMPOSE="$ROOT/deploy/gitea/runner/compose.yaml"
 CONFIG="$ROOT/deploy/gitea/runner/config.yaml"
-MAINTENANCE="$ROOT/deploy/gitea/runner/cache-maintenance.sh"
 tmp="$(mktemp -d)"
 
 cleanup() {
   rm -rf -- "$tmp"
 }
 trap cleanup EXIT HUP INT TERM
-
-[[ "$(stat -c '%a' "$MAINTENANCE")" == 755 ]]
 
 docker compose --env-file "$LOCK" -f "$COMPOSE" \
   config --format json >"$tmp/rendered.json"
@@ -44,21 +41,6 @@ jq -e '
   and .services.docker.mem_limit == "6442450944"
   and .services.docker.cpus == 3
   and ([.services[] | .ports[]?] | length) == 0
-  and .services.runner.expose == ["8088"]
-  and .services.runner.networks.runner.aliases == ["gitea-runner-cache"]
-  and .services.runner.configs == [
-    {
-      "source": "runner_config",
-      "target": "/etc/gitea-runner/config.yaml"
-    },
-    {
-      "source": "runner_cache_maintenance",
-      "target": "/usr/local/bin/gitea-runner-cache-maintenance",
-      "mode": "0555"
-    }
-  ]
-  and (.services.runner.environment | keys |
-    map(startswith("GITEA_CACHE_MAINTENANCE_")) | any) == false
   and ([.services | to_entries[] | select(.value.privileged == true) | .key] ==
     ["docker"])
   and ([.services[] | .volumes[]? | select(.type == "bind")] | length) == 0
@@ -106,18 +88,7 @@ done
 grep -Fx '  envs:' "$tmp/runner.section" >/dev/null
 grep -Fx '    GOFLAGS: -p=1' "$tmp/runner.section" >/dev/null
 [[ "$(grep -Ec '^    [A-Z][A-Z0-9_]*:' "$tmp/runner.section")" -eq 1 ]]
-for expected in \
-  '  enabled: true' \
-  '  dir: /data/cache/actions' \
-  '  host: gitea-runner-cache' \
-  '  port: 8088' \
-  '  external_server: ""' \
-  '  external_secret: ""' \
-  '  offline_mode: true'; do
-  grep -Fx "$expected" "$tmp/cache.section" >/dev/null
-done
-grep -Fx '  post_task_script: /usr/local/bin/gitea-runner-cache-maintenance' "$tmp/runner.section" >/dev/null
-grep -Fx '  post_task_script_timeout: 2m' "$tmp/runner.section" >/dev/null
+grep -Fx '  enabled: false' "$tmp/cache.section" >/dev/null
 for expected in \
   '  privileged: false' \
   '  valid_volumes: []' \
@@ -128,7 +99,6 @@ for expected in \
   grep -Fx "$expected" "$tmp/container.section" >/dev/null
 done
 grep -Fx '  enabled: false' "$tmp/metrics.section" >/dev/null
-grep -F 'runner_cache_maintenance' "$COMPOSE" >/dev/null
 
 # Runner 2.1.0 must parse this exact schema. A missing registration file is the
 # expected next failure; a config/schema failure is not.

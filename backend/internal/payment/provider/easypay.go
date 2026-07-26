@@ -160,7 +160,7 @@ func (e *EasyPay) createRedirectPayment(req payment.CreatePaymentRequest) (*paym
 	return &payment.CreatePaymentResponse{PayURL: payURL}, nil
 }
 
-// createAPIPayment calls mapi.php to get a payment launch URL or QR code.
+// createAPIPayment calls mapi.php to get payurl/qrcode (existing behavior).
 func (e *EasyPay) createAPIPayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
 	notifyURL, returnURL := e.resolveURLs(req)
 	paymentType := e.upstreamPaymentType(req.PaymentType)
@@ -184,13 +184,12 @@ func (e *EasyPay) createAPIPayment(ctx context.Context, req payment.CreatePaymen
 		return nil, fmt.Errorf("easypay create: %w", err)
 	}
 	var resp struct {
-		Code      int    `json:"code"`
-		Msg       string `json:"msg"`
-		TradeNo   string `json:"trade_no"`
-		PayURL    string `json:"payurl"`
-		PayURL2   string `json:"payurl2"` // H5 mobile payment URL
-		URLScheme string `json:"urlscheme"`
-		QRCode    string `json:"qrcode"`
+		Code    int    `json:"code"`
+		Msg     string `json:"msg"`
+		TradeNo string `json:"trade_no"`
+		PayURL  string `json:"payurl"`
+		PayURL2 string `json:"payurl2"` // H5 mobile payment URL
+		QRCode  string `json:"qrcode"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("easypay parse: %w", err)
@@ -199,9 +198,6 @@ func (e *EasyPay) createAPIPayment(ctx context.Context, req payment.CreatePaymen
 		return nil, fmt.Errorf("easypay error: %s", resp.Msg)
 	}
 	payURL := resp.PayURL
-	if payURL == "" {
-		payURL = resp.URLScheme
-	}
 	if req.IsMobile && resp.PayURL2 != "" {
 		payURL = resp.PayURL2
 	}

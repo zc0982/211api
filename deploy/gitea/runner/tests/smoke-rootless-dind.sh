@@ -17,7 +17,6 @@ export GITEA_RUNNER_SMOKE_RUNTIME_VOLUME="$GITEA_RUNNER_SMOKE_PROJECT-runtime"
 export GITEA_RUNNER_SMOKE_NETWORK="$GITEA_RUNNER_SMOKE_PROJECT-network"
 export GITEA_RUNNER_SMOKE_DOCKER_CONTAINER="$GITEA_RUNNER_SMOKE_PROJECT-docker"
 export GITEA_RUNNER_SMOKE_RUNNER_CONTAINER="$GITEA_RUNNER_SMOKE_PROJECT-runner"
-export GITEA_RUNNER_SMOKE_CACHE_CONTAINER="$GITEA_RUNNER_SMOKE_PROJECT-cache-endpoint"
 
 set -a
 # shellcheck source=/dev/null
@@ -29,7 +28,6 @@ compose() {
 }
 
 cleanup() {
-  docker rm -f "$GITEA_RUNNER_SMOKE_CACHE_CONTAINER" >/dev/null 2>&1 || true
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf -- "$tmp"
 }
@@ -43,18 +41,12 @@ if docker ps -a --filter \
   exit 1
 fi
 for container in "$GITEA_RUNNER_SMOKE_DOCKER_CONTAINER" \
-  "$GITEA_RUNNER_SMOKE_RUNNER_CONTAINER" \
-  "$GITEA_RUNNER_SMOKE_CACHE_CONTAINER"; do
+  "$GITEA_RUNNER_SMOKE_RUNNER_CONTAINER"; do
   if docker container inspect "$container" >/dev/null 2>&1; then
     printf 'refusing pre-existing smoke container: %s\n' "$container" >&2
     exit 1
   fi
 done
-if docker network inspect "$GITEA_RUNNER_SMOKE_NETWORK" >/dev/null 2>&1; then
-  printf 'refusing pre-existing smoke network: %s\n' \
-    "$GITEA_RUNNER_SMOKE_NETWORK" >&2
-  exit 1
-fi
 for volume in "$GITEA_RUNNER_SMOKE_DATA_VOLUME" \
   "$GITEA_RUNNER_SMOKE_DOCKER_DATA_VOLUME" \
   "$GITEA_RUNNER_SMOKE_RUNTIME_VOLUME"; do
@@ -148,24 +140,6 @@ dind_cli run --rm --user 65534:65534 --read-only --cap-drop ALL \
     printf "unprivileged inner container passed\n"
   '
 
-docker run -d --name "$GITEA_RUNNER_SMOKE_CACHE_CONTAINER" \
-  --network "$GITEA_RUNNER_SMOKE_NETWORK" \
-  --network-alias gitea-runner-cache --read-only --user 65534:65534 \
-  --cap-drop ALL \
-  --security-opt no-new-privileges:true \
-  "$APP_ALPINE_IMAGE" sh -ec '
-    while true; do
-      printf "HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\n\\r\\nok" | nc -l -p 8088
-    done
-  ' \
-  >/dev/null
-[[ -z "$(docker port "$GITEA_RUNNER_SMOKE_CACHE_CONTAINER")" ]]
-dind_cli run --rm --user 65534:65534 --read-only --cap-drop ALL \
-  --security-opt no-new-privileges:true "$APP_ALPINE_IMAGE" sh -ec '
-    wget -qO /dev/null http://gitea-runner-cache:8088/sh
-  '
-docker rm -f "$GITEA_RUNNER_SMOKE_CACHE_CONTAINER" >/dev/null
-
 # Create the Runner to inspect the effective Docker model, then start only its
 # fail-closed preflight branches (never registration or the daemon).
 # This also proves Compose reduces each escaped `$$` to one shell `$`.
@@ -183,14 +157,10 @@ jq -e --arg config "$ROOT/deploy/gitea/runner/config.yaml" '
   and ([.[0].Mounts[] | .Destination] | sort) == [
     "/data",
     "/etc/gitea-runner/config.yaml",
-    "/run/user/1000",
-    "/usr/local/bin/gitea-runner-cache-maintenance"
+    "/run/user/1000"
   ]
-  and (([.[0].Mounts[] | select(.Type == "bind") | .Source] | sort) == [
-    ($config | sub("config\\.yaml$"; "cache-maintenance.sh")),
-    $config
-  ])
-  and ([.[0].Mounts[] | select(.Type == "bind") | .RW] == [false, false])
+  and ([.[0].Mounts[] | select(.Type == "bind") | .Source] == [$config])
+  and ([.[0].Mounts[] | select(.Type == "bind") | .RW] == [false])
   and ([.[0].Mounts[] | .Source | select(contains("/var/run/docker.sock"))] |
     length) == 0
 ' < <(docker inspect "$runner_id") >/dev/null
@@ -255,11 +225,6 @@ for volume in "$GITEA_RUNNER_SMOKE_DATA_VOLUME" \
     exit 1
   fi
 done
-if docker network inspect "$GITEA_RUNNER_SMOKE_NETWORK" >/dev/null 2>&1; then
-  printf 'smoke cleanup left network behind: %s\n' \
-    "$GITEA_RUNNER_SMOKE_NETWORK" >&2
-  exit 1
-fi
 rm -rf -- "$tmp"
 trap - EXIT HUP INT TERM
 

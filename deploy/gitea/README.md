@@ -239,20 +239,6 @@ one-shot boundary: it stages the root-only source files as UID/GID 1000 mode
 On a new host, complete **Repository bootstrap and controls** below through its
 `--base` verification before generating a repository-scoped Runner token; the
 section order follows implementation-task ownership, not first-install order.
-Install the reviewed Runner files at their canonical paths. Local Compose
-implements file-backed configs as read-only bind mounts and ignores the Compose
-`mode` hint, so the maintenance source itself must remain executable:
-
-```bash
-sudo install -d -o root -g root -m 0755 /opt/gitea/runner
-sudo install -o root -g root -m 0644 \
-  deploy/gitea/runner/compose.yaml /opt/gitea/runner/compose.yaml
-sudo install -o root -g root -m 0644 \
-  deploy/gitea/runner/config.yaml /opt/gitea/runner/config.yaml
-sudo install -o root -g root -m 0755 \
-  deploy/gitea/runner/cache-maintenance.sh \
-  /opt/gitea/runner/cache-maintenance.sh
-```
 
 The Runner project has exactly two long-running services. `docker` is the only
 privileged service and runs the locked rootless DinD image as numeric
@@ -329,9 +315,7 @@ Runner project, container, volume, and network names are fixed in Compose so
 backup, inspection, and restore cannot drift through an environment override.
 The exact container names are `gitea-runner` and `gitea-runner-docker`. No
 Runner environment file exists: the registration token and its source path stay
-outside Compose. Runner 2.1.0's built-in cache server listens only inside
-`gitea-runner-network` at the fixed alias `gitea-runner-cache:8088`; Compose has
-no published cache port, and the Docker daemon remains Unix-socket-only.
+outside Compose.
 Define a shell helper so every operation supplies the reviewed image lock. The
 lock is non-secret and root-owned; sourcing it makes the locked utility image
 available to the one-off volume operations below.
@@ -361,27 +345,20 @@ the Docker CLI and Alpine utility images used by volume initialization and
 socket verification. The private Go and Docker Actions job images are pulled
 into the isolated DinD daemon after that daemon is healthy.
 
-Initialize the persistent Runner state volume and its exact action-cache
-directory. Registration state and cache data share this named volume, so the
-cache directory is created explicitly as UID/GID 1000 and must never be cleaned
-by deleting the volume. The command is idempotent and must leave an existing
-`/data/.runner` registration-state file unchanged. This utility container is
+Initialize only the persistent Runner state volume. This utility container is
 networkless and non-privileged; it does not initialize DinD data or any host
 path.
 
 ```bash
 sudo docker volume create gitea-runner-data >/dev/null
-sudo docker run --rm --network none --read-only --user 0:0 \
-  --cap-drop ALL --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER \
+sudo docker run --rm --network none --read-only \
+  --cap-drop ALL --cap-add CHOWN \
   --security-opt no-new-privileges:true \
   --mount type=volume,src=gitea-runner-data,dst=/data \
   "$APP_ALPINE_IMAGE" sh -ec '
-    mkdir -p /data/cache/actions
-    chown 1000:1000 /data /data/cache /data/cache/actions
-    chmod 0700 /data /data/cache /data/cache/actions
-    test "$(stat -c "%u:%g %a" /data)" = "1000:1000 700"
-    test "$(stat -c "%u:%g %a" /data/cache)" = "1000:1000 700"
-    test "$(stat -c "%u:%g %a" /data/cache/actions)" = "1000:1000 700"
+    chmod 0700 /data
+    chown 1000:1000 /data
+    test "$(stat -c "%u:%g" /data)" = 1000:1000
   '
 ```
 
@@ -650,155 +627,6 @@ Keeping the source outside `/opt/gitea/runner` prevents the host-manifest
 backup from capturing it during the short registration window. Subsequent
 Runner restarts use the persistent registration state and require no staged
 token.
-
-### Runner cache rollout, maintenance, and rollback
-
-The cache is a rebuildable performance layer, never an authorization,
-required-status, or publication input. `actions/cache` is locked to its full
-commit in `.gitea/actions.lock`; Go keys cover module, lint, image-lock, and CI
-dispatcher inputs, while pnpm keys cover package/lock, image-lock, and dispatcher
-inputs. Prefix restores are forbidden. Restore/archive/network failures are
-tolerated by the cache step, after which the unchanged test or audit command
-must perform a correct cold build. Action offline reuse is enabled only while
-every `uses:` reference remains a full SHA covered by the action lock.
-
-`/usr/local/bin/gitea-runner-cache-maintenance` runs after each task in the
-locked Runner 2.1.0 container. It accepts only the hard-coded
-`/data/cache/actions` directory, rejects a symlink or owner other than
-`1000:1000`, and clears only direct children when cache size exceeds 20 GiB or
-filesystem use reaches 80%. The test-only threshold variables are absent from
-production Compose. Any validation/statistics/deletion error is a warning-level
-maintenance failure and leaves later jobs able to rebuild cold; it must not be
-worked around by widening the deletion target.
-
-#### BuildKit GC observation and recovery contract
-
-The persistent rootless DinD BuildKit cache is capacity-bounded by the active
-Docker daemon's periodic GC policy, not solely by host monitoring or manual
-prune. For the locked `DIND_IMAGE` (`docker:29.6.1-dind-rootless` digest
-`sha256:371962f4344295a1eb185f1c9e62064bf4503a7beb8c6e73be3405500041784b`),
-the authoritative live observation is Docker Engine Community 29.6.1, BuildKit
-v0.31.1, builder `default`, driver `docker`, status running. It has no current
-`/home/rootless/.config/docker/daemon.json` or `/etc/docker/daemon.json`
-override; persistent data is under `/home/rootless/.local/share/docker`.
-
-Read the active policy and concise capacity state without mutation:
-
-```bash
-sudo docker exec gitea-runner-docker docker buildx inspect default
-sudo docker exec gitea-runner-docker docker builder du
-sudo docker exec gitea-runner-docker docker system df
-```
-
-The inspection must show at least one filtered 48-hour bounded policy and a
-final `All=true` policy with positive reserved/max-used/min-free values and
-max-used greater than reserved. The current observed policy values and cache
-usage are environment evidence, not portable constants; Docker image digest
-upgrades, disk/layout changes, or either daemon.json override require a new
-read-only inspection before relying on the policy. BuildKit initialization logs
-do not prove a GC sweep, and policy presence does not prove a threshold has been
-crossed or data automatically deleted. Docker's [Build cache garbage collection
-documentation](https://docs.docker.com/build/cache/garbage-collection/) describes
-the docker-driver daemon policy behavior; the live inspection remains authoritative
-for this deployed builder.
-
-Do not use routine `docker system prune -af` or `docker builder prune -af`.
-Manual pruning is recovery only: stop the Runner, obtain explicit authorization,
-record the relevant read-only state before and after, and use a reviewed,
-scoped maintenance procedure. It is not the normal capacity-control mechanism.
-
-Live Runner, Gitea, or Gateway changes require separate authorization. Before
-rollout, record one current `main` run and one internal PR head update with SHA,
-run/job IDs, start/end time, job count, and peak memory. Deploy the Runner
-Compose/config/maintenance script before changing workflows, then prove Runner
-health, the exact cache directory owner, no published 8088 mapping, and the
-Unix-only Docker endpoint. On a smoke branch, record a first cold four-Job run,
-rerun the same SHA and lock files, and require both `go-cache-hit=true` and
-`pnpm-cache-hit=true`. Stop Runner, clear only the exact action-cache contents as
-shown below, restart it, and prove the same seven gates still pass cold. Opening
-or updating the internal PR must create no `pull_request` run; an external fork
-must receive neither Runner, cache, secrets, nor a required push context.
-
-```bash
-runner_compose stop -t 300 runner
-sudo docker run --rm --network none --read-only --user 1000:1000 \
-  --cap-drop ALL --security-opt no-new-privileges:true \
-  --mount type=volume,src=gitea-runner-data,dst=/data \
-  "$APP_ALPINE_IMAGE" sh -ec '
-    target=/data/cache/actions
-    test -d "$target"
-    test ! -L "$target"
-    test "$(stat -c "%u:%g" "$target")" = 1000:1000
-    find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-    test -d "$target"
-  '
-runner_compose up -d runner
-```
-
-#### Disposable failed-deployment-gate smoke
-
-Run this only with separate approval. It deliberately creates one failed
-Actions run to prove that Gitea's native failed-`needs` semantics skip
-`build_deploy` while `notify` with `always()` still runs. It must never use
-`main`, the production deploy workflow body, Registry/Gateway credentials, or
-the real notification endpoint.
-
-Start from an exact reviewed PR-head commit and choose one previously absent
-branch matching `^ci-smoke-fail-gate-[0-9a-f]{16}$`. Before any push, run:
-
-```bash
-deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
-deploy/gitea/tests/render-deploy-failure-gate-smoke.sh \
-  ci-smoke-fail-gate-0123456789abcdef
-```
-
-In a disposable worktree, add only the exact branch to the temporary copies of
-`ci.yml` and `security.yml` `branches-ignore`, and write the rendered output as
-`.gitea/workflows/deploy-failure-gate-smoke.yml`. Review that the scratch diff
-contains exactly those two one-line exclusions plus the rendered workflow. The
-generated workflow has no `uses:`, secret expression, URL, network command,
-Docker publication, Registry/Gateway reference, or Pipedream/Telegram call.
-Do not merge, open a PR, create a tag, or copy any scratch change back to the
-source branch.
-
-The one-shot push is successful evidence only when it creates exactly one
-smoke run and four jobs with these conclusions:
-
-| Job | Required conclusion and evidence |
-| --- | --- |
-| `backend` | `failure`; intentional exit-86 sentinel is present |
-| `verify` | `failure`; log records `backend-result=failure` before the hard gate |
-| `build-and-deploy` | `skipped`; no Runner task, step log, or `UNREACHABLE` sentinel |
-| `telegram-notification` | `success`; log records the locally asserted `verify-result=failure` and `build-deploy-result=skipped` |
-
-The workflow conclusion remains `failure`; that red run is expected. The last
-job proves final notification *scheduling*, not delivery to the real endpoint.
-If any CI/security/deploy/release run appears, if the build job receives a task,
-or if the final local assertion does not succeed, stop and preserve the
-unexpected evidence. Never add `if: false` to manufacture the desired skip.
-
-Record the reviewed patch hash, exact base/branch/unique SHA, run/job/task IDs,
-sentinel logs, and Runner/cache/OOM plus production-state snapshots. Then delete
-only the exact remote scratch branch and local disposable worktree. Preserve the
-Action run as historical evidence. If a push or delete result is unknown,
-reconcile the exact branch/SHA/run read-only before deciding whether one retry
-is safe.
-
-During the cold/warm observation window, record `du -sk` and `df -P` for the
-cache directory, rootless `docker buildx inspect default`, `docker builder du`,
-`docker system df`, DinD `memory.events`, job count,
-duration, and cache-hit logs for at least two later source pushes, one `main`
-run, and the next scheduled security run. `capacity: 1`, the 6 GiB DinD limit,
-the 512 MiB Runner limit, and rootless isolation remain fixed; any new OOM or
-cache/Action incompatibility stops rollout.
-
-Rollback workflow and cache changes through reviewed repository configuration,
-not ad hoc live edits. First remove/disable cache steps if needed so jobs use the
-cold path; then set Runner cache/offline mode false, remove the post-task script
-and private alias, and recreate only the Runner container. Cached data may stay
-inert. If corruption is suspected, use the stopped-Runner exact clear above.
-Never delete `gitea-runner-data`, `gitea-runner-docker-data`, `.runner`, Registry
-images, Gateway data, or branch protections as part of cache rollback.
 
 ## Repository bootstrap and controls
 
@@ -1270,23 +1098,7 @@ value from `/etc/gitea/backup-notify-url`; never print it, place it in argv, or
 store a second plaintext copy. Full repository verification requires the secret
 name. The terminal `telegram-notification` job treats Pipedream delivery failure
 as a warning so notification availability cannot rewrite the actual deployment
-result. It makes exactly one request bounded by an explicit 15-second abort;
-redirects are not followed, so a 3xx response cannot forward the payload beyond
-the validated Pipedream host. The step emits only safe
-`deployment-notification-outcome=<token>` diagnostics. These markers classify
-adapter response acceptance, validation, timeout, network, HTTP, JSON, and
-response-contract outcomes without logging the endpoint, payload, response, or
-caught error. `deployment-notification-outcome=accepted` proves only that the
-configured adapter returned the expected 2xx JSON contract. It does not prove
-that Telegram received a message, does not repair an earlier failed live
-attempt, and still requires approved live evidence. Run the offline regression
-below after changing the workflow; it extracts and executes the unique exact
-workflow step with a fail-closed fetch mock, a restricted command path, and
-static rejection of any additional network client:
-
-```bash
-deploy/gitea/tests/test-deploy-notification.sh
-```
+result.
 
 Netcup and the Gitea Actions secret store only that endpoint. The bot token and
 chat ID remain solely in Pipedream; Gateway stores none of them. If the endpoint
@@ -1395,28 +1207,19 @@ deploy/gitea/platform/tests/test-retention.sh
 deploy/gitea/platform/tests/test-caddy-redaction.sh
 deploy/gitea/platform/tests/test-systemd-units.sh
 deploy/gitea/runner/tests/test-runner-config.sh
-deploy/gitea/runner/tests/test-cache-maintenance.sh
 deploy/gitea/runner/tests/test-go-actions-image.sh
-deploy/gitea/runner/tests/test-docker-actions-image.sh
 deploy/gitea/runner/tests/test-registration-token-lifecycle.sh
 deploy/gitea/runner/tests/smoke-rootless-dind.sh
 deploy/gitea/tests/test-admin-primitives.sh
-deploy/gitea/tests/test-ci-dispatcher.sh
-deploy/gitea/tests/test-ci-cache-key.sh
-deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
 deploy/gitea/tests/test-immutable-tag-hook.sh
 deploy/gitea/tests/test-gateway-deployer.sh
 deploy/gitea/tests/test-release-workflow.sh
-deploy/gitea/tests/test-workflow-contract.sh
 ```
 
 The DinD smoke uses unique project, network, and volume names, proves rootless
 security options, socket ownership/mode, absence of TCP listeners and published
 ports, and runs a locked inner Alpine container as UID/GID 65534 with a read-only
-root filesystem and no capabilities. It also proves an unprivileged inner job
-can reach only the outer private alias at `gitea-runner-cache:8088`, with no
-published cache port. Its trap removes only its unique containers, network, and
-volumes, including on an early failure. It exercises only Runner's negative
-startup and network-reachability branches; real token consumption,
-registration, cache API save/restore, job socket injection, and Gitea protocol
-compatibility remain mandatory live gates.
+root filesystem and no capabilities. Its trap removes only those unique
+resources. It exercises only Runner's negative startup branches; real token
+consumption, registration, job socket injection, and Gitea protocol compatibility
+remain mandatory live gates in Task 11.

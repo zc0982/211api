@@ -9,59 +9,89 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    name: backend
+  backend_unit:
+    name: backend-unit
     runs-on: go-1.26.5
     steps:
       - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - name: Compute Go cache key
-        id: cache_key
-        run: printf 'key=%s\n' "$(./tools/gitea-cache-key.sh go)" >>"$GITEA_OUTPUT"
-      - name: Restore Go cache
-        id: go_cache
-        continue-on-error: true
-        uses: https://github.com/actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: |
-            /go/pkg/mod
-            /root/.cache/go-build
-          key: ${{ steps.cache_key.outputs.key }}
-      - name: Record Go cache result
-        run: printf 'go-cache-hit=%s\n' '${{ steps.go_cache.outputs.cache-hit }}'
-      - run: ./tools/gitea-ci.sh shell-syntax
       - run: ./tools/gitea-ci.sh backend-unit
+
+  backend_integration:
+    name: backend-integration
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: GITEA_CI=true ./tools/gitea-ci.sh backend-integration
+
+  frontend:
+    name: frontend
+    runs-on: node-20.20.2
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh frontend
+
+  lint:
+    name: lint
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh lint
+
+  shell_syntax:
+    name: shell-syntax
+    runs-on: linux-amd64
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh shell-syntax
+
+  security_backend:
+    name: security-backend
+    runs-on: go-1.26.5
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - run: ./tools/gitea-ci.sh security-backend
+
+  security_frontend:
+    name: security-frontend
+    runs-on: node-20.20.2
+    steps:
+      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - run: ./tools/gitea-ci.sh security-frontend
 
   verify:
     name: verify
     if: always()
-    needs: backend
-    runs-on: node-20.20.2
+    needs:
+      - backend_unit
+      - backend_integration
+      - frontend
+      - lint
+      - shell_syntax
+      - security_backend
+      - security_frontend
+    runs-on: linux-amd64
     steps:
-      - name: Require backend to succeed
+      - name: Require every verification job to succeed
         env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
+          BACKEND_UNIT_RESULT: ${{ needs.backend_unit.result }}
+          BACKEND_INTEGRATION_RESULT: ${{ needs.backend_integration.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          SHELL_SYNTAX_RESULT: ${{ needs.shell_syntax.result }}
+          SECURITY_BACKEND_RESULT: ${{ needs.security_backend.result }}
+          SECURITY_FRONTEND_RESULT: ${{ needs.security_frontend.result }}
         run: |
           set -euo pipefail
-          [[ "$BACKEND_RESULT" == success ]]
-      - uses: https://github.com/actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-      - name: Compute pnpm cache key
-        id: cache_key
-        run: printf 'key=%s\n' "$(./tools/gitea-cache-key.sh pnpm)" >>"$GITEA_OUTPUT"
-      - name: Restore pnpm cache
-        id: pnpm_cache
-        continue-on-error: true
-        uses: https://github.com/actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: |
-            /root/.cache/corepack
-            /root/.local/share/pnpm/store
-          key: ${{ steps.cache_key.outputs.key }}
-      - name: Record pnpm cache result
-        run: printf 'pnpm-cache-hit=%s\n' '${{ steps.pnpm_cache.outputs.cache-hit }}'
-      - run: ./tools/gitea-ci.sh frontend-all
+          for result in \
+            "$BACKEND_UNIT_RESULT" \
+            "$BACKEND_INTEGRATION_RESULT" \
+            "$FRONTEND_RESULT" \
+            "$LINT_RESULT" \
+            "$SHELL_SYNTAX_RESULT" \
+            "$SECURITY_BACKEND_RESULT" \
+            "$SECURITY_FRONTEND_RESULT"; do
+            [[ "$result" == success ]]
+          done
 
   build_deploy:
     name: build-and-deploy
@@ -287,7 +317,6 @@ jobs:
           set +x
 
           if [[ -z "$PIPEDREAM_NOTIFY_URL" ]]; then
-            printf 'deployment-notification-outcome=skipped\n'
             printf 'Deployment notification skipped: Pipedream endpoint is not configured.\n' >&2
             exit 0
           fi
@@ -310,93 +339,30 @@ jobs:
               commit: process.env.EVENT_SHA,
               run_url: process.env.RUN_URL,
             };
-            const endpointSuffix = ".m.pipedream.net";
-            let outcome;
-            let exitCode = 0;
-            if (typeof endpoint !== "string" || !endpoint.startsWith("https://") ||
-                /\s/.test(endpoint)) {
-              outcome = "endpoint-validation";
-              exitCode = 2;
+            if (!/^https:\/\/[^/]+\.m\.pipedream\.net(?:\/.*)?$/.test(endpoint) ||
+                !/^[0-9a-f]{40}$/.test(payload.commit) ||
+                !/^https:\/\/git\.211api\.com\/211api\/211api\/actions\/runs\/[1-9][0-9]{0,19}$/.test(payload.run_url)) {
+              process.exit(2);
             }
-            let parsedEndpoint;
-            if (exitCode === 0) {
-              try {
-                parsedEndpoint = new URL(endpoint);
-              } catch {
-                outcome = "endpoint-validation";
-                exitCode = 2;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15_000);
+            try {
+              const response = await fetch(endpoint, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+              });
+              const result = await response.json().catch(() => null);
+              if (!response.ok || result?.ok !== true ||
+                  result?.event !== "deployment-finished") {
+                process.exit(3);
               }
+            } catch {
+              process.exit(4);
+            } finally {
+              clearTimeout(timeout);
             }
-            if (exitCode === 0) {
-              const authority = endpoint.slice(endpoint.indexOf("://") + 3).split(/[/?#]/, 1)[0];
-              if (parsedEndpoint.protocol !== "https:" ||
-                  parsedEndpoint.username !== "" || parsedEndpoint.password !== "" ||
-                  authority !== parsedEndpoint.hostname ||
-                  parsedEndpoint.hostname.length <= endpointSuffix.length ||
-                  !parsedEndpoint.hostname.endsWith(endpointSuffix)) {
-                outcome = "endpoint-validation";
-                exitCode = 2;
-              }
-            }
-            if (exitCode === 0 && (!/^[0-9a-f]{40}$/.test(payload.commit) ||
-                !/^https:\/\/git\.211api\.com\/211api\/211api\/actions\/runs\/[1-9][0-9]{0,19}$/.test(payload.run_url))) {
-              outcome = "input-validation";
-              exitCode = 2;
-            }
-            const httpOutcome = (status) => {
-              if (!Number.isInteger(status) || status < 100 || status > 599) {
-                return "http-other";
-              }
-              if (status >= 300 && status < 400) return `http-3xx-${status}`;
-              if (status >= 400 && status < 500) return `http-4xx-${status}`;
-              if (status >= 500 && status < 600) return `http-5xx-${status}`;
-              return `http-other-${status}`;
-            };
-            if (exitCode === 0) {
-              const controller = new AbortController();
-              let timedOut = false;
-              const timeout = setTimeout(() => {
-                timedOut = true;
-                controller.abort();
-              }, 15_000);
-              try {
-                const response = await fetch(endpoint, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify(payload),
-                  signal: controller.signal,
-                  redirect: "manual",
-                });
-                if (!response.ok) {
-                  outcome = httpOutcome(response.status);
-                  exitCode = 3;
-                } else {
-                  const responseText = await response.text();
-                  let result;
-                  try {
-                    result = JSON.parse(responseText);
-                  } catch {
-                    outcome = "invalid-json";
-                    exitCode = 3;
-                  }
-                  if (exitCode === 0) {
-                    if (result?.ok !== true || result?.event !== "deployment-finished") {
-                      outcome = "response-contract";
-                      exitCode = 3;
-                    } else {
-                      outcome = "accepted";
-                    }
-                  }
-                }
-              } catch {
-                outcome = timedOut ? "timeout" : "network";
-                exitCode = 4;
-              } finally {
-                clearTimeout(timeout);
-              }
-            }
-            console.log(`deployment-notification-outcome=${outcome}`);
-            if (exitCode !== 0) process.exitCode = exitCode;
           '; then
             printf 'Deployment notification delivery failed; deployment result is unchanged.\n' >&2
           fi

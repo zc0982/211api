@@ -51,10 +51,6 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	if account != nil && account.Platform == PlatformGrok && isGrokContentPolicyRejection(statusCode, responseBody) {
 		return false
 	}
-	// Any non-2xx upstream HTTP response means the model request was actually sent.
-	if s != nil {
-		scheduleOllamaCloudUsageActivity(s.deferredService, account)
-	}
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
 
@@ -95,12 +91,7 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	if shouldDisable && !modelTempMatched {
 		s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
 	}
-	// Pool-mode retryable upstream errors are already bounded by the request-local
-	// same-account retry budget. Recording the generic account+model transient
-	// cooldown here would block the next approved retry before that budget is used.
-	poolModeRetryable := account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode)
-	if !shouldDisable && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey &&
-		shouldCooldownOpenAITransientUpstreamError(statusCode, responseBody) && !poolModeRetryable {
+	if !shouldDisable && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey && shouldCooldownOpenAITransientUpstreamError(statusCode, responseBody) {
 		model := ""
 		if len(canonicalModel) > 0 {
 			model = canonicalModel[0]
