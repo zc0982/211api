@@ -99,7 +99,19 @@ jobs:
              deploy_image='${{ steps.image.outputs.name }}:${GITHUB_SHA}' &&
              expected_digest='${{ steps.build.outputs.digest }}' &&
              echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u '${{ github.repository_owner }}' --password-stdin &&
-             SUB2API_IMAGE=\"\$deploy_image\" docker compose pull &&
+             pull_ok=0 &&
+             for attempt in 1 2 3 4 5; do
+               if SUB2API_IMAGE=\"\$deploy_image\" docker compose pull; then
+                 pull_ok=1
+                 break
+               fi
+               echo \"拉取镜像失败（第 \${attempt}/5 次），\$((attempt * 10))s 后重试\" >&2
+               sleep \$((attempt * 10))
+             done &&
+             if [ \"\$pull_ok\" != 1 ]; then
+               echo \"镜像拉取重试 5 次仍失败，终止部署（未改动线上容器）\" >&2
+               exit 1
+             fi &&
              actual_digest=\$(docker image inspect \"\$deploy_image\" --format '{{index .RepoDigests 0}}' | cut -d@ -f2) &&
              if [ \"\$actual_digest\" != \"\$expected_digest\" ]; then
                echo \"镜像 digest 不匹配：期望 \$expected_digest，实际 \$actual_digest\" >&2
@@ -109,13 +121,18 @@ jobs:
              docker compose ps &&
              server_port=\$(grep -E '^SERVER_PORT=' .env | tail -n 1 | cut -d= -f2- | tr -d '\"' || true) &&
              server_port=\${server_port:-8080} &&
+             health_ok=0 &&
              for attempt in \$(seq 1 60); do
                if curl -fsS \"http://127.0.0.1:\${server_port}/health\"; then
-                 exit 0
+                 health_ok=1
+                 break
                fi
                echo \"Waiting for health check... attempt \${attempt}/60\"
                sleep 5
-             done
-             docker compose ps
-             docker compose logs --tail=120 sub2api
-             exit 1"
+             done &&
+             if [ \"\$health_ok\" != 1 ]; then
+               echo '健康检查在 300s 内未通过，输出容器状态与日志：' >&2
+               docker compose ps
+               docker compose logs --tail=120 sub2api
+               exit 1
+             fi"
