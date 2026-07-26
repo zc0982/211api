@@ -681,9 +681,22 @@ func TestOllamaCloudUsageRefreshSingleflightAndRunnerDeduplicateSharedGroup(t *t
 	<-started
 	go func() { _, err := svc.Refresh(context.Background(), second.ID); errs <- err }()
 	close(release)
-	require.NoError(t, <-errs)
-	require.NoError(t, <-errs)
-	require.Equal(t, int64(1), upstream.calls.Load())
+
+	// <-started 只能保证首个请求已进入上游桩，无法保证第二个 goroutine 已被 singleflight
+	// 登记为重复调用：它可能被合并（返回 nil），也可能在首个请求写回快照之后才进入，
+	// 从而落到组级手动刷新节流分支（429）。两种交错都是合法结果，不变量是同一分组在
+	// 这段窗口内只允许发出一次上游请求。
+	results := []error{<-errs, <-errs}
+	succeeded := 0
+	for _, err := range results {
+		if err == nil {
+			succeeded++
+			continue
+		}
+		require.ErrorIs(t, err, ErrOllamaCloudUsageRefreshRateLimited, "unexpected refresh error: %v", err)
+	}
+	require.GreaterOrEqual(t, succeeded, 1, "at least one concurrent refresh must succeed")
+	require.Equal(t, int64(1), upstream.calls.Load(), "shared group must issue exactly one upstream request")
 	require.NotNil(t, decodeOllamaCloudUsageSnapshot(first.Extra))
 	require.Equal(t, decodeOllamaCloudUsageSnapshot(first.Extra), decodeOllamaCloudUsageSnapshot(second.Extra))
 
