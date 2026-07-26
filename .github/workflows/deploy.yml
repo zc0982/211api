@@ -10,8 +10,16 @@ permissions:
   contents: read
   packages: write
 
+# 串行化部署：并发 push main 时排队执行，避免后一个 run 覆盖 :main 后
+# 前一个 run 在服务器上拉到并非自己构建的镜像。不取消进行中的 run，
+# 让每次部署都完整跑完健康检查。
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
 env:
   DEPLOY_PATH: /opt/211api/deploy
+  # :main 仅作为可读的“当前生产版本”指针，实际部署一律按 commit SHA 绑定
   IMAGE_TAG: main
 
 jobs:
@@ -37,13 +45,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
+        id: build
         run: |
           docker build \
             -t "${{ steps.image.outputs.name }}:${IMAGE_TAG}" \
             -t "${{ steps.image.outputs.name }}:${GITHUB_SHA}" \
             .
-          docker push "${{ steps.image.outputs.name }}:${IMAGE_TAG}"
           docker push "${{ steps.image.outputs.name }}:${GITHUB_SHA}"
+          docker push "${{ steps.image.outputs.name }}:${IMAGE_TAG}"
+
+          # 记录本次构建的不可变 digest，供服务器侧校验实际拉到的镜像
+          digest="$(docker image inspect \
+            "${{ steps.image.outputs.name }}:${GITHUB_SHA}" \
+            --format '{{index .RepoDigests 0}}' | cut -d@ -f2)"
+          if [[ -z "$digest" ]]; then
+            echo "无法解析构建镜像的 digest" >&2
+            exit 1
+          fi
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "本次部署镜像 digest: ${digest}"
 
       - name: Prepare SSH
         run: |
@@ -76,9 +96,16 @@ jobs:
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             "cd '${DEPLOY_PATH}' &&
+             deploy_image='${{ steps.image.outputs.name }}:${GITHUB_SHA}' &&
+             expected_digest='${{ steps.build.outputs.digest }}' &&
              echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u '${{ github.repository_owner }}' --password-stdin &&
-             SUB2API_IMAGE='${{ steps.image.outputs.name }}:${IMAGE_TAG}' docker compose pull &&
-             SUB2API_IMAGE='${{ steps.image.outputs.name }}:${IMAGE_TAG}' docker compose up -d &&
+             SUB2API_IMAGE=\"\$deploy_image\" docker compose pull &&
+             actual_digest=\$(docker image inspect \"\$deploy_image\" --format '{{index .RepoDigests 0}}' | cut -d@ -f2) &&
+             if [ \"\$actual_digest\" != \"\$expected_digest\" ]; then
+               echo \"镜像 digest 不匹配：期望 \$expected_digest，实际 \$actual_digest\" >&2
+               exit 1
+             fi &&
+             SUB2API_IMAGE=\"\$deploy_image\" docker compose up -d &&
              docker compose ps &&
              server_port=\$(grep -E '^SERVER_PORT=' .env | tail -n 1 | cut -d= -f2- | tr -d '\"' || true) &&
              server_port=\${server_port:-8080} &&
