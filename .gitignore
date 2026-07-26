@@ -138,12 +138,6 @@ docs/*
 !docs/ASYNC_IMAGE_TASKS.md
 !docs/legal/
 !docs/legal/*.md
-!docs/aegis/
-!docs/aegis/plans/
-!docs/aegis/plans/2026-07-22-automatic-deploy-telegram-notification.md
-!docs/aegis/work/
-!docs/aegis/work/2026-07-22-automatic-deploy-telegram-notification/
-!docs/aegis/work/2026-07-22-automatic-deploy-telegram-notification/**
 .serena/
 .codex/
 frontend/coverage/

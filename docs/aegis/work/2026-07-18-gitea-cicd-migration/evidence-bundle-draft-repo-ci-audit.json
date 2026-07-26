@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "repo-ci-audit",
-  "type": "repository inspection",
-  "source": ".github/workflows/*.yml and related deployment/release files",
-  "summary": "Mapped current CI jobs, GitHub-only contexts, GHCR, release, secrets, runner requirements, and retirement surface.",
-  "verifier": "main agent plus six read-only subagent audits"
-}

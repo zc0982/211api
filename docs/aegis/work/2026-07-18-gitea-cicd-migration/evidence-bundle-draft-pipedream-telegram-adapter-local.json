@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "pipedream-telegram-adapter-local",
-  "type": "local adapter verification",
-  "source": "commit af5b0cb6f; deploy/gitea/pipedream/gitea-backup-to-telegram.mjs and .test.mjs",
-  "summary": "Versioned the copy-pasteable Pipedream Node adapter. node --check passed; node --test passed 8/8 both locally and in the digest-locked Node 20.20.2 image, covering silent preflight, invalid method/content/schema/field/timestamp/code/unit, success rendering, configuration failure, and Telegram HTTP, ok:false, malformed JSON, and network failures. Actual endpoint, chat ID, and bot token were absent.",
-  "verifier": "Primary agent fresh local Node 24.14.1 plus digest-locked Node 20.20.2 tests, diff, and secret-pattern checks on 2026-07-19"
-}

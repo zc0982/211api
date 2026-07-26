@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "gateway-host-inspection",
-  "type": "read-only host inspection",
-  "source": "157.254.234.244:4422",
-  "summary": "Confirmed Gateway remains healthy production with Docker Compose, 211API/PostgreSQL/Redis, deployment path, and current GHCR image.",
-  "verifier": "main agent SSH read-only commands"
-}

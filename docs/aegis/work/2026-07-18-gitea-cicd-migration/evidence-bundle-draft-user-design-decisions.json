@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "artifactKey": "user-design-decisions",
-  "type": "user approval",
-  "source": "current conversation decisions",
-  "summary": "Confirmed canonical Gitea owner, private repo, git.211api.com, AMD64 release posture, rootless runner, upstream GitHub updater, Gateway production boundary, and a dedicated Pipedream-to-Telegram path scoped only to Gitea backup failures. The dedicated bot and private group are not reused for release or deployment notifications; Telegram credentials remain only in Pipedream and Netcup retains only the webhook URL.",
-  "verifier": "explicit user selections and design approvals, including the 2026-07-18 Pipedream-to-Telegram amendment approval"
-}
