@@ -1,2 +1,0 @@
-{"file":".trellis/tasks/07-23-optimize-gitea-cicd-performance/research/gitea-runner-cache-and-workflow.md","reason":"复核 Job 基线/目标、cache 私网与容量边界、外部 fork 隔离及真实环境门禁"}
-{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查 workflow/dispatcher 常量是否保持单一来源，并识别遗漏或复制漂移"}

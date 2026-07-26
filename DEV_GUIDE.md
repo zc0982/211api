@@ -48,24 +48,16 @@ corepack prepare pnpm@9.15.9 --activate
 
 | Workflow | 触发条件 | 检查内容 |
 |----------|----------|----------|
-| **ci.yml** | 非 `main` 源分支 push | 2 Job：Go Job 运行 Shell、单元、集成和 lint；Node `required` Job 运行前端检查 |
-| **security.yml** | 非 `main` 源分支 push、每周一 03:00 UTC | 2 Job：govulncheck；Node `required` Job 运行 production pnpm audit |
-| **deploy.yml** | 受保护 `main` push | 4 Job：Go/Node 完整验证、发布部署、最终通知；七项门禁各一次 |
+| **ci.yml** | push、仓库内部 pull request | 单元测试、集成测试、前端检查、golangci-lint、Shell 语法 |
+| **security.yml** | push、仓库内部 pull request、每周一 03:00 UTC | govulncheck + pnpm audit |
+| **deploy.yml** | 受保护 `main` push | 重跑全部检查、发布不可变 SHA 镜像、部署 Gateway |
 | **release.yml** | 新建 `release/v*` 请求分支、受保护 `v*` tag | 创建不可变 tag、按既有 digest 发布镜像和 Gitea Release |
-
-Runner 固定为 `capacity: 1`，rootless DinD 固定为 6 GiB/3 CPU。内部 PR
-复用同一 head SHA 的 `ci / required (push)` 与
-`security / required (push)`，打开或更新 PR 本身不触发 `pull_request`
-工作流；外部 fork 不调度受信 Runner。`main` 只进入自包含的 deploy 图，验证失败
-会阻止构建、发布与部署，而最终通知仍通过 `always()` 执行。
 
 ### CI 要求
 
 - Go 版本必须是 **1.26.5**
 - golangci-lint 必须是 **2.9.0**，pnpm 必须是 **9.15.9**
-- 前端使用 `pnpm install --frozen-lockfile --prefer-offline`，必须提交 `pnpm-lock.yaml`
-- Go module/build 与 pnpm/Corepack store 只通过 Runner 私网 cache 复用；miss、损坏或
-  服务不可达时仍必须正确冷构建，缓存不参与授权或正确性判断
+- 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
 - GitHub 不再承载本 fork 的 CI/CD；`upstream` 仍用于拉取公开上游更新
 
 ### 本地测试命令
@@ -75,30 +67,11 @@ Runner 固定为 `capacity: 1`，rootless DinD 固定为 6 GiB/3 CPU。内部 PR
 ./tools/gitea-ci.sh backend-unit
 ./tools/gitea-ci.sh backend-integration
 ./tools/gitea-ci.sh frontend
-# deploy Node Job 使用：只安装一次，再依次运行前端测试和 production audit
-./tools/gitea-ci.sh frontend-all
 ./tools/gitea-ci.sh lint
 ./tools/gitea-ci.sh security-backend
 ./tools/gitea-ci.sh security-frontend
 ./tools/gitea-ci.sh shell-syntax
-
-# CI/缓存/工作流合同
-deploy/gitea/tests/test-ci-dispatcher.sh
-deploy/gitea/tests/test-ci-cache-key.sh
-deploy/gitea/tests/test-deploy-failure-gate-smoke.sh
-deploy/gitea/tests/test-deploy-notification.sh
-deploy/gitea/tests/test-workflow-contract.sh
 ```
-
-The terminal deployment notification makes exactly one 15-second-bounded
-Pipedream attempt and does not follow redirects. It emits only the safe
-`deployment-notification-outcome=<token>` marker (including `accepted`) and
-never logs the endpoint, payload, response, or caught error. Delivery remains a
-soft failure and cannot change the deployment result. `accepted` proves only
-the configured adapter's expected 2xx JSON response, not Telegram receipt or a
-repair of an earlier failed live attempt. The offline notification test executes
-the unique exact workflow step with a fail-closed fetch mock, restricted command
-path, and rejection of additional network clients.
 
 ## 四、常见坑点 & 解决方案
 

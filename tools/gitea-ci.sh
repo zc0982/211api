@@ -8,7 +8,7 @@ source "$REPO_ROOT/deploy/gitea/images.lock.env"
 cd "$REPO_ROOT"
 
 usage() {
-  printf 'Usage: %s {backend-unit|backend-integration|frontend|frontend-all|lint|security-backend|security-frontend|shell-syntax}\n' "${0##*/}" >&2
+  printf 'Usage: %s {backend-unit|backend-integration|frontend|lint|security-backend|security-frontend|shell-syntax}\n' "${0##*/}" >&2
 }
 
 assert_go_version() {
@@ -30,18 +30,8 @@ assert_node_version() {
 }
 
 activate_pnpm() {
-  export COREPACK_HOME=/root/.cache/corepack
   corepack enable
   corepack prepare "pnpm@${PNPM_VERSION}" --activate
-}
-
-prepare_frontend_dependencies() {
-  assert_node_version
-  activate_pnpm
-  (
-    cd frontend
-    pnpm install --frozen-lockfile --prefer-offline
-  )
 }
 
 run_backend_unit() {
@@ -85,7 +75,12 @@ run_backend_integration() (
 )
 
 run_frontend() {
-  prepare_frontend_dependencies
+  assert_node_version
+  activate_pnpm
+  (
+    cd frontend
+    pnpm install --frozen-lockfile
+  )
   make test-frontend
 }
 
@@ -114,19 +109,14 @@ run_security_backend() (
   )
 )
 
-run_security_frontend() {
-  prepare_frontend_dependencies
-  run_frontend_audit
-}
-
-run_frontend_all() {
-  prepare_frontend_dependencies
-  make test-frontend
-  run_frontend_audit
-}
-
-run_frontend_audit() (
+run_security_frontend() (
   local audit_file
+  assert_node_version
+  activate_pnpm
+  (
+    cd frontend
+    pnpm install --frozen-lockfile
+  )
   audit_file="$(mktemp)"
   trap 'rm -f -- "$audit_file"' EXIT
   if ! (
@@ -171,7 +161,6 @@ case "$1" in
   backend-unit) run_backend_unit ;;
   backend-integration) run_backend_integration ;;
   frontend) run_frontend ;;
-  frontend-all) run_frontend_all ;;
   lint) run_lint ;;
   security-backend) run_security_backend ;;
   security-frontend) run_security_frontend ;;

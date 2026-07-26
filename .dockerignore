@@ -6,14 +6,6 @@
 .git
 .gitignore
 .gitattributes
-.gitea/
-.trellis/
-.agents/
-.ace-tool/
-.codex/
-openspec/
-skills/
-assets/
 
 # Documentation
 *.md
@@ -77,8 +69,6 @@ deploy/sub2api-sudoers
 deploy/data/
 deploy/postgres_data/
 deploy/redis_data/
-deploy/*
-!deploy/docker-entrypoint.sh
 
 # GitHub
 .github/
