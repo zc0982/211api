@@ -1212,6 +1212,10 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	hasAnyMapping := false
 
 	for _, acc := range accounts {
+		if acc.IsOpenAIPassthroughEnabled() {
+			// 透传账号放行所有模型，其 mapping 仅用于改名，不应收窄分组模型列表
+			continue
+		}
 		mapping := acc.GetModelMapping()
 		if len(mapping) > 0 {
 			hasAnyMapping = true
