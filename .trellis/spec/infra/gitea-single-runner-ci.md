@@ -17,6 +17,11 @@ Also use it when changing the terminal deployment notification in
 `.gitea/workflows/deploy.yml`. This notification is a diagnostic side effect of
 the deployment terminal state; it must not change the deployment result.
 
+Use it when validating the weekly security schedule on the deployed Gitea
+1.26.4 instance. A workflow API state of `active` proves configuration
+visibility, not scheduler registration or a natural run. Final evidence must
+pair the Actions API observation with a read-only scheduler-row transition.
+
 The target is the existing self-hosted Gitea Runner. Its security boundary is
 part of the feature: keep `runner.capacity: 1`, rootless DinD, the existing CPU
 and memory limits, and no host Docker socket, host networking, host PID, or
@@ -94,6 +99,28 @@ version. The current choice has no `/home/rootless/.config/docker/daemon.json`
 or `/etc/docker/daemon.json` override; `docker_data` is under
 `/home/rootless/.local/share/docker`. Current observed GiB values are evidence,
 not portable configuration constants.
+
+### Weekly schedule read-only signature
+
+For this deployed Gitea 1.26.4 schema, inspect only the non-payload columns of
+the scheduler tables. Do not read `content` or `event_payload`, and never write
+these internal tables:
+
+```sql
+SELECT
+  s.id, s.repo_id, s.workflow_id, s.ref, s.commit_sha,
+  sp.id, sp.spec, sp.prev, sp.next
+FROM action_schedule AS s
+JOIN action_schedule_spec AS sp ON sp.schedule_id = s.id
+WHERE s.repo_id = 1
+  AND s.workflow_id = 'security.yml';
+```
+
+Pair this with the official Actions API run and job endpoints. Internal table
+names are version-specific evidence for Gitea 1.26.4, not a migration or a
+portable application API. Repository ID `1` is the separately verified
+canonical `211api/211api` identity; re-resolve it before using this query after
+any repository recreation.
 
 ### Failed-deployment-gate live-smoke renderer
 
@@ -279,6 +306,32 @@ lint, shell syntax, backend vulnerability, and frontend production dependency
 audit. A downstream Node job must validate the upstream Go result before
 checkout or dependency preparation. Release workflow branch/tag behavior is not
 changed by this contract.
+
+### Weekly schedule live-evidence boundary
+
+Before the first natural run, require exactly one schedule and one spec row for
+the canonical repository, bound to `security.yml`, `refs/heads/main`, the
+reviewed main SHA, and `0 3 * * 1`. `prev=0` and `next=<expected-Monday-03:00Z>`
+are readiness evidence only.
+
+After that instant, completion requires both sides of the same observation:
+
+- exactly one newly created Actions run with `event=schedule`, path
+  `security.yml@refs/heads/main`, the frozen pre-trigger SHA, and final
+  `completed/success`;
+- exactly two attempt-1 jobs, `backend -> required`, on the trusted Runner,
+  with both security dispatchers executed once and one exact Go plus one exact
+  pnpm `cache-hit=true`;
+- the same unique spec row advances `prev` to the consumed instant and `next`
+  by exactly seven days;
+- no schedule-caused CI, deploy, or release run, and no Runner/cache/OOM or
+  host-listener boundary drift.
+
+If approved work advances `main` before the trigger, re-snapshot main, the
+schedule row, and workflow content. Update the frozen SHA only when all three
+agree and the reviewed security workflow is unchanged. A manual dispatch,
+rerun, edited cron, or API-only green run cannot repair missing natural-event
+or scheduler-transition evidence.
 
 ### Failed-validation live-smoke boundary
 
@@ -509,6 +562,10 @@ repairs evidence from an older run.
 | Routine BuildKit cleanup is proposed | Reject `prune -af`; only an approved stopped-Runner maintenance window may use scoped recovery with before/after records |
 | Action ref is floating or absent from lock file | Static workflow contract test fails |
 | Host port `8088` is published | Runner configuration test fails |
+| Workflow API is active but no unique scheduler row exists | Keep weekly schedule readiness unproved; inspect Gitea scheduler state read-only |
+| Natural time passes but no `event=schedule` run appears or `prev`/`next` do not advance | Preserve API/DB/log evidence, keep the task open, and do not manufacture a run |
+| More than one schedule/spec row or more than one natural run appears | Treat scheduling uniqueness as failed; do not delete or rerun evidence |
+| `main` advances before the scheduled instant | Re-freeze only after main SHA, scheduler row, and unchanged workflow content agree |
 | A required verification step fails on `main` | Build/deploy must not run; final notification still runs |
 | Failure-smoke renderer branch/arity is invalid | Exit `64` and emit no workflow |
 | Rendered smoke or production graph fails the static binding | Do not push; fix/review the contract instead of weakening assertions |
@@ -574,6 +631,14 @@ not notification failures.
   unchanged.
 - **Base (failure smoke preflight)**: an invalid or wildcard branch is rejected
   locally with exit `64` and no YAML, so no Gitea mutation is attempted.
+- **Good (weekly schedule)**: one natural schedule run creates exactly the two
+  security jobs, both pass once, and the unique scheduler row advances `prev`
+  to the consumed instant and `next` by seven days.
+- **Base (weekly readiness)**: workflow state is active and one scheduler row
+  has the expected `prev=0`/`next`, but natural time has not arrived; keep the
+  live gate open.
+- **Bad (weekly schedule)**: a manual dispatch/rerun is substituted for a
+  natural event, the API run is duplicated, or the DB transition is absent.
 - **Good (notification)**: success and failed deployment results produce the
   exact seven-field payload with `success` and `failed` status respectively;
   a valid endpoint whose path contains `:443` is allowed, one fetch returns the
@@ -646,6 +711,11 @@ Repository tests do not replace live Gitea validation. Before rollout is
 considered complete, verify branch/tag routing, exact protected contexts, cold
 fallback, save/restore/hit behavior, failure blocking, final notification,
 host/public port exposure, cleanup invocation, timing, and memory/OOM behavior.
+For the first weekly schedule, additionally record the pre/post unique
+`action_schedule`/`action_schedule_spec` row, exact `prev`/`next` epochs, the
+single `event=schedule` run, its two jobs and dispatcher/cache logs, and the
+absence of schedule-caused CI/deploy/release runs. The API run and DB transition
+are complementary evidence; neither replaces the other.
 For the PR boundary, record opening and head-update observations separately:
 exact SHAs, run IDs/events/counts, latest required statuses, protection context
 names, Runner/cache state, and the absence of `pull_request` work. PR `draft` or
@@ -713,6 +783,17 @@ useful cache without proving the active policy. Correct: inspect the `default`
 docker-driver builder read-only, retain its daemon-default GC policy, and use
 only a separately approved stopped-Runner, recorded maintenance window for
 recovery.
+
+```text
+# Wrong: proves only an executable workflow, not the natural scheduler path.
+manual dispatch -> green security run -> mark weekly schedule complete
+```
+
+```text
+# Correct: freeze before the trigger, then require both observations.
+one natural event=schedule run + two successful jobs
+same unique schedule row: prev=<trigger>, next=<trigger+7d>
+```
 
 ```json
 {
