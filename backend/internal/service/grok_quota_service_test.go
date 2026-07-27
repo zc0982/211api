@@ -1134,42 +1134,57 @@ func TestShouldAutoPauseGrokAccountByQuota(t *testing.T) {
 
 	zero := int64(0)
 	limit := int64(10)
-	resetFuture := time.Now().Add(time.Minute).Unix()
 	retryAfter := 30
+	// 快照在子测试内、紧邻断言处构造，而不是在父函数里预先固化时间戳。
+	// 被测逻辑用调用时刻的 time.Now() 与快照的 UpdatedAt / ResetUnix 比较，
+	// 而 t.Parallel() 下子测试的实际执行时刻与此处的构造时刻之间存在间隔，
+	// 该间隔越大，"retry after active"(30s 窗口) 与 "remaining requests
+	// exhausted"(60s reset 窗口) 越接近边界。让每个用例基于自己的执行时刻
+	// 取时间，可消除对这一间隔的依赖。
 	tests := []struct {
 		name     string
-		snapshot xai.QuotaSnapshot
+		snapshot func(now time.Time) xai.QuotaSnapshot
 		want     bool
 	}{
 		{
 			name: "remaining requests exhausted",
-			snapshot: xai.QuotaSnapshot{
-				Requests:  &xai.QuotaWindow{Limit: &limit, Remaining: &zero, ResetUnix: &resetFuture},
-				UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+			snapshot: func(now time.Time) xai.QuotaSnapshot {
+				resetFuture := now.Add(time.Minute).Unix()
+				return xai.QuotaSnapshot{
+					Requests:  &xai.QuotaWindow{Limit: &limit, Remaining: &zero, ResetUnix: &resetFuture},
+					UpdatedAt: now.UTC().Format(time.RFC3339),
+				}
 			},
 			want: true,
 		},
 		{
 			name: "retry after active",
-			snapshot: xai.QuotaSnapshot{
-				RetryAfterSeconds: &retryAfter,
-				UpdatedAt:         time.Now().UTC().Format(time.RFC3339),
+			snapshot: func(now time.Time) xai.QuotaSnapshot {
+				return xai.QuotaSnapshot{
+					RetryAfterSeconds: &retryAfter,
+					UpdatedAt:         now.UTC().Format(time.RFC3339),
+				}
 			},
 			want: true,
 		},
 		{
 			name: "retry after expired",
-			snapshot: xai.QuotaSnapshot{
-				RetryAfterSeconds: &retryAfter,
-				UpdatedAt:         time.Now().Add(-time.Duration(retryAfter+1) * time.Second).UTC().Format(time.RFC3339),
+			snapshot: func(now time.Time) xai.QuotaSnapshot {
+				return xai.QuotaSnapshot{
+					RetryAfterSeconds: &retryAfter,
+					UpdatedAt:         now.Add(-time.Duration(retryAfter+1) * time.Second).UTC().Format(time.RFC3339),
+				}
 			},
 			want: false,
 		},
 		{
 			name: "stale snapshot ignored",
-			snapshot: xai.QuotaSnapshot{
-				Requests:  &xai.QuotaWindow{Limit: &limit, Remaining: &zero, ResetUnix: &resetFuture},
-				UpdatedAt: time.Now().Add(-3 * time.Hour).UTC().Format(time.RFC3339),
+			snapshot: func(now time.Time) xai.QuotaSnapshot {
+				resetFuture := now.Add(time.Minute).Unix()
+				return xai.QuotaSnapshot{
+					Requests:  &xai.QuotaWindow{Limit: &limit, Remaining: &zero, ResetUnix: &resetFuture},
+					UpdatedAt: now.Add(-3 * time.Hour).UTC().Format(time.RFC3339),
+				}
 			},
 			want: false,
 		},
@@ -1183,7 +1198,7 @@ func TestShouldAutoPauseGrokAccountByQuota(t *testing.T) {
 				Platform: PlatformGrok,
 				Type:     AccountTypeOAuth,
 				Extra: map[string]any{
-					grokQuotaSnapshotExtraKey: tt.snapshot,
+					grokQuotaSnapshotExtraKey: tt.snapshot(time.Now()),
 				},
 			}
 			got, _ := shouldAutoPauseGrokAccountByQuota(account)

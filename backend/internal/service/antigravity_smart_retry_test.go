@@ -193,6 +193,7 @@ func TestHandleSmartRetry_LongDelay_ReturnsSwitchError(t *testing.T) {
 
 // TestHandleSmartRetry_ShortDelay_SmartRetrySuccess 测试智能重试成功
 func TestHandleSmartRetry_ShortDelay_SmartRetrySuccess(t *testing.T) {
+	t.Parallel()
 	successResp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
@@ -255,6 +256,7 @@ func TestHandleSmartRetry_ShortDelay_SmartRetrySuccess(t *testing.T) {
 
 // TestHandleSmartRetry_ShortDelay_SmartRetryFailed_ReturnsSwitchError 测试智能重试失败后返回 switchError
 func TestHandleSmartRetry_ShortDelay_SmartRetryFailed_ReturnsSwitchError(t *testing.T) {
+	t.Parallel()
 	// 智能重试后仍然返回 429（需要提供 1 个响应，因为智能重试最多 1 次）
 	failRespBody := `{
 		"error": {
@@ -338,6 +340,7 @@ func TestHandleSmartRetry_ShortDelay_SmartRetryFailed_ReturnsSwitchError(t *test
 // TestHandleSmartRetry_503_ModelCapacityExhausted_RetrySuccess 测试 503 MODEL_CAPACITY_EXHAUSTED 重试成功
 // MODEL_CAPACITY_EXHAUSTED 使用固定 1s 间隔重试，不切换账号
 func TestHandleSmartRetry_503_ModelCapacityExhausted_RetrySuccess(t *testing.T) {
+	t.Parallel()
 	repo := &stubAntigravityAccountRepo{}
 	account := &Account{
 		ID:       3,
@@ -667,6 +670,7 @@ func TestAntigravityRetryLoop_HandleSmartRetry_SwitchError_Propagates(t *testing
 
 // TestHandleSmartRetry_NetworkError_ExhaustsRetry 测试网络错误时（maxAttempts=1）直接耗尽重试并切换账号
 func TestHandleSmartRetry_NetworkError_ExhaustsRetry(t *testing.T) {
+	t.Parallel()
 	// 唯一一次重试遇到网络错误（nil response）
 	upstream := &mockSmartRetryUpstream{
 		responses: []*http.Response{nil}, // 返回 nil（模拟网络错误）
@@ -801,6 +805,7 @@ func TestSmartRetryMaxAttempts_VerifyConstant(t *testing.T) {
 // TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_ClearsSession
 // 核心场景：粘性会话 + 短延迟重试失败 → 必须清除粘性绑定
 func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_ClearsSession(t *testing.T) {
+	t.Parallel()
 	failRespBody := `{
 		"error": {
 			"status": "RESOURCE_EXHAUSTED",
@@ -889,6 +894,7 @@ func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_ClearsSession(t *
 // TestHandleSmartRetry_ShortDelay_NonStickySession_FailedRetry_NoDeleteSession
 // 非粘性会话 + 短延迟重试失败 → 不应调用 DeleteSessionAccountID（sessionHash 为空）
 func TestHandleSmartRetry_ShortDelay_NonStickySession_FailedRetry_NoDeleteSession(t *testing.T) {
+	t.Parallel()
 	failRespBody := `{
 		"error": {
 			"status": "RESOURCE_EXHAUSTED",
@@ -966,6 +972,7 @@ func TestHandleSmartRetry_ShortDelay_NonStickySession_FailedRetry_NoDeleteSessio
 // TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_NilCache_NoPanic
 // 边界：cache 为 nil 时不应 panic
 func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_NilCache_NoPanic(t *testing.T) {
+	t.Parallel()
 	failRespBody := `{
 		"error": {
 			"status": "RESOURCE_EXHAUSTED",
@@ -1041,6 +1048,7 @@ func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_NilCache_NoPanic(
 // TestHandleSmartRetry_ShortDelay_StickySession_SuccessRetry_NoDeleteSession
 // 重试成功时不应清除粘性会话（只有失败才清除）
 func TestHandleSmartRetry_ShortDelay_StickySession_SuccessRetry_NoDeleteSession(t *testing.T) {
+	t.Parallel()
 	successResp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
@@ -1167,6 +1175,7 @@ func TestHandleSmartRetry_LongDelay_StickySession_ClearsSession(t *testing.T) {
 // TestHandleSmartRetry_ShortDelay_NetworkError_StickySession_ClearsSession
 // 网络错误耗尽重试 + 粘性会话 → 也应清除粘性绑定
 func TestHandleSmartRetry_ShortDelay_NetworkError_StickySession_ClearsSession(t *testing.T) {
+	t.Parallel()
 	upstream := &mockSmartRetryUpstream{
 		responses: []*http.Response{nil}, // 网络错误
 		errors:    []error{nil},
@@ -1235,6 +1244,7 @@ func TestHandleSmartRetry_ShortDelay_NetworkError_StickySession_ClearsSession(t 
 // TestHandleSmartRetry_ShortDelay_503_StickySession_FailedRetry_ClearsSession
 // 429 + 短延迟 + 粘性会话 + 重试失败 → 清除粘性绑定
 func TestHandleSmartRetry_ShortDelay_503_StickySession_FailedRetry_ClearsSession(t *testing.T) {
+	t.Parallel()
 	failRespBody := `{
 		"error": {
 			"code": 429,
@@ -1321,6 +1331,7 @@ func TestHandleSmartRetry_ShortDelay_503_StickySession_FailedRetry_ClearsSession
 // 集成测试：antigravityRetryLoop → handleSmartRetry → switchError 传播
 // 验证 IsStickySession 正确传递到上层，且粘性绑定被清除
 func TestAntigravityRetryLoop_SmartRetryFailed_StickySession_SwitchErrorPropagates(t *testing.T) {
+	t.Parallel()
 	// 初始 429 响应
 	initialRespBody := []byte(`{
 		"error": {

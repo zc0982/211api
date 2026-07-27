@@ -517,6 +517,7 @@ func TestTokenRefreshService_ProviderRateGateIsSharedAcrossRuns(t *testing.T) {
 }
 
 func TestTokenRefreshService_ProviderConcurrencyGateIsSharedAcrossBackgroundAndConcurrentAdminReconciliation(t *testing.T) {
+	t.Parallel()
 	accounts := []Account{
 		grokPoolAccount(1),
 		grokPoolAccount(2),
@@ -569,6 +570,7 @@ func TestTokenRefreshService_ProviderConcurrencyGateIsSharedAcrossBackgroundAndC
 }
 
 func TestTokenRefreshService_SaturatedProviderPreservesConcurrencyAndActualQPSStartSpacing(t *testing.T) {
+	t.Parallel()
 	const (
 		providerConcurrency = 2
 		providerQPS         = 20

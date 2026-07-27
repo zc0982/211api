@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""测试替身：在非 macOS runner 上模拟 plutil 的 -extract 子集。
+
+apple-container.sh 只用到 `plutil -extract <keypath> <json|raw> -o - -`
+这一种形式：从 stdin 读 JSON，按 keypath 取值后输出。真机上由 macOS 自带
+的 plutil 处理；此替身让同一套测试能在 ubuntu runner 上执行
+（macos runner 私有仓库计费倍率为 10x）。
+
+keypath 形如 `0.configuration.labels` / `0.status.networks.0.ipv4Address`：
+纯数字段视为数组下标，其余视为字典键。
+"""
+
+import json
+import sys
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if "-extract" not in argv:
+        print("plutil test double: only -extract is supported", file=sys.stderr)
+        return 1
+
+    i = argv.index("-extract")
+    try:
+        keypath = argv[i + 1]
+        out_fmt = argv[i + 2]
+    except IndexError:
+        print("plutil test double: missing keypath/format", file=sys.stderr)
+        return 1
+
+    try:
+        data = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        print(f"plutil test double: invalid JSON on stdin: {exc}", file=sys.stderr)
+        return 1
+
+    node = data
+    for part in keypath.split("."):
+        try:
+            node = node[int(part)] if part.isdigit() else node[part]
+        except (KeyError, IndexError, TypeError):
+            # 真 plutil 在路径不存在时以非零码退出，脚本据此走 die 分支
+            print(f"plutil test double: no value at {keypath}", file=sys.stderr)
+            return 1
+
+    if out_fmt == "raw":
+        if isinstance(node, bool):
+            sys.stdout.write("true" if node else "false")
+        elif isinstance(node, (int, float, str)):
+            sys.stdout.write(str(node))
+        else:
+            sys.stdout.write(json.dumps(node, separators=(",", ":")))
+        sys.stdout.write("\n")
+    else:
+        json.dump(node, sys.stdout, separators=(",", ":"))
+        sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

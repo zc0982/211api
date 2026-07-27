@@ -161,6 +161,7 @@ func TestOpenAIWSConnPool_EnsureTargetIdleAsync(t *testing.T) {
 }
 
 func TestOpenAIWSConnPool_EnsureTargetIdleAsyncCooldown(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 4
 	cfg.Gateway.OpenAIWS.MinIdlePerAccount = 2
@@ -1492,6 +1493,7 @@ func TestOpenAIWSConnLease_MarkBrokenEvictsConn(t *testing.T) {
 }
 
 func TestOpenAIWSConnPool_TargetConnCountAndPrewarmBranches(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 1
 	pool := newOpenAIWSConnPool(cfg)

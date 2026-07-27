@@ -147,6 +147,7 @@ func TestHandleSmartRetry_QuotaExhausted_UsesCreditsAndStoresIndependentState(t 
 }
 
 func TestHandleSmartRetry_RateLimited_DoesNotUseCredits(t *testing.T) {
+	t.Parallel()
 	successResp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
