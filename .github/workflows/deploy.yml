@@ -33,11 +33,14 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - name: Wait for CI to succeed
-        uses: lewagon/wait-on-check-action@v1.4.0
+        # ci-ok 需等待 race-service 完成才会创建；Deploy 先启动时，
+        # 留出 35 分钟发现窗口以避免把“检查尚未注册”误判为失败。
+        uses: lewagon/wait-on-check-action@v1.8.1
         with:
           ref: ${{ github.sha }}
           check-name: ci-ok
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+          checks-discovery-timeout: 2100
           wait-interval: 15
           allowed-conclusions: success,skipped
 
