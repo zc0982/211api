@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend test, formatting, lint, and concurrency-sensitive validation requirements."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Required search-first and batch-modification audit guidance for removing repeated test setup."}

@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify that ci-ok continues to aggregate race-service and block deployment on failures while allowing only intentional skips."}
+{"file":".trellis/spec/guides/index.md","reason":"Apply the project pre-modification and review rules to the workflow configuration change."}
