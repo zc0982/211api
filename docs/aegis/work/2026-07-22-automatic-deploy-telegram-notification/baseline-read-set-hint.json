@@ -1,9 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "candidateDocs": [
-    "docs/aegis/baseline/2026-07-18-initial-baseline.md",
-    "docs/aegis/specs/2026-07-18-gitea-cicd-migration-design.md"
-  ],
-  "whyRelevant": "These documents define the active Gateway and Telegram trust boundaries being amended",
-  "missingAuthority": []
-}

@@ -1,8 +1,0 @@
-{
-  "schemaVersion": "aegis.schema.v0",
-  "candidateDocs": [
-    "docs/aegis/baseline/2026-07-18-initial-baseline.md"
-  ],
-  "whyRelevant": "锁定 Gitea-only、Gateway ownership、AMD64-only 和旧 owner retirement 边界",
-  "missingAuthority": []
-}
