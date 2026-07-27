@@ -32,6 +32,7 @@ func stripKeepaliveComments(body string) string {
 }
 
 func TestStartOpenAICompactSSEKeepalive_NoopWhenUnmarkedOrDisabled(t *testing.T) {
+	t.Parallel()
 	// 未标记 client stream：不启动。
 	c, rec := newCompactBridgeTestContext(t, false)
 	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
@@ -126,6 +127,7 @@ func TestWriteOpenAICompactSSEBridge_BeforeKeepaliveCommitFailureKeepsJSONPath(t
 // 请求侧任何响应构造时停拍。-race 下验证无数据竞争，且停拍后不再有心跳
 // 字节写出。
 func TestOpenAICompactKeepaliveWriter_RequestSideWriteSuspendsBeats(t *testing.T) {
+	t.Parallel()
 	c, rec := newCompactBridgeTestContext(t, true)
 	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()

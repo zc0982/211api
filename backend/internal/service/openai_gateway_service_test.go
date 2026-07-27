@@ -1247,6 +1247,7 @@ func TestOpenAISelectAccountWithLoadAwareness_PreferNeverUsed(t *testing.T) {
 }
 
 func TestOpenAIStreamingTimeout(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
@@ -1739,6 +1740,7 @@ func TestOpenAIStreamingPreambleOnlyMissingTerminalReturnsFailover(t *testing.T)
 }
 
 func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
@@ -1776,6 +1778,7 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 }
 
 func TestOpenAIStreamingSkipsKeepaliveBeforeClientOutputToPreserveFailover(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
@@ -2047,6 +2050,7 @@ func TestOpenAIStreamingPassthroughMissingTerminalEventReturnsIncompleteError(t 
 }
 
 func TestOpenAIStreamingPassthroughSendsKeepaliveAfterClientOutputStarted(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
@@ -2091,6 +2095,7 @@ func TestOpenAIStreamingPassthroughSendsKeepaliveAfterClientOutputStarted(t *tes
 }
 
 func TestOpenAIStreamingPassthroughSkipsKeepaliveBeforeClientOutputToPreserveFailover(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{

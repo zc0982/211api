@@ -1,13 +1,38 @@
 name: Security Scan
 
 on:
+  # 同 CI：push 仅限 main，功能分支由 pull_request 覆盖，避免同一 commit 双跑
   push:
+    branches:
+      - main
+    paths:
+      - 'backend/go.mod'
+      - 'backend/go.sum'
+      - 'frontend/package.json'
+      - 'frontend/pnpm-lock.yaml'
+      - '.github/workflows/security-scan.yml'
+      - '.github/audit-exceptions.yml'
+      - 'tools/check_pnpm_audit_exceptions.py'
   pull_request:
+    paths:
+      - 'backend/go.mod'
+      - 'backend/go.sum'
+      - 'frontend/package.json'
+      - 'frontend/pnpm-lock.yaml'
+      - '.github/workflows/security-scan.yml'
+      - '.github/audit-exceptions.yml'
+      - 'tools/check_pnpm_audit_exceptions.py'
+  # 依赖清单没变时漏洞库仍会更新，靠每周定时全量扫描兜底
   schedule:
     - cron: '0 3 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   backend-security:

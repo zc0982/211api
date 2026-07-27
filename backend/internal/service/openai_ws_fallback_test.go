@@ -161,6 +161,7 @@ func TestResolveOpenAIWSFallbackErrorResponse(t *testing.T) {
 }
 
 func TestOpenAIWSFallbackCooling(t *testing.T) {
+	t.Parallel()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}}
 	svc.cfg.Gateway.OpenAIWS.FallbackCooldownSeconds = 1
 

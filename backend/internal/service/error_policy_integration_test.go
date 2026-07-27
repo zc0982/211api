@@ -331,6 +331,7 @@ func TestRetryLoop_ErrorPolicy_NilRateLimitService(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRetryLoop_ErrorPolicy_NoPolicy_OriginalBehavior(t *testing.T) {
+	t.Parallel()
 	saveAndSetBaseURLs(t)
 
 	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"rate limited"}`}

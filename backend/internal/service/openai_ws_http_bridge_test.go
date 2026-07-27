@@ -689,6 +689,7 @@ func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridge(t *testing.T)
 }
 
 func TestOpenAIWSHTTPBridgeAcceptsFirstFrameAboveLegacy16MiB(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
 	sseBody := strings.Join([]string{
@@ -976,6 +977,7 @@ func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseI
 }
 
 func TestOpenAIWSHTTPBridge_IdleTimeoutClosesClientSession(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
 	sseBody := strings.Join([]string{

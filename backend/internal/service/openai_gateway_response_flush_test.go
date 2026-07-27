@@ -303,6 +303,7 @@ func TestOpenAIResponseFlush_CanceledAfterOutputFlushesResidualWithoutErrorEvent
 }
 
 func TestOpenAIResponseFlush_KeepaliveFlushesImmediatelyAfterClientOutput(t *testing.T) {
+	t.Parallel()
 	recorder := newOpenAIResponseFlushRecorder()
 	reader, writer := io.Pipe()
 	resultCh, errCh := runOpenAIResponseFlushTestAsync(recorder, reader, config.GatewayConfig{StreamKeepaliveInterval: 1})
@@ -327,6 +328,7 @@ func TestOpenAIResponseFlush_KeepaliveFlushesImmediatelyAfterClientOutput(t *tes
 }
 
 func TestOpenAIResponseFlush_KeepaliveDoesNotSplitOpenEvent(t *testing.T) {
+	t.Parallel()
 	const dataLine = `data: {"type":"response.output_text.delta","delta":"a"}`
 	// Filling the 16-slot scan queue proves the main loop processed data before the reader reaches the gated blank.
 	dataLines := make([]string, 17)

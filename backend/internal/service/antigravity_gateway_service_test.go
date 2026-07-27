@@ -1342,6 +1342,7 @@ func TestStreamUpstreamResponse_ContextCanceled(t *testing.T) {
 // TestStreamUpstreamResponse_Timeout
 // 验证：上游超时时返回已收集的 usage
 func TestStreamUpstreamResponse_Timeout(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1, MaxLineSize: defaultMaxLineSize},
@@ -1365,6 +1366,7 @@ func TestStreamUpstreamResponse_Timeout(t *testing.T) {
 // TestStreamUpstreamResponse_TimeoutAfterClientDisconnect
 // 验证：客户端断开后上游超时，返回 usage 并标记 clientDisconnect
 func TestStreamUpstreamResponse_TimeoutAfterClientDisconnect(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1, MaxLineSize: defaultMaxLineSize},
