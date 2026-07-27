@@ -1,7 +1,10 @@
 name: Security Scan
 
 on:
+  # 同 CI：push 仅限 main，功能分支由 pull_request 覆盖，避免同一 commit 双跑
   push:
+    branches:
+      - main
     paths:
       - 'backend/go.mod'
       - 'backend/go.sum'

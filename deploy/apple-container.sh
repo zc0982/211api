@@ -113,6 +113,29 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
+# stat 的格式化选项在 BSD/macOS 与 GNU/Linux 上不兼容：
+#   owner -> BSD `-f '%u'`  / GNU `-c '%u'`
+#   mode  -> BSD `-f '%Lp'` / GNU `-c '%a'`
+# 生产路径始终是 macOS，这里兼容 Linux 只为让 deploy/tests 能在 ubuntu
+# runner 上跑（macos runner 私有仓库计费倍率为 10x）。
+# 不能写成 `stat -f ... || stat -c ...`：GNU stat 的 -f 是"查询文件系统信息"
+# 而非格式化，在 Linux 上会输出一段文件系统摘要而非权限位。
+stat_owner() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        stat -f '%u' "$1"
+    else
+        stat -c '%u' "$1"
+    fi
+}
+
+stat_mode() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        stat -f '%Lp' "$1"
+    else
+        stat -c '%a' "$1"
+    fi
+}
+
 require_container_version() {
     local version_output major minor
 
@@ -388,8 +411,8 @@ validate_env_file_security() {
     local owner mode permissions
 
     [[ -f "${ENV_FILE}" ]] || die "Environment file not found: ${ENV_FILE}. Run '$0 init' first."
-    owner="$(stat -f '%u' "${ENV_FILE}")" || die "Unable to read owner for ${ENV_FILE}."
-    mode="$(stat -f '%Lp' "${ENV_FILE}")" || die "Unable to read permissions for ${ENV_FILE}."
+    owner="$(stat_owner "${ENV_FILE}")" || die "Unable to read owner for ${ENV_FILE}."
+    mode="$(stat_mode "${ENV_FILE}")" || die "Unable to read permissions for ${ENV_FILE}."
     [[ "${owner}" == "${EUID}" ]] || die "Environment file must be owned by the current user: ${ENV_FILE}"
     [[ "${mode}" =~ ^[0-7]+$ ]] || die "Unable to parse permissions for ${ENV_FILE}: ${mode}"
     permissions=$((8#${mode}))

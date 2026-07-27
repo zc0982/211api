@@ -1,7 +1,12 @@
 name: CI
 
 on:
+  # push 仅限 main：功能分支的验证由 pull_request 负责。
+  # 原先 push 与 pull_request 同时触发，实测 74% 的 commit 被跑了两遍 CI
+  # （同一 SHA 同时存在 push 与 pull_request 两个 run），属纯浪费。
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -50,7 +55,12 @@ jobs:
   shell:
     needs: changes
     if: needs.changes.outputs.deploy == 'true'
-    runs-on: macos-15
+    # 原为 macos-15：该 job 实际只做 bash 语法检查与一套用 fixtures 打桩的
+    # 生命周期测试（不真正调用 Apple container），却因 macos runner 的 10x
+    # 计费倍率占掉单次 push 约 25% 的额度——13 秒的运行按 1 分钟 x10 计费。
+    # 测试脚本已做 BSD/GNU 兼容（stat 格式化选项 + plutil 替身），可在
+    # ubuntu 上完整通过。
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - name: Check deployment scripts
