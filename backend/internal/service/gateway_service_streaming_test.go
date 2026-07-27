@@ -28,7 +28,6 @@ func newStreamingResponseTestGatewayService() *GatewayService {
 }
 
 func TestGatewayService_StreamingReusesScannerBufferAndStillParsesUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	svc := newStreamingResponseTestGatewayService()
 
 	rec := httptest.NewRecorder()
@@ -57,7 +56,6 @@ func TestGatewayService_StreamingReusesScannerBufferAndStillParsesUsage(t *testi
 
 func TestGatewayService_StreamingKeepaliveUsesIdleTimer(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 	svc := newStreamingResponseTestGatewayService()
 	svc.cfg.Gateway.StreamKeepaliveInterval = 1
 
@@ -84,7 +82,6 @@ func TestGatewayService_StreamingKeepaliveUsesIdleTimer(t *testing.T) {
 
 func TestGatewayService_StreamingKeepaliveUsesNoopDeltaForAffectedClaudeCodeVersion(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 	svc := newStreamingResponseTestGatewayService()
 	svc.cfg.Gateway.StreamKeepaliveInterval = 1
 
@@ -116,7 +113,6 @@ func TestGatewayService_StreamingKeepaliveUsesNoopDeltaForAffectedClaudeCodeVers
 
 func TestGatewayService_StreamingKeepaliveUsesNoopDeltaDuringToolUseForAffectedClaudeCodeVersion(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 	svc := newStreamingResponseTestGatewayService()
 	svc.cfg.Gateway.StreamKeepaliveInterval = 1
 
@@ -149,7 +145,6 @@ func TestGatewayService_StreamingKeepaliveUsesNoopDeltaDuringToolUseForAffectedC
 
 func TestGatewayService_StreamingKeepaliveKeepsPingForOlderClaudeCodeVersion(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 	svc := newStreamingResponseTestGatewayService()
 	svc.cfg.Gateway.StreamKeepaliveInterval = 1
 
