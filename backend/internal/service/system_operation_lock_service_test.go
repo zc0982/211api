@@ -38,6 +38,7 @@ func TestSystemOperationLockService_AcquireBusyAndRelease(t *testing.T) {
 }
 
 func TestSystemOperationLockService_RenewLease(t *testing.T) {
+	t.Parallel()
 	repo := newInMemoryIdempotencyRepo()
 	svc := NewSystemOperationLockService(repo, IdempotencyConfig{
 		SystemOperationTTL: 5 * time.Second,
@@ -79,6 +80,7 @@ func (r *flakySystemLockRenewRepo) ExtendProcessingLock(ctx context.Context, id 
 }
 
 func TestSystemOperationLockService_RenewLeaseContinuesAfterTransientFailure(t *testing.T) {
+	t.Parallel()
 	repo := &flakySystemLockRenewRepo{inMemoryIdempotencyRepo: newInMemoryIdempotencyRepo()}
 	svc := NewSystemOperationLockService(repo, IdempotencyConfig{
 		SystemOperationTTL: 5 * time.Second,
@@ -134,6 +136,7 @@ func TestSystemOperationLockService_SameOperationIDRetryWhileRunning(t *testing.
 }
 
 func TestSystemOperationLockService_RecoverAfterLeaseExpired(t *testing.T) {
+	t.Parallel()
 	repo := newInMemoryIdempotencyRepo()
 	svc := NewSystemOperationLockService(repo, IdempotencyConfig{
 		SystemOperationTTL: 5 * time.Second,

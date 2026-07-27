@@ -1560,6 +1560,7 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseDisableForceNewConnAllowsReu
 }
 
 func TestOpenAIGatewayService_Forward_WSv2ReadTimeoutAppliesPerRead(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()

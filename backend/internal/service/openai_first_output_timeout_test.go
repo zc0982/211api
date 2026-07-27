@@ -52,6 +52,7 @@ func (u *blockingOpenAIResponseHeaderUpstream) DoWithTLS(req *http.Request, _ st
 }
 
 func TestOpenAIForwardFirstOutputTimeoutIncludesResponseHeaderWait(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	upstream := &blockingOpenAIResponseHeaderUpstream{canceled: make(chan struct{})}
 	svc := &OpenAIGatewayService{
@@ -301,6 +302,7 @@ func TestOpenAIFirstOutputStageUnlinkFailurePermanentlyFallsBackToMemoryAndRetri
 }
 
 func TestOpenAINativeFirstOutputTimeoutDisarmsAfterSemanticOutput(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{Gateway: config.GatewayConfig{
 		OpenAIFirstOutputTimeoutSeconds: 1,
 		MaxLineSize:                     defaultMaxLineSize,
@@ -334,6 +336,7 @@ func TestOpenAINativeFirstOutputTimeoutDisarmsAfterSemanticOutput(t *testing.T) 
 }
 
 func TestOpenAINativeFirstOutputTimeoutWaitsForCompleteSemanticEvent(t *testing.T) {
+	t.Parallel()
 	const lineSize = 68106
 	prefix := `data: {"type":"response.output_text.delta","delta":"`
 	suffix := `"}`
@@ -343,6 +346,7 @@ func TestOpenAINativeFirstOutputTimeoutWaitsForCompleteSemanticEvent(t *testing.
 }
 
 func TestOpenAINativeFirstOutputTimeoutDoesNotLeakLargePreambleEvent(t *testing.T) {
+	t.Parallel()
 	const lineSize = 68106
 	prefix := `data: {"type":"response.created","response":{"id":"resp_partial","padding":"`
 	suffix := `"}}`
@@ -543,6 +547,7 @@ func TestOpenAINativeFirstOutputScannerAllowsLargeEventAfterSemanticBoundary(t *
 }
 
 func TestOpenAINativeFirstOutputTimeoutDisabledPreservesPreambleFailover(t *testing.T) {
+	t.Parallel()
 	svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{
 		StreamKeepaliveInterval: 1,
 		MaxLineSize:             defaultMaxLineSize,
@@ -568,6 +573,7 @@ func TestOpenAINativeFirstOutputTimeoutDisabledPreservesPreambleFailover(t *test
 }
 
 func TestOpenAINativeFirstOutputFailoverKeepsAttemptHeadersPrivateAfterKeepaliveCommit(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{Gateway: config.GatewayConfig{
 		OpenAIFirstOutputTimeoutSeconds: 2,
 		StreamKeepaliveInterval:         1,

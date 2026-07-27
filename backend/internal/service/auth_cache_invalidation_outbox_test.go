@@ -151,6 +151,7 @@ func TestAuthCacheInvalidationWorker_RetriesRedisAndPublishFailures(t *testing.T
 }
 
 func TestAuthCacheInvalidationWorker_RedisSlowIsTimedOut(t *testing.T) {
+	t.Parallel()
 	repo := &authInvalidationRepoStub{}
 	cache := &authInvalidationCacheStub{deleteFn: func(ctx context.Context, _ string) error {
 		<-ctx.Done()
@@ -215,6 +216,7 @@ func TestAuthInvalidationRetryDelayIsBoundedAndJittered(t *testing.T) {
 }
 
 func TestAuthCacheInvalidationSubscriber_RetriesInitialFailureAndStops(t *testing.T) {
+	t.Parallel()
 	ready := make(chan struct{})
 	var calls int
 	cache := &authInvalidationCacheStub{subscribeFn: func(ctx context.Context, _ func(string)) error {
@@ -244,6 +246,7 @@ func TestAuthCacheInvalidationSubscriber_RetriesInitialFailureAndStops(t *testin
 }
 
 func TestAuthCacheInvalidationSubscriber_ReconnectsAfterRuntimeDisconnect(t *testing.T) {
+	t.Parallel()
 	ready := make(chan int, 2)
 	var calls int
 	cache := &authInvalidationCacheStub{subscribeFn: func(ctx context.Context, _ func(string)) error {

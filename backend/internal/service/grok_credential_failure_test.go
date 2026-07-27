@@ -1049,6 +1049,7 @@ func TestGetRequestCredentialBudgetBoundsBlockedConditionalMutation(t *testing.T
 }
 
 func TestGetRequestCredentialLockHeldTimeoutDoesNotQuarantineAccount(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
 		name       string

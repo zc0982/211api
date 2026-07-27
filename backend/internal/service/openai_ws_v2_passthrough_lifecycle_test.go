@@ -292,6 +292,7 @@ func TestPassthroughLifecycle_LeaseLossSendsRetryClose(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_CompletedTurnStartsInterTurnIdle(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -318,6 +319,7 @@ func TestPassthroughLifecycle_CompletedTurnStartsInterTurnIdle(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_ActiveTurnInactivityUsesReadTimeout(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -348,6 +350,7 @@ func TestPassthroughLifecycle_ActiveTurnInactivityUsesReadTimeout(t *testing.T) 
 }
 
 func TestPassthroughLifecycle_PreambleAllowsPromptClientCancel(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -418,6 +421,7 @@ func TestPassthroughLifecycle_RejectsOverlappingResponseCreate(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_ActiveTurnActivityRefreshesReadTimeout(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -459,6 +463,7 @@ func TestPassthroughLifecycle_ActiveTurnActivityRefreshesReadTimeout(t *testing.
 }
 
 func TestPassthroughLifecycle_TerminalSwitchesToInterTurnIdleTimeout(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -504,6 +509,7 @@ func TestPassthroughLifecycle_TerminalSwitchesToInterTurnIdleTimeout(t *testing.
 }
 
 func TestPassthroughLifecycle_FirstOutputTimeoutRemainsBounded(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -525,6 +531,7 @@ func TestPassthroughLifecycle_FirstOutputTimeoutRemainsBounded(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
@@ -557,6 +564,7 @@ func TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover(t *tes
 }
 
 func TestPassthroughLifecycle_SecondTurnTimeoutIsNotFailoverSafe(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)

@@ -170,6 +170,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutReleasesStoreDisabledSession(t *testing.T) {
+	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}

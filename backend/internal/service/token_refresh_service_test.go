@@ -482,6 +482,7 @@ func TestTokenRefreshService_RefreshWithRetry_NilInvalidator(t *testing.T) {
 
 // TestTokenRefreshService_RefreshWithRetry_Antigravity 测试 Antigravity 平台的缓存失效
 func TestTokenRefreshService_RefreshWithRetry_Antigravity(t *testing.T) {
+	t.Parallel()
 	repo := &tokenRefreshAccountRepo{}
 	invalidator := &tokenCacheInvalidatorStub{}
 	cfg := &config.Config{
