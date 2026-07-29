@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"time"
 
@@ -38,25 +38,40 @@ func NewS3BackupStoreFactory() service.BackupObjectStoreFactory {
 }
 
 func (s *S3BackupStore) Upload(ctx context.Context, key string, body io.Reader, contentType string) (int64, error) {
-	// 读取全部内容以获取大小（S3 PutObject 需要知道内容长度）
-	// 注意：阿里云 OSS 不兼容 s3manager 分片上传的签名方式，因此使用 PutObject
-	data, err := io.ReadAll(body)
+	// 先落盘到临时文件再上传：PutObject 需要可寻址的 Body 以确定 Content-Length
+	// （阿里云 OSS 不兼容 s3manager 分片上传的签名方式，因此不能用 multipart）。
+	// 直接 io.ReadAll 会把整个压缩备份读入内存，大库备份时可能 OOM；
+	// 临时文件让内存占用固定，且 *os.File 实现了 io.ReadSeeker，SDK 失败重试时可回卷。
+	tmp, err := os.CreateTemp("", "sub2api-backup-*")
 	if err != nil {
-		return 0, fmt.Errorf("read body: %w", err)
+		return 0, fmt.Errorf("create temp file: %w", err)
+	}
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+	}()
+
+	size, err := io.Copy(tmp, body)
+	if err != nil {
+		return 0, fmt.Errorf("spool body to temp file: %w", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return 0, fmt.Errorf("rewind temp file: %w", err)
 	}
 
 	finish := servertiming.ObserveDependency(ctx, "s3")
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      &s.bucket,
-		Key:         &key,
-		Body:        bytes.NewReader(data),
-		ContentType: &contentType,
+		Bucket:        &s.bucket,
+		Key:           &key,
+		Body:          tmp,
+		ContentLength: &size,
+		ContentType:   &contentType,
 	})
 	finish()
 	if err != nil {
 		return 0, fmt.Errorf("S3 PutObject: %w", err)
 	}
-	return int64(len(data)), nil
+	return size, nil
 }
 
 func (s *S3BackupStore) Download(ctx context.Context, key string) (io.ReadCloser, error) {
