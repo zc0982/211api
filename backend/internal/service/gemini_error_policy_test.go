@@ -358,7 +358,6 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPoolModeSkippedFailoverError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	svc := &GeminiMessagesCompatService{}
 
 	poolAccount := func(extra map[string]any) *Account {
