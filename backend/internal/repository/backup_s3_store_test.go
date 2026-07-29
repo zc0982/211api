@@ -17,10 +17,10 @@ import (
 func TestS3BackupStoreUpload(t *testing.T) {
 	const payload = "fake-sql-gzip-content-for-streaming-upload"
 
-	var gotLen string
+	var gotContentLength int64
 	var gotBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotLen = r.Header.Get("Content-Length")
+		gotContentLength = r.ContentLength
 		gotBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -41,9 +41,8 @@ func TestS3BackupStoreUpload(t *testing.T) {
 	if size != int64(len(payload)) {
 		t.Fatalf("size = %d, want %d", size, len(payload))
 	}
-	if gotLen != "41" && gotLen != "" && len(gotBody) != len(payload) {
-		// Content-Length 可能由 SDK 以流式方式省略，但内容必须完整
-		t.Fatalf("content-length %q with body %d bytes, want %d", gotLen, len(gotBody), len(payload))
+	if gotContentLength != int64(len(payload)) {
+		t.Fatalf("Content-Length = %d, want %d", gotContentLength, len(payload))
 	}
 	if string(gotBody) != payload {
 		t.Fatalf("body = %q, want %q", gotBody, payload)
