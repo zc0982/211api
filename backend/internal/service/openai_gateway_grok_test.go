@@ -1928,7 +1928,6 @@ func TestAccountTestServiceGrokAPIKeyAllowsConfiguredHTTPWhenGlobalPolicyDoes(t 
 }
 
 func TestAccountTestServiceGrokOAuthPaymentRequiredTemporarilyUnschedulesAccount(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	account := healthyGrokOAuthGatewayTestAccount(56, "access-token")
 	repo := &grokQuotaAccountRepo{}

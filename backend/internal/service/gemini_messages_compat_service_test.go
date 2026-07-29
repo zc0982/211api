@@ -169,7 +169,6 @@ func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *test
 }
 
 func TestGeminiForwardAsChatCompletions_FunctionNamedWebSearchStaysClientSide(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	httpStub := &geminiCompatHTTPUpstreamStub{
 		response: &http.Response{
