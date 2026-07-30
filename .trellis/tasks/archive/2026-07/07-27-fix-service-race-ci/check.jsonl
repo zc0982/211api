@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality gates and review expectations for backend tests and CI changes."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Verify the bulk cleanup is complete and no duplicate setup remains."}
