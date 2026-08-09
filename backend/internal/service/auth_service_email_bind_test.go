@@ -874,6 +874,10 @@ func newEmailBindUserRepoStub(user *service.User) *emailBindUserRepoStub {
 
 func (s *emailBindUserRepoStub) Create(context.Context, *service.User) error { return nil }
 
+func (s *emailBindUserRepoStub) CreateWithEmailAliasGuard(ctx context.Context, user *service.User) error {
+	return s.Create(ctx, user)
+}
+
 func (s *emailBindUserRepoStub) GetByID(_ context.Context, id int64) (*service.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -963,6 +967,18 @@ func (s *emailBindUserRepoStub) AdjustBalance(ctx context.Context, id int64, del
 
 func (s *emailBindUserRepoStub) SetBalance(ctx context.Context, id int64, value float64) (service.BalanceChange, error) {
 	panic("unexpected SetBalance call")
+}
+
+func (s *emailBindUserRepoStub) ExistsByEmailAlias(_ context.Context, email string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	identity := service.NormalizeEmailForAliasDedup(email)
+	for stored := range s.usersByEmail {
+		if service.NormalizeEmailForAliasDedup(stored) == identity {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *emailBindUserRepoStub) BatchSetConcurrency(context.Context, []int64, int) (int, error) {

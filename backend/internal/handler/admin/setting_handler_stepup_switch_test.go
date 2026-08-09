@@ -47,9 +47,7 @@ func doUpdateSettings(t *testing.T, h *SettingHandler, body map[string]any, prep
 
 // 开启开关（false→true）：无认证上下文时拒绝，且带专用错误标记。
 func TestUpdateSettingsEnableStepUpRejectsWithoutSession(t *testing.T) {
-	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
-		service.SettingKeyStepUpEnabled: "false",
-	})
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 
 	rec := doUpdateSettings(t, h, map[string]any{"step_up_enabled": true}, nil)
 
@@ -60,9 +58,7 @@ func TestUpdateSettingsEnableStepUpRejectsWithoutSession(t *testing.T) {
 
 // 开启开关：admin API key（机器凭证）一律拒绝，reason 与门控保持一致便于前端分流。
 func TestUpdateSettingsEnableStepUpRejectsAdminAPIKey(t *testing.T) {
-	h, _ := newStepUpSwitchTestHandler(t, map[string]string{
-		service.SettingKeyStepUpEnabled: "false",
-	})
+	h, _ := newStepUpSwitchTestHandler(t, map[string]string{})
 
 	rec := doUpdateSettings(t, h, map[string]any{"step_up_enabled": true}, func(c *gin.Context) {
 		c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
@@ -74,9 +70,7 @@ func TestUpdateSettingsEnableStepUpRejectsAdminAPIKey(t *testing.T) {
 
 // 开启开关：有认证会话但 userService 未注入时 fail-closed（500），不得放行。
 func TestUpdateSettingsEnableStepUpFailsClosedWithoutUserService(t *testing.T) {
-	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
-		service.SettingKeyStepUpEnabled: "false",
-	})
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 
 	rec := doUpdateSettings(t, h, map[string]any{"step_up_enabled": true}, func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1})
@@ -115,16 +109,13 @@ func TestUpdateSettingsDisableStepUpRejectsAdminAPIKey(t *testing.T) {
 
 // 无状态转换（false→false）：不触发任何转换校验，常规保存成功且默认持久化为 false。
 func TestUpdateSettingsStepUpNoTransitionSkipsGate(t *testing.T) {
-	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
-		service.SettingKeyStepUpEnabled:         "false",
-		service.SettingKeySessionBindingEnabled: "false",
-	})
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 
 	rec := doUpdateSettings(t, h, map[string]any{"step_up_enabled": false}, nil)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "false", repo.values[service.SettingKeyStepUpEnabled])
-	// 显式保存的关闭状态保持不变。
+	// 会话 IP/UA 绑定默认关闭：未显式提交时持久化 false。
 	require.Equal(t, "false", repo.values[service.SettingKeySessionBindingEnabled])
 }
 
@@ -155,15 +146,15 @@ func TestUpdateSettingsOmittedSecuritySwitchesKeepStoredValues(t *testing.T) {
 	require.Equal(t, "true", repo.values[service.SettingKeySessionBindingEnabled])
 }
 
-// 缺失设置沿用安全默认：旧客户端省略字段时不得把门控静默关闭。
-func TestUpdateSettingsOmittedSecuritySwitchesKeepSecureDefaults(t *testing.T) {
+// 省略字段在开关本就关闭时同样保持关闭（默认值路径）。
+func TestUpdateSettingsOmittedSecuritySwitchesKeepDisabled(t *testing.T) {
 	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 
 	rec := doUpdateSettings(t, h, map[string]any{"registration_enabled": true}, nil)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "true", repo.values[service.SettingKeyStepUpEnabled])
-	require.Equal(t, "true", repo.values[service.SettingKeySessionBindingEnabled])
+	require.Equal(t, "false", repo.values[service.SettingKeyStepUpEnabled])
+	require.Equal(t, "false", repo.values[service.SettingKeySessionBindingEnabled])
 }
 
 func TestUpdateSettingsForwardedClientIPHeadersOmittedPreservesAndEmptyClears(t *testing.T) {

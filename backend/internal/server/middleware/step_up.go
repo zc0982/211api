@@ -38,7 +38,7 @@ func StepUpSessionKey(c *gin.Context, userID int64) string {
 
 // NewStepUpAuthMiddleware 创建敏感操作 step-up 2FA 门控中间件。
 //
-// 功能开关 step_up_enabled（默认开启）仅在管理员明确关闭后才直接放行。
+// 功能开关 step_up_enabled（默认关闭）关闭时中间件直接放行，行为与门控引入前一致。
 // 开启时的通过条件（全部满足）：
 //  1. 必须是 JWT 认证的真人会话——admin API key（机器凭证）一律拒绝
 //  2. 当前用户已启用 TOTP（未启用则拒绝并提示先启用 2FA）

@@ -308,6 +308,7 @@ func normalizeOpenAICompactRequestBody(body []byte) ([]byte, bool, error) {
 		"tools",
 		"parallel_tool_calls",
 		"reasoning",
+		"service_tier",
 		"text",
 		"previous_response_id",
 	} {
@@ -693,9 +694,7 @@ func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, p
 	return view.Model, view.Stream, view.PromptCacheKey
 }
 
-// normalizeOpenAIPassthroughOAuthBody 将透传 OAuth 请求体收敛为旧链路关键行为。
-// 与 applyCodexOAuthTransformWithOptions 的 map 路径共享关键规则；调整任一路径时必须同步另一侧。
-//
+// normalizeOpenAIPassthroughOAuthBody 将透传 OAuth 请求体收敛为旧链路关键行为：
 // 1) 删除 ChatGPT internal API 不支持的顶层 Responses 参数
 // 2) store=false 3) 非 compact 保持 stream=true；compact 强制 stream=false
 func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, bool, error) {
@@ -706,7 +705,7 @@ func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 	normalized := body
 	changed := false
 
-	for _, field := range openAICodexOAuthUnsupportedFields {
+	for _, field := range openAIChatGPTInternalUnsupportedFields {
 		if value := gjson.GetBytes(normalized, field); !value.Exists() {
 			continue
 		}
@@ -718,44 +717,32 @@ func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 		changed = true
 	}
 
-	input := gjson.GetBytes(normalized, "input")
-	switch {
-	case !input.Exists() || input.Type == gjson.Null:
-		next, err := sjson.SetBytes(normalized, "input", []any{})
-		if err != nil {
-			return body, false, fmt.Errorf("normalize passthrough body input=[]: %w", err)
-		}
-		normalized = next
-		changed = true
-	case input.Type == gjson.String:
-		trimmed := strings.TrimSpace(input.String())
-		replacement := []any{}
-		if trimmed != "" {
-			replacement = []any{
-				map[string]any{
-					"type":    "message",
-					"role":    "user",
-					"content": input.String(),
-				},
+	if inputResult := gjson.GetBytes(normalized, "input"); inputResult.Exists() {
+		switch {
+		case inputResult.Type == gjson.String:
+			text := inputResult.String()
+			var inputValue any
+			if strings.TrimSpace(text) != "" {
+				inputValue = []any{map[string]any{
+					"type": "message", "role": "user", "content": text,
+				}}
+			} else {
+				inputValue = []any{}
 			}
+			next, err := sjson.SetBytes(normalized, "input", inputValue)
+			if err != nil {
+				return body, false, fmt.Errorf("normalize passthrough body input string: %w", err)
+			}
+			normalized = next
+			changed = true
+		case inputResult.Type == gjson.JSON && !inputResult.IsArray():
+			next, err := sjson.SetRawBytes(normalized, "input", []byte("["+inputResult.Raw+"]"))
+			if err != nil {
+				return body, false, fmt.Errorf("normalize passthrough body input object: %w", err)
+			}
+			normalized = next
+			changed = true
 		}
-		next, err := sjson.SetBytes(normalized, "input", replacement)
-		if err != nil {
-			return body, false, fmt.Errorf("normalize passthrough body string input: %w", err)
-		}
-		normalized = next
-		changed = true
-	case input.Type == gjson.JSON && input.IsObject():
-		var item any
-		if err := json.Unmarshal([]byte(input.Raw), &item); err != nil {
-			return body, false, fmt.Errorf("normalize passthrough body object input: %w", err)
-		}
-		next, err := sjson.SetBytes(normalized, "input", []any{item})
-		if err != nil {
-			return body, false, fmt.Errorf("normalize passthrough body object input list: %w", err)
-		}
-		normalized = next
-		changed = true
 	}
 
 	if compact {

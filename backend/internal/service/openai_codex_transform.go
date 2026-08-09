@@ -149,9 +149,6 @@ func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact
 
 func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuthTransformOptions) codexTransformResult {
 	result := codexTransformResult{}
-	if normalizeCodexTopLevelInputList(reqBody) {
-		result.Modified = true
-	}
 	// 工具续链需求会影响存储策略与 input 过滤逻辑。
 	needsToolContinuation := NeedsToolContinuation(reqBody)
 
@@ -191,7 +188,6 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	// Strip parameters unsupported by ChatGPT internal Codex endpoint.
-	// Keep this rule in sync with normalizeOpenAIPassthroughOAuthBody's byte path.
 	for _, key := range openAICodexOAuthUnsupportedFields {
 		if _, ok := reqBody[key]; ok {
 			delete(reqBody, key)
@@ -276,7 +272,7 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	// 续链场景保留 item_reference 与 id，避免 call_id 上下文丢失。
-	normalizeInputList := func(input []any) {
+	if input, ok := reqBody["input"].([]any); ok {
 		if normalizedInput, modified := normalizeCodexToolRoleMessages(input); modified {
 			input = normalizedInput
 			result.Modified = true
@@ -291,22 +287,7 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		})
 		reqBody["input"] = input
 		result.Modified = true
-	}
-	if input, ok := reqBody["input"].([]any); ok {
-		normalizeInputList(input)
-	}
-
-	return result
-}
-
-func normalizeCodexTopLevelInputList(reqBody map[string]any) bool {
-	if reqBody == nil {
-		return false
-	}
-	if _, ok := reqBody["input"].([]any); ok {
-		return false
-	}
-	if inputStr, ok := reqBody["input"].(string); ok {
+	} else if inputStr, ok := reqBody["input"].(string); ok {
 		// ChatGPT codex endpoint requires input to be a list, not a string.
 		// Convert string input to the expected message array format.
 		trimmed := strings.TrimSpace(inputStr)
@@ -321,19 +302,10 @@ func normalizeCodexTopLevelInputList(reqBody map[string]any) bool {
 		} else {
 			reqBody["input"] = []any{}
 		}
-		return true
+		result.Modified = true
 	}
-	if inputMap, ok := reqBody["input"].(map[string]any); ok {
-		// Some OpenAI-compatible clients send a single input item object. The
-		// input-dependent passes below require the top-level input to be a list.
-		reqBody["input"] = []any{inputMap}
-		return true
-	}
-	if inputRaw, ok := reqBody["input"]; !ok || inputRaw == nil {
-		reqBody["input"] = []any{}
-		return true
-	}
-	return false
+
+	return result
 }
 
 func normalizeCodexToolChoice(reqBody map[string]any) bool {
@@ -1522,25 +1494,9 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 		if !opts.PreserveReferences {
 			ensureCopy()
 			delete(newItem, "id")
-		} else if isCodexToolCallInputType(typ) {
-			// 续链模式下保留 id 以维持上下文引用，但 function_call 等
-			// call-input 类 item 的 id 必须以 "fc" 开头（上游校验
-			// "Expected an ID that begins with 'fc'"）。item_* 形式的 id
-			// 来自客户端回放，需要删除。
-			// 注意：function_call_output 等 output 类的 id 无此约束，不动。
-			if id, ok := m["id"].(string); ok && id != "" && !strings.HasPrefix(id, "fc") {
-				ensureCopy()
-				delete(newItem, "id")
-			}
-		} else if typ == "message" {
-			// 同理，message 类 item 的 id 必须以 "msg" 开头（上游校验
-			// "Expected an ID that begins with 'msg'"）。item_* 形式的 id
-			// 来自客户端回放，需要删除。
-			// 注意：不改写成 msg_*，改写出的 id 未必对应真实的上游对象。
-			if id, ok := m["id"].(string); ok && id != "" && !strings.HasPrefix(id, "msg") {
-				ensureCopy()
-				delete(newItem, "id")
-			}
+		} else if id, ok := m["id"].(string); ok && shouldStripOpenAIResponsesInputItemID(typ, id) {
+			ensureCopy()
+			delete(newItem, "id")
 		}
 
 		filtered = append(filtered, newItem)

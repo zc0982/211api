@@ -35,6 +35,10 @@ type emailSyncRepoStub struct {
 	replaceErr   error
 }
 
+func (s *emailSyncRepoStub) CreateWithEmailAliasGuard(ctx context.Context, user *User) error {
+	return s.Create(ctx, user)
+}
+
 func (s *emailSyncRepoStub) Create(_ context.Context, user *User) error {
 	if s.nextID != 0 && user.ID == 0 {
 		user.ID = s.nextID
@@ -108,6 +112,10 @@ func (s *emailSyncRepoStub) DeductBalance(context.Context, int64, float64) error
 func (s *emailSyncRepoStub) UpdateConcurrency(context.Context, int64, int) error { return nil }
 
 func (s *emailSyncRepoStub) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
+
+func (s *emailSyncRepoStub) ExistsByEmailAlias(context.Context, string) (bool, error) {
+	return false, nil
+}
 
 func (s *emailSyncRepoStub) AdjustBalance(ctx context.Context, id int64, delta float64) (BalanceChange, error) {
 	panic("unexpected AdjustBalance call")

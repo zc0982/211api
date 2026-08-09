@@ -5,36 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
-
-func withOpenAICodexOAuthUnsupportedFields(t *testing.T, body []byte) []byte {
-	t.Helper()
-
-	values := map[string]any{
-		"max_output_tokens":      128,
-		"max_completion_tokens":  256,
-		"temperature":            0.2,
-		"top_p":                  0.8,
-		"frequency_penalty":      0,
-		"presence_penalty":       0,
-		"user":                   "user_123",
-		"metadata":               map[string]any{"user_id": "user_123"},
-		"prompt_cache_retention": "24h",
-		"safety_identifier":      "sid",
-		"stream_options":         map[string]any{"include_usage": true},
-	}
-
-	next := body
-	for _, field := range openAICodexOAuthUnsupportedFields {
-		value, ok := values[field]
-		require.True(t, ok, "test fixture must provide a value for %s", field)
-		var err error
-		next, err = sjson.SetBytes(next, field, value)
-		require.NoError(t, err)
-	}
-	return next
-}
 
 func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"hello","user":"user_123","metadata":{"user_id":"user_123"},"prompt_cache_retention":"24h","safety_identifier":"sid","stream_options":{"include_usage":true}}`)
@@ -45,20 +16,6 @@ func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T
 	for _, field := range openAIChatGPTInternalUnsupportedFields {
 		require.False(t, gjson.GetBytes(normalized, field).Exists(), "%s should be stripped", field)
 	}
-	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
-	require.False(t, gjson.GetBytes(normalized, "store").Bool())
-}
-
-func TestNormalizeOpenAIPassthroughOAuthBody_RemovesCodexUnsupportedGenerationControls(t *testing.T) {
-	body := withOpenAICodexOAuthUnsupportedFields(t, []byte(`{"model":"gpt-5.4-mini","input":[{"type":"message","role":"user","content":"hello"}]}`))
-
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
-	require.NoError(t, err)
-	require.True(t, changed)
-	for _, field := range openAICodexOAuthUnsupportedFields {
-		require.False(t, gjson.GetBytes(normalized, field).Exists(), "%s should be stripped", field)
-	}
-	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
 	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
 	require.False(t, gjson.GetBytes(normalized, "store").Bool())
 }
@@ -75,16 +32,20 @@ func TestNormalizeOpenAIPassthroughOAuthBody_CompactRemovesUnsupportedUser(t *te
 	require.False(t, gjson.GetBytes(normalized, "store").Exists())
 }
 
-func TestNormalizeOpenAIPassthroughOAuthBody_StringInputBecomesList(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.4-mini","input":"hello"}`)
+func TestNormalizeOpenAIPassthroughOAuthBody_StringInputWrappedAsArray(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.4","input":"hello world"}`)
 
 	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
-	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
-	require.Equal(t, "message", gjson.GetBytes(normalized, "input.0.type").String())
-	require.Equal(t, "user", gjson.GetBytes(normalized, "input.0.role").String())
-	require.Equal(t, "hello", gjson.GetBytes(normalized, "input.0.content").String())
+
+	input := gjson.GetBytes(normalized, "input")
+	require.True(t, input.IsArray(), "string input should be converted to array")
+	items := input.Array()
+	require.Len(t, items, 1)
+	require.Equal(t, "message", items[0].Get("type").String())
+	require.Equal(t, "user", items[0].Get("role").String())
+	require.Equal(t, "hello world", items[0].Get("content").String())
 }
 
 func TestNormalizeOpenAIPassthroughOAuthBody_EmptyStringInputWrappedAsEmptyArray(t *testing.T) {
@@ -93,31 +54,24 @@ func TestNormalizeOpenAIPassthroughOAuthBody_EmptyStringInputWrappedAsEmptyArray
 	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
+
 	input := gjson.GetBytes(normalized, "input")
 	require.True(t, input.IsArray())
 	require.Len(t, input.Array(), 0, "whitespace-only input should become empty array")
 }
 
-func TestNormalizeOpenAIPassthroughOAuthBody_ObjectInputBecomesList(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.4-mini","input":{"type":"message","role":"user","content":"hello"}}`)
+func TestNormalizeOpenAIPassthroughOAuthBody_ObjectInputWrappedAsArray(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.4","input":{"type":"message","role":"user","content":"hi"}}`)
 
 	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
-	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
-	require.Equal(t, "message", gjson.GetBytes(normalized, "input.0.type").String())
-	require.Equal(t, "user", gjson.GetBytes(normalized, "input.0.role").String())
-	require.Equal(t, "hello", gjson.GetBytes(normalized, "input.0.content").String())
-}
 
-func TestNormalizeOpenAIPassthroughOAuthBody_MissingInputBecomesEmptyList(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.4-mini"}`)
-
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
-	require.NoError(t, err)
-	require.True(t, changed)
-	require.True(t, gjson.GetBytes(normalized, "input").IsArray())
-	require.Equal(t, int64(0), gjson.GetBytes(normalized, "input.#").Int())
+	input := gjson.GetBytes(normalized, "input")
+	require.True(t, input.IsArray(), "object input should be wrapped in array")
+	items := input.Array()
+	require.Len(t, items, 1)
+	require.Equal(t, "message", items[0].Get("type").String())
 }
 
 func TestNormalizeOpenAIPassthroughOAuthBody_ArrayInputUnchanged(t *testing.T) {

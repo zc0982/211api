@@ -302,29 +302,23 @@ func TestOpenAIResponseFlush_CanceledAfterOutputFlushesResidualWithoutErrorEvent
 	require.NotContains(t, gotBody, "stream_read_error")
 }
 
-func TestOpenAIResponseFlush_KeepaliveFlushesImmediatelyAfterClientOutput(t *testing.T) {
-	t.Parallel()
+func TestOpenAIResponseFlush_KeepaliveFlushesImmediately(t *testing.T) {
 	recorder := newOpenAIResponseFlushRecorder()
 	reader, writer := io.Pipe()
 	resultCh, errCh := runOpenAIResponseFlushTestAsync(recorder, reader, config.GatewayConfig{StreamKeepaliveInterval: 1})
 
-	output := "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ready\"}\n\n"
-	_, err := writer.Write([]byte(output))
-	require.NoError(t, err)
 	waitOpenAIResponseFlushCount(t, recorder, 1)
-	waitOpenAIResponseFlushCount(t, recorder, 2)
 	_, flushes := recorder.snapshot()
-	require.Equal(t, output, flushes[0])
-	require.Equal(t, output+":\n\n", flushes[1])
-	_, err = writer.Write([]byte("data: [DONE]\n\n"))
+	require.Equal(t, ":\n\n", flushes[0])
+	_, err := writer.Write([]byte("data: [DONE]\n\n"))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
 	require.NoError(t, <-errCh)
 	require.NotNil(t, <-resultCh)
 	gotBody, flushes := recorder.snapshot()
-	require.Equal(t, output+":\n\ndata: [DONE]\n\n", gotBody)
-	require.Len(t, flushes, 3)
+	require.Equal(t, ":\n\ndata: [DONE]\n\n", gotBody)
+	require.Len(t, flushes, 2)
 }
 
 func TestOpenAIResponseFlush_KeepaliveDoesNotSplitOpenEvent(t *testing.T) {
@@ -394,8 +388,25 @@ func TestOpenAIResponseFlush_FailedAndErrorEventsFlushAtBoundaries(t *testing.T)
 		require.Contains(t, flushes[1], "response.failed")
 	})
 
-	t.Run("error event", func(t *testing.T) {
+	t.Run("retryable error event buffered until terminal", func(t *testing.T) {
+		// 可重试类 error 帧不算客户端输出：保持在 attempt 缓冲中不单独 flush，
+		// 为随后可能到达的 response.failed 保留 pre-output failover 能力，
+		// 与终止帧一起出站。
 		body := "data: {\"type\":\"error\",\"error\":{\"message\":\"failed\"}}\n\n" +
+			"data: [DONE]\n\n"
+		recorder := newOpenAIResponseFlushRecorder()
+
+		result, err := runOpenAIResponseFlushTest(recorder, io.NopCloser(strings.NewReader(body)), config.GatewayConfig{})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		gotBody, flushes := recorder.snapshot()
+		require.Equal(t, body, gotBody)
+		require.Len(t, flushes, 1)
+	})
+
+	t.Run("non-retryable error event flushes at boundary", func(t *testing.T) {
+		body := "data: {\"type\":\"error\",\"error\":{\"code\":\"invalid_request\",\"message\":\"bad request\"}}\n\n" +
 			"data: [DONE]\n\n"
 		recorder := newOpenAIResponseFlushRecorder()
 
