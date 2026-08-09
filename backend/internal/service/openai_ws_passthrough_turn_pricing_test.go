@@ -72,6 +72,7 @@ func startPassthroughHookRecordingServer(
 // 若本断言因为透传补齐了 turn 起始回调而失败：这是好事，请同步复核
 // openAIWSTurnPricing 的零值语义与透传路径的 turn 级利润复核。
 func TestPassthroughIngressNeverCallsBeforeTurn(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 

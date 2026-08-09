@@ -390,7 +390,10 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 		case <-pingCh:
 			// Send ping to keep connection alive
 			if !*streamStarted {
-				setEventStreamResponseHeaders(c.Writer.Header())
+				c.Header("Content-Type", "text/event-stream")
+				c.Header("Cache-Control", "no-cache")
+				c.Header("Connection", "keep-alive")
+				c.Header("X-Accel-Buffering", "no")
 				*streamStarted = true
 			}
 			if _, err := fmt.Fprint(c.Writer, string(h.pingFormat)); err != nil {
