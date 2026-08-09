@@ -52,7 +52,6 @@ func (u *blockingOpenAIResponseHeaderUpstream) DoWithTLS(req *http.Request, _ st
 }
 
 func TestOpenAIForwardFirstOutputTimeoutIncludesResponseHeaderWait(t *testing.T) {
-	t.Parallel()
 	upstream := &blockingOpenAIResponseHeaderUpstream{canceled: make(chan struct{})}
 	svc := &OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{
@@ -301,7 +300,6 @@ func TestOpenAIFirstOutputStageUnlinkFailurePermanentlyFallsBackToMemoryAndRetri
 }
 
 func TestOpenAINativeFirstOutputTimeoutDisarmsAfterSemanticOutput(t *testing.T) {
-	t.Parallel()
 	cfg := &config.Config{Gateway: config.GatewayConfig{
 		OpenAIFirstOutputTimeoutSeconds: 1,
 		MaxLineSize:                     defaultMaxLineSize,
@@ -335,7 +333,6 @@ func TestOpenAINativeFirstOutputTimeoutDisarmsAfterSemanticOutput(t *testing.T) 
 }
 
 func TestOpenAINativeFirstOutputTimeoutWaitsForCompleteSemanticEvent(t *testing.T) {
-	t.Parallel()
 	const lineSize = 68106
 	prefix := `data: {"type":"response.output_text.delta","delta":"`
 	suffix := `"}`
@@ -345,7 +342,6 @@ func TestOpenAINativeFirstOutputTimeoutWaitsForCompleteSemanticEvent(t *testing.
 }
 
 func TestOpenAINativeFirstOutputTimeoutDoesNotLeakLargePreambleEvent(t *testing.T) {
-	t.Parallel()
 	const lineSize = 68106
 	prefix := `data: {"type":"response.created","response":{"id":"resp_partial","padding":"`
 	suffix := `"}}`
@@ -545,7 +541,7 @@ func TestOpenAINativeFirstOutputScannerAllowsLargeEventAfterSemanticBoundary(t *
 	require.Equal(t, "request-large-image", rec.Result().Header.Get("X-Request-Id"))
 }
 
-func TestOpenAINativeFirstOutputTimeoutDisabledPreservesKeepaliveFlush(t *testing.T) {
+func TestOpenAINativeFirstOutputTimeoutDisabledPreservesPreambleFailover(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{
 		StreamKeepaliveInterval: 1,
 		MaxLineSize:             defaultMaxLineSize,
@@ -564,14 +560,13 @@ func TestOpenAINativeFirstOutputTimeoutDisabledPreservesKeepaliveFlush(t *testin
 
 	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI}, time.Now(), "model", "model")
 
-	require.Error(t, err)
-	require.Contains(t, rec.Body.String(), ":\n\n")
-	require.Contains(t, rec.Body.String(), "response.created")
-	require.Contains(t, rec.Body.String(), "response.in_progress")
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.False(t, c.Writer.Written(), "preamble-only streams must remain eligible for failover")
+	require.Empty(t, rec.Body.String())
 }
 
 func TestOpenAINativeFirstOutputFailoverKeepsAttemptHeadersPrivateAfterKeepaliveCommit(t *testing.T) {
-	t.Parallel()
 	cfg := &config.Config{Gateway: config.GatewayConfig{
 		OpenAIFirstOutputTimeoutSeconds: 2,
 		StreamKeepaliveInterval:         1,

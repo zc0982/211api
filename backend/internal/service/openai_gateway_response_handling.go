@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -38,6 +39,25 @@ type openaiNonStreamingResult struct {
 	imageCount       int
 	imageOutputSizes []string
 	searchCount      int
+}
+
+type openAIResponsesStreamFailureError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type openAIResponsesStreamFailureBody struct {
+	ID     string                            `json:"id"`
+	Object string                            `json:"object"`
+	Model  string                            `json:"model,omitempty"`
+	Status string                            `json:"status"`
+	Output []any                             `json:"output"`
+	Error  openAIResponsesStreamFailureError `json:"error"`
+}
+
+type openAIResponsesStreamFailureEvent struct {
+	Type     string                           `json:"type"`
+	Response openAIResponsesStreamFailureBody `json:"response"`
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
@@ -66,10 +86,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	}
 
 	// Set SSE response headers
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	setEventStreamResponseHeaders(c.Writer.Header())
 
 	// Pass through other headers
 	if !guardFirstOutput && resp.Header.Get("x-request-id") != "" {
@@ -283,12 +300,39 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return
 		}
 		errorEventSent = true
-		payload := `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(reason) + `,"code":` + strconv.Quote(reason) + `}}`
+		id := strings.TrimSpace(responseID)
+		if id == "" {
+			id = strings.TrimSpace(upstreamRequestID)
+			if id != "" && !strings.HasPrefix(id, "resp_") {
+				id = "resp_" + strings.ReplaceAll(id, "-", "")
+			}
+		}
+		if id == "" {
+			id = "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+		}
+		payload, err := json.Marshal(openAIResponsesStreamFailureEvent{
+			Type: "response.failed",
+			Response: openAIResponsesStreamFailureBody{
+				ID:     id,
+				Object: "response",
+				Model:  strings.TrimSpace(originalModel),
+				Status: "failed",
+				Output: []any{},
+				Error: openAIResponsesStreamFailureError{
+					Code:    reason,
+					Message: reason,
+				},
+			},
+		})
+		if err != nil {
+			clientDisconnected = true
+			return
+		}
 		if err := flushBuffered(); err != nil {
 			clientDisconnected = true
 			return
 		}
-		if _, err := writePendingString("data: " + payload + "\n\n"); err != nil {
+		if _, err := writePendingString("event: response.failed\ndata: " + string(payload) + "\n\n"); err != nil {
 			clientDisconnected = true
 			return
 		}
@@ -741,7 +785,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if clientDisconnected {
 				continue
 			}
-			if eventInProgress {
+			if eventInProgress || (!guardFirstOutput && !clientOutputStarted) {
 				continue
 			}
 			if time.Since(lastDownstreamWriteAt) < keepaliveInterval {
