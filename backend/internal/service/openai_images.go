@@ -911,6 +911,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 		contentType = "text/event-stream"
 	}
 	c.Status(resp.StatusCode)
+	setEventStreamResponseHeaders(c.Writer.Header())
 	c.Header("Content-Type", contentType)
 
 	flusher, ok := c.Writer.(http.Flusher)

@@ -571,6 +571,22 @@ func TestSettingService_InitializeDefaultSettingsPersistsConfiguredForwardedClie
 
 	require.NoError(t, svc.InitializeDefaultSettings(context.Background()))
 	require.JSONEq(t, `["X-Cdn-Ip","True-Client-Ip"]`, repo.values[SettingKeyForwardedClientIPHeaders])
+	require.Equal(t, "true", repo.values[SettingKeySessionBindingEnabled])
+	require.Equal(t, "true", repo.values[SettingKeyStepUpEnabled])
+	require.Equal(t, "false", repo.values[SettingKeyAPIKeyACLTrustForwardedIP])
+}
+
+func TestSettingService_SecuritySwitchesFailClosedByDefault(t *testing.T) {
+	repo := &forwardedIPMigrationRepoStub{values: map[string]string{}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	require.True(t, svc.IsSessionBindingEnabled(context.Background()))
+	require.True(t, svc.IsStepUpEnabled(context.Background()))
+
+	repo.values[SettingKeySessionBindingEnabled] = "false"
+	repo.values[SettingKeyStepUpEnabled] = "false"
+	require.False(t, svc.IsSessionBindingEnabled(context.Background()))
+	require.False(t, svc.IsStepUpEnabled(context.Background()))
 }
 
 func TestSettingService_UpdateSettings_APIKeyACLTrustForwardedIPRefreshesConfig(t *testing.T) {
@@ -692,10 +708,9 @@ func TestSettingService_LoadForwardedClientIPSettingsMigration(t *testing.T) {
 			wantMigrationMarkerSet: true,
 		},
 		{
-			name:                   "legacy false without proxy config migrates to compatibility",
+			name:                   "legacy false without proxy config remains secure",
 			values:                 map[string]string{SettingKeyAPIKeyACLTrustForwardedIP: "false"},
-			wantEnabled:            true,
-			wantForwardedIPUpdate:  "true",
+			wantEnabled:            false,
 			wantMigrationMarkerSet: true,
 		},
 		{
@@ -804,7 +819,7 @@ func TestSettingService_LoadForwardedClientIPSettingsWriteFailureUsesComputedMod
 		trustedProxiesSet bool
 		wantEnabled       bool
 	}{
-		{name: "compatibility migration remains effective", wantEnabled: true},
+		{name: "legacy false remains secure", wantEnabled: false},
 		{name: "explicit proxy policy remains secure", trustedProxiesSet: true, wantEnabled: false},
 	}
 

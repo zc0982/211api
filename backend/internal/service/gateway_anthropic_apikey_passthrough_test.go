@@ -1355,7 +1355,6 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingErrTooLong(t *testin
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(t *testing.T) {
-	t.Parallel()
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -1388,7 +1387,6 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingSendsKeepaliveDuringIdle(t *testing.T) {
-	t.Parallel()
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -1436,7 +1434,6 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingSendsKeepaliveDuring
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDoesNotInterleavePartialEvent(t *testing.T) {
-	t.Parallel()
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -1509,7 +1506,6 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingReadError(t *testing
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingTimeoutAfterClientDisconnect(t *testing.T) {
-	t.Parallel()
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)

@@ -34,6 +34,18 @@ func (r *grokFreeQuotaAccountRepoStub) ListSchedulableByPlatform(context.Context
 	return append([]Account(nil), r.accounts...), nil
 }
 
+func (r *grokFreeQuotaUsageRepoStub) callCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
+}
+
+func (r *grokFreeQuotaUsageRepoStub) lastCallIDs() []int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]int64(nil), r.lastIDs...)
+}
+
 func (r *grokFreeQuotaUsageRepoStub) GetAccountWindowStatsBatch(_ context.Context, accountIDs []int64, start time.Time) (map[int64]*usagestats.AccountStats, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -90,7 +102,7 @@ func TestFilterGrokFreeQuotaAccountsOnlyBlocksExplicitFreeOAuth(t *testing.T) {
 	// Second pass: uses refreshed cache and blocks over-gate free OAuth.
 	filtered = scheduler.filterGrokFreeQuotaAccounts(context.Background(), accounts)
 	require.Equal(t, []int64{2, 3, 4}, accountIDs(filtered), "paid and unknown fail-open; API-key free marker is not gated")
-	require.Equal(t, []int64{1}, repo.lastIDs, "paid, unknown, and API-key accounts must not enter the local free-tier query")
+	require.Equal(t, []int64{1}, repo.lastCallIDs(), "paid, unknown, and API-key accounts must not enter the local free-tier query")
 	require.WithinDuration(t, time.Now().UTC().Add(-24*time.Hour), repo.start, time.Second)
 }
 
@@ -113,7 +125,7 @@ func TestFilterGrokFreeQuotaAccountsStatsFailureFailsOpen(t *testing.T) {
 	// Negative cache entry keeps subsequent hot-path calls fail-open without thrash.
 	filtered = scheduler.filterGrokFreeQuotaAccounts(context.Background(), accounts)
 	require.Equal(t, []int64{1}, accountIDs(filtered))
-	require.Equal(t, 1, repo.calls)
+	require.Equal(t, 1, repo.callCount())
 }
 
 func TestFilterGrokFreeQuotaAccountsUnknownTierFailOpen(t *testing.T) {
@@ -129,7 +141,7 @@ func TestFilterGrokFreeQuotaAccountsUnknownTierFailOpen(t *testing.T) {
 
 	filtered := scheduler.filterGrokFreeQuotaAccounts(context.Background(), accounts)
 	require.Equal(t, []int64{1, 2, 3}, accountIDs(filtered))
-	require.Zero(t, repo.calls, "unknown/paid tiers must not query free-quota stats")
+	require.Zero(t, repo.callCount(), "unknown/paid tiers must not query free-quota stats")
 }
 
 func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T) {
@@ -163,7 +175,7 @@ func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T)
 			m.Delete(int64(1))
 		}
 	}
-	callsBeforeExpire := repo.calls
+	callsBeforeExpire := repo.callCount()
 	scheduler.grokFreeQuotaGateCache.Store(int64(1), grokFreeQuotaGateCacheEntry{
 		tokens: 490_000, checkedAt: time.Now().Add(-2 * time.Minute), known: true, // TTL=60s → stale
 	})
@@ -172,7 +184,7 @@ func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T)
 	require.Eventually(t, func() bool {
 		filtered := scheduler.filterGrokFreeQuotaAccounts(context.Background(), accounts)
 		return len(filtered) == 1 && filtered[0].ID == 1 &&
-			repo.calls > callsBeforeExpire
+			repo.callCount() > callsBeforeExpire
 	}, 2*time.Second, 10*time.Millisecond)
 }
 

@@ -302,27 +302,31 @@ func TestOpenAIResponseFlush_CanceledAfterOutputFlushesResidualWithoutErrorEvent
 	require.NotContains(t, gotBody, "stream_read_error")
 }
 
-func TestOpenAIResponseFlush_KeepaliveFlushesImmediately(t *testing.T) {
+func TestOpenAIResponseFlush_KeepaliveFlushesImmediatelyAfterClientOutput(t *testing.T) {
 	recorder := newOpenAIResponseFlushRecorder()
 	reader, writer := io.Pipe()
 	resultCh, errCh := runOpenAIResponseFlushTestAsync(recorder, reader, config.GatewayConfig{StreamKeepaliveInterval: 1})
 
+	output := "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ready\"}\n\n"
+	_, err := writer.Write([]byte(output))
+	require.NoError(t, err)
 	waitOpenAIResponseFlushCount(t, recorder, 1)
+	waitOpenAIResponseFlushCount(t, recorder, 2)
 	_, flushes := recorder.snapshot()
-	require.Equal(t, ":\n\n", flushes[0])
-	_, err := writer.Write([]byte("data: [DONE]\n\n"))
+	require.Equal(t, output, flushes[0])
+	require.Equal(t, output+":\n\n", flushes[1])
+	_, err = writer.Write([]byte("data: [DONE]\n\n"))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
 	require.NoError(t, <-errCh)
 	require.NotNil(t, <-resultCh)
 	gotBody, flushes := recorder.snapshot()
-	require.Equal(t, ":\n\ndata: [DONE]\n\n", gotBody)
-	require.Len(t, flushes, 2)
+	require.Equal(t, output+":\n\ndata: [DONE]\n\n", gotBody)
+	require.Len(t, flushes, 3)
 }
 
 func TestOpenAIResponseFlush_KeepaliveDoesNotSplitOpenEvent(t *testing.T) {
-	t.Parallel()
 	const dataLine = `data: {"type":"response.output_text.delta","delta":"a"}`
 	// Filling the 16-slot scan queue proves the main loop processed data before the reader reaches the gated blank.
 	dataLines := make([]string, 17)
