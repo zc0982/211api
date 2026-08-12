@@ -56,7 +56,7 @@ corepack prepare pnpm@9.15.9 --activate
 
 ### CI 要求
 
-- Go 版本必须是 **1.26.5**
+- Go 版本必须是 **1.26.5**。Workflow 通过 `backend/go.mod` 的 `go-version-file` 选择工具链，并在 `backend-ci.yml`、`release.yml` 和 `security-scan.yml` 中硬断言 `go1.26.5`；升级 Go 时必须同步更新 `backend/go.mod` 及这些 workflow 中的版本断言。
 - golangci-lint 必须是 **2.9.0**，pnpm 必须是 **9.15.9**
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
 - CI/CD 全部在 GitHub Actions 上运行；镜像仓库为 GHCR（`ghcr.io`）

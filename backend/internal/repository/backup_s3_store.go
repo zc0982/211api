@@ -74,6 +74,34 @@ func (s *S3BackupStore) Upload(ctx context.Context, key string, body io.Reader, 
 	return size, nil
 }
 
+func (s *S3BackupStore) UploadFile(ctx context.Context, key string, filePath string, contentType string) (int64, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("open upload file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	info, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("stat upload file: %w", err)
+	}
+	sizeBytes := info.Size()
+
+	finish := servertiming.ObserveDependency(ctx, "s3")
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        &s.bucket,
+		Key:           &key,
+		Body:          file,
+		ContentLength: &sizeBytes,
+		ContentType:   &contentType,
+	})
+	finish()
+	if err != nil {
+		return 0, fmt.Errorf("S3 PutObject file: %w", err)
+	}
+	return sizeBytes, nil
+}
+
 func (s *S3BackupStore) Download(ctx context.Context, key string) (io.ReadCloser, error) {
 	finish := servertiming.ObserveDependency(ctx, "s3")
 	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{
