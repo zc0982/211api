@@ -74,3 +74,25 @@ func TestChatReasoningAlias_ReasoningContentTakesPrecedence(t *testing.T) {
 	}
 	require.Equal(t, []string{"preferred reasoning"}, deltas)
 }
+
+func TestChatReasoningAlias_EmptyReasoningContentFallsBack(t *testing.T) {
+	empty := ""
+	fallback := "fallback reasoning"
+	chunk := ChatCompletionsChunk{
+		Choices: []ChatChunkChoice{{
+			Delta: ChatDelta{
+				ReasoningContent: &empty,
+				Reasoning:        &fallback,
+			},
+		}},
+	}
+
+	events := ChatCompletionsChunkToResponsesEvents(&chunk, NewChatCompletionsToResponsesStreamState("reasoning-model"))
+	var deltas []string
+	for _, event := range events {
+		if event.Type == "response.reasoning_summary_text.delta" {
+			deltas = append(deltas, event.Delta)
+		}
+	}
+	require.Equal(t, []string{fallback}, deltas)
+}

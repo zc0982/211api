@@ -250,6 +250,32 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('OpenAI OAuth 批量选择默认 session 时显式覆盖旧指纹模式', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('[data-testid="bulk-codex-fingerprint-mode-enabled"]').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        codex_fingerprint_mode: 'session'
+      }
+    })
+  })
+
+  it('OpenAI setup-token 批量编辑不展示指纹模式', () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['setup-token']
+    })
+
+    expect(wrapper.find('[data-testid="bulk-codex-fingerprint-mode-enabled"]').exists()).toBe(false)
+  })
+
   it('OpenAI 账号批量编辑可开启自动透传', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],

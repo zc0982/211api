@@ -590,13 +590,14 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
+			startsAttemptProgress := forceFlushFailedEvent || openAIStreamDataStartsAttemptProgress(data, eventType)
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
 			startsVisibleOutput := openAIStreamDataStartsVisibleOutput(data, eventType)
 			if guardFirstOutput {
-				eventStartsClientOutput = eventStartsClientOutput || startsClientOutput
+				eventStartsClientOutput = eventStartsClientOutput || startsAttemptProgress
 				eventStartsVisibleOutput = eventStartsVisibleOutput || startsVisibleOutput
 			}
-			if startsClientOutput && !openAIStreamEventTypeIsTerminal(eventType) {
+			if startsVisibleOutput && !openAIStreamEventTypeIsTerminal(eventType) {
 				responsesSemanticOutputSeen = true
 			}
 			// OpenAI Responses streams that terminate with an empty
@@ -605,7 +606,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			// recording a successful 0/0 usage turn (issue #5009).
 			if account != nil && account.Platform == PlatformOpenAI &&
 				(eventType == "response.completed" || eventType == "response.done") &&
-				!sawFailedEvent && !responsesSemanticOutputSeen && !clientOutputStarted &&
+				!sawFailedEvent && !responsesSemanticOutputSeen &&
 				openAIResponsesCompletedEventIsEmpty(dataBytes, usage) {
 				sawTerminalEvent = true
 				streamEarlyErr = newOpenAIResponsesEmptyCompletedFailoverError(c, account, upstreamRequestID)
@@ -1110,6 +1111,10 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 // The accumulated usage is consulted too, because OpenAI may deliver usage on
 // an earlier event. An empty terminal event after a stream with no semantic
 // output is treated as a silent upstream refusal (issue #5009).
+func jsonValueIsPresent(value gjson.Result) bool {
+	return value.Exists() && value.Type != gjson.Null
+}
+
 func openAIResponsesCompletedEventIsEmpty(data []byte, usage *OpenAIUsage) bool {
 	if len(data) == 0 || !gjson.ValidBytes(data) {
 		return false
@@ -1119,10 +1124,10 @@ func openAIResponsesCompletedEventIsEmpty(data []byte, usage *OpenAIUsage) bool 
 		usage.CacheCreationInputTokens > 0 || usage.CacheReadInputTokens > 0) {
 		return false
 	}
-	if gjson.GetBytes(data, "usage").Exists() || gjson.GetBytes(data, "response.usage").Exists() {
+	if jsonValueIsPresent(gjson.GetBytes(data, "usage")) || jsonValueIsPresent(gjson.GetBytes(data, "response.usage")) {
 		return false
 	}
-	if gjson.GetBytes(data, "error").Exists() || gjson.GetBytes(data, "response.error").Exists() {
+	if jsonValueIsPresent(gjson.GetBytes(data, "error")) || jsonValueIsPresent(gjson.GetBytes(data, "response.error")) {
 		return false
 	}
 	if output := gjson.GetBytes(data, "response.output"); output.Exists() && output.IsArray() && len(output.Array()) > 0 {

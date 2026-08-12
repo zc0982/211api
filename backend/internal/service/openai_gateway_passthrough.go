@@ -791,7 +791,7 @@ func openAIStreamEventIsPreamble(eventType string) bool {
 	}
 }
 
-func openAIStreamDataStartsClientOutput(data, eventType string) bool {
+func openAIStreamDataStartsAttemptProgress(data, eventType string) bool {
 	trimmed := strings.TrimSpace(data)
 	if trimmed == "" {
 		return false
@@ -809,6 +809,10 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 		return !openAIStreamFailedEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload))
 	}
 	return !openAIStreamEventIsPreamble(eventType)
+}
+
+func openAIStreamDataStartsClientOutput(data, eventType string) bool {
+	return openAIStreamDataStartsAttemptProgress(data, eventType)
 }
 
 func openAIStreamItemHasVisibleOutput(item gjson.Result) bool {
@@ -1374,7 +1378,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				line = "data: " + string(sanitizedData)
 			}
 			lineStartsClientOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
-			if lineStartsClientOutput && trimmedData != "[DONE]" && !openAIStreamEventTypeIsTerminal(eventType) {
+			if openAIStreamDataStartsVisibleOutput(trimmedData, eventType) && !openAIStreamEventTypeIsTerminal(eventType) {
 				semanticOutputSeen = true
 			}
 			// OpenAI Responses streams that terminate with an empty
@@ -1382,7 +1386,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			// to the client) are silent upstream refusals: fail over instead of
 			// recording a successful 0/0 usage turn (issue #5009).
 			if (eventType == "response.completed" || eventType == "response.done") &&
-				!sawFailedEvent && !semanticOutputSeen && !clientOutputStarted &&
+				!sawFailedEvent && !semanticOutputSeen &&
 				openAIResponsesCompletedEventIsEmpty(dataBytes, usage) {
 				streamEarlyErr = newOpenAIResponsesEmptyCompletedFailoverError(c, account, upstreamRequestID)
 				return
