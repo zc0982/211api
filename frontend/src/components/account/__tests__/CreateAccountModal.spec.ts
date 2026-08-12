@@ -182,6 +182,26 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     )
   })
 
+  it('does not leak an OAuth Codex fingerprint mode into an API key account', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+
+    wrapper
+      .getComponent('[data-testid="create-codex-fingerprint-mode-select"]')
+      .vm.$emit('update:modelValue', 'full')
+    await flushPromises()
+
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('OpenAI API key')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.type).toBe('apikey')
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.codex_fingerprint_mode).toBeUndefined()
+  })
+
   it('enables upstream billing probes by default for new OpenAI API key accounts', async () => {
     await submitApiKeyAccount('openai')
 
