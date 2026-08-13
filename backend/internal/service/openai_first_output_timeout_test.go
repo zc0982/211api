@@ -88,6 +88,39 @@ func TestOpenAIForwardFirstOutputTimeoutIncludesResponseHeaderWait(t *testing.T)
 	}
 }
 
+func TestOpenAIMessagesStreamFailsBeforeProxyReadDeadlineWhileWaitingForHeaders(t *testing.T) {
+	upstream := &blockingOpenAIResponseHeaderUpstream{canceled: make(chan struct{})}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Gateway: config.GatewayConfig{
+			OpenAIFirstOutputTimeoutSeconds: 1,
+			StreamKeepaliveInterval:         1,
+			MaxLineSize:                     defaultMaxLineSize,
+		}},
+		httpUpstream: upstream,
+	}
+	body := []byte(`{"model":"gpt-5.5","stream":true,"max_tokens":64,"messages":[{"role":"user","content":"hello"}]}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	account := &Account{
+		ID: 1, Name: "oauth-test", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Credentials: map[string]any{"access_token": "test-token", "chatgpt_account_id": "test-account"},
+	}
+	started := time.Now()
+	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.Equal(t, http.StatusGatewayTimeout, failoverErr.StatusCode)
+	require.Contains(t, string(failoverErr.ResponseBody), "first_output_timeout")
+	require.Less(t, time.Since(started), 1300*time.Millisecond,
+		"the origin must fail before the simulated proxy read deadline")
+	require.False(t, c.Writer.Written())
+	require.Empty(t, rec.Body.String())
+}
+
 func TestOpenAINativeFirstOutputTimeoutDisabledPreservesSynchronousStream(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{
 		OpenAIFirstOutputTimeoutSeconds: 0,

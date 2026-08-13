@@ -302,15 +302,34 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		// 既有 body/session/conversation 行为。身份头在 post-build 阶段统一恢复。
 		setOpenAICompatMessagesBridgeContext(c, true)
 	}
+	reasoningEffort := ""
+	if responsesReq.Reasoning != nil {
+		reasoningEffort = responsesReq.Reasoning.Effort
+	}
+	firstOutputTimeout := time.Duration(0)
+	if clientStream && account.Platform == PlatformOpenAI {
+		firstOutputTimeout = s.openAIFirstOutputTimeout(reasoningEffort)
+	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	var headerGuard *openAIFirstOutputHeaderGuard
+	if firstOutputTimeout > 0 {
+		upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(
+			upstreamCtx, releaseUpstreamCtx, startTime.Add(firstOutputTimeout),
+		)
+	}
 	var upstreamReq *http.Request
 	if account.Platform == PlatformGrok {
 		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, responsesBody, token, grokCacheIdentity, s.cfg, s.settingService)
 	} else {
 		upstreamReq, err = s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false)
 	}
-	releaseUpstreamCtx()
+	if headerGuard == nil {
+		releaseUpstreamCtx()
+	}
 	if err != nil {
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
 
@@ -364,8 +383,25 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			}
 		}
 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		if headerGuard != nil && headerGuard.stopHeaderWait() {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			headerGuard.close()
+			return nil, s.newOpenAIFirstOutputTimeoutError(
+				ctx, c, account, startTime, originalModel, reasoningEffort,
+				firstOutputTimeout, "response_headers", nil,
+			)
+		}
 		if err != nil {
+			if headerGuard != nil {
+				headerGuard.close()
+			}
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		}
+		if headerGuard != nil {
+			resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
+			headerGuard = nil
 		}
 		if account.Platform != PlatformGrok || attempt > 0 || resp.StatusCode != http.StatusBadRequest {
 			break
