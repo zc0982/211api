@@ -282,6 +282,36 @@ func TestAdminService_CreateGroup_WithImagePricing(t *testing.T) {
 	require.InDelta(t, 0.30, *repo.created.ImagePrice4K, 0.0001)
 }
 
+func TestAdminService_CreateGroup_DefaultsLongContextPricingEnabled(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "default-long-context",
+		Platform:       PlatformOpenAI,
+		RateMultiplier: 1,
+	})
+	require.NoError(t, err)
+	require.True(t, repo.created.LongContextPricingEnabled)
+	require.True(t, group.LongContextPricingEnabled)
+}
+
+func TestAdminService_CreateGroup_AllowsDisablingLongContextPricing(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+	disabled := false
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                      "disabled-long-context",
+		Platform:                  PlatformOpenAI,
+		RateMultiplier:            1,
+		LongContextPricingEnabled: &disabled,
+	})
+	require.NoError(t, err)
+	require.False(t, repo.created.LongContextPricingEnabled)
+	require.False(t, group.LongContextPricingEnabled)
+}
+
 func TestAdminService_CreateGroup_WithVideoPricing(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
 	svc := &adminServiceImpl{groupRepo: repo}

@@ -1003,6 +1003,13 @@ export default {
         searchPricePer1k: '搜索每千次价格（USD）',
         pricePlaceholder: '可选'
       },
+      modelPricing: {
+        title: '分组逐模型定价',
+        description: '匹配模型后覆盖渠道和内置价格。长上下文阶梯沿用官方/预设价卡，无需再手填区间。音频可用按次层级配置 realtime、tts、stt。',
+        longContext: '启用长上下文阶梯定价',
+        longContextHint: '勾选后按官方/预设阶梯计费；关闭则始终按第一档基础价。',
+        add: '添加模型价格'
+      },
       voicePricing: {
         title: 'Grok Voice 定价',
         description: '分组级 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
@@ -1127,6 +1134,14 @@ export default {
         targetModel: '目标模型',
         targetModelPlaceholder: '例如: gpt-5.4',
         removeExactMapping: '删除精确映射'
+      },
+      openaiLive: {
+        title: 'OpenAI Live',
+        allow: '允许访问 Live',
+        hint: '启用后，此 OpenAI 分组的 API Key 可以创建并控制 Live 语音会话。默认关闭。运行 Sub2API 的服务端必须是 Apple Silicon Mac，并安装官方 ChatGPT App；客户端平台不受限制。',
+        unsupportedTitle: '当前服务端不支持 Live',
+        unsupportedMessage: '当前 Sub2API 服务端无法生成 Live 所需的设备证明，即使开启也不能使用。是否仍然开启？',
+        enableAnyway: '仍然开启'
       },
       invalidRequestFallback: {
         title: '无效请求兜底分组',

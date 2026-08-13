@@ -557,6 +557,71 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 	require.Equal(t, int64(2), store)
 }
 
+func TestGetAvailableModels_IgnoresOpenAIPassthroughMappings(t *testing.T) {
+	groupID := int64(9)
+
+	t.Run("passthrough_only_falls_back_to_defaults", func(t *testing.T) {
+		repo := &modelsListAccountRepoStub{
+			byGroup: map[int64][]Account{
+				groupID: {
+					{
+						ID:       1,
+						Platform: PlatformOpenAI,
+						Extra:    map[string]any{"openai_passthrough": true},
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								"gpt-5.5": "gpt-5.5",
+							},
+						},
+					},
+				},
+			},
+		}
+		svc := &GatewayService{accountRepo: repo}
+
+		require.Nil(t, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
+	})
+
+	t.Run("mixed_accounts_only_use_restrictive_mappings", func(t *testing.T) {
+		repo := &modelsListAccountRepoStub{
+			byGroup: map[int64][]Account{
+				groupID: {
+					{
+						ID:       1,
+						Platform: PlatformOpenAI,
+						Extra:    map[string]any{"openai_passthrough": true},
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								"gpt-5.5": "gpt-5.5",
+							},
+						},
+					},
+					{
+						ID:       2,
+						Platform: PlatformOpenAI,
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								"gpt-5.6-sol":  "gpt-5.6-sol",
+								"gpt-5.4-mini": "gpt-5.4-mini",
+							},
+						},
+					},
+				},
+			},
+		}
+		svc := &GatewayService{
+			accountRepo:        repo,
+			modelsListCache:    gocache.New(time.Minute, time.Minute),
+			modelsListCacheTTL: time.Minute,
+		}
+
+		expected := []string{"gpt-5.4-mini", "gpt-5.6-sol"}
+		require.Equal(t, expected, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
+		require.Equal(t, expected, svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI))
+		require.Equal(t, int64(1), repo.listByGroupCalls.Load())
+	})
+}
+
 func TestGetAvailableModels_ErrorAndGlobalListBranches(t *testing.T) {
 	resetGatewayHotpathStatsForTest()
 
