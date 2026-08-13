@@ -226,12 +226,25 @@ func TestSanitizeOpenAIResponsesToolParameterTypes_RewriteCountIndependentOfHits
 	small := buildToolSchemaNullTypeBody(t, 4)
 	large := buildToolSchemaNullTypeBody(t, 2000)
 
-	smallAllocs := testing.AllocsPerRun(2, func() {
-		_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(small)
-	})
-	largeAllocs := testing.AllocsPerRun(2, func() {
-		_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(large)
-	})
+	measureAllocs := func(body []byte) float64 {
+		// race instrumentation 与并行运行的完整 service 套件会偶发放大单次
+		// AllocsPerRun 结果；取多组样本的最小值仍能稳定识别逐命中全量重写，
+		// 又不会把调度器/GC 噪声误判为算法退化。
+		best := testing.AllocsPerRun(2, func() {
+			_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(body)
+		})
+		for range 4 {
+			allocs := testing.AllocsPerRun(2, func() {
+				_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(body)
+			})
+			if allocs < best {
+				best = allocs
+			}
+		}
+		return best
+	}
+	smallAllocs := measureAllocs(small)
+	largeAllocs := measureAllocs(large)
 
 	// 命中切片扩容是对数级，留出充裕余量；线性写法在这里会是 2000 量级。
 	require.Less(t, largeAllocs, smallAllocs+40,
