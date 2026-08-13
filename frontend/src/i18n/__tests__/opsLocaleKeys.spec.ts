@@ -37,6 +37,22 @@ describe('groups locale key completeness', () => {
     expect(enKeys).toContain('admin.groups.failedToSave')
   })
 
+  const openaiLiveKeys = [
+    'admin.groups.openaiLive.title',
+    'admin.groups.openaiLive.allow',
+    'admin.groups.openaiLive.hint',
+    'admin.groups.openaiLive.unsupportedTitle',
+    'admin.groups.openaiLive.unsupportedMessage',
+    'admin.groups.openaiLive.enableAnyway',
+  ]
+
+  for (const key of openaiLiveKeys) {
+    it(`en and zh locales both have ${key}`, () => {
+      expect(flattenKeys(en)).toContain(key)
+      expect(flattenKeys(zh)).toContain(key)
+    })
+  }
+
   const webSearchPricingKeys = [
     'admin.groups.webSearchPricing.title',
     'admin.groups.webSearchPricing.pricePerCall',
