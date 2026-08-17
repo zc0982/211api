@@ -56,7 +56,7 @@ corepack prepare pnpm@9.15.9 --activate
 
 ### CI 要求
 
-- Go 版本必须是 **1.26.5**。Workflow 通过 `backend/go.mod` 的 `go-version-file` 选择工具链，并在 `backend-ci.yml`、`release.yml` 和 `security-scan.yml` 中硬断言 `go1.26.5`；升级 Go 时必须同步更新 `backend/go.mod` 及这些 workflow 中的版本断言。
+- Go 版本必须是 **1.26.6**：三个 workflow 都用 `go-version-file: backend/go.mod` 取版本，随后硬断言 `go version | grep -q 'go1.26.6'`。升级 Go 时要同时改 `backend/go.mod`、`backend-ci.yml`（两处）、`release.yml`、`security-scan.yml` 里的这句断言，**以及三个 Dockerfile 里的 Go 构建镜像**（`Dockerfile` / `deploy/Dockerfile` 的 `ARG GOLANG_IMAGE`、`backend/Dockerfile` 的 `FROM golang:`）。前者漏了 CI 会在版本校验步骤直接失败；**后者漏了 CI 不会报，而是等到有人用这些 Dockerfile 构建时才失败**（`go.mod requires go >= X (running Y; GOTOOLCHAIN=local)`）。
 - golangci-lint 必须是 **2.9.0**，pnpm 必须是 **9.15.9**
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
 - CI/CD 全部在 GitHub Actions 上运行；镜像仓库为 GHCR（`ghcr.io`）
