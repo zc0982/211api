@@ -86,7 +86,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Verify Go version
         run: |
-          go version | grep -q 'go1.26.5'
+          go version | grep -q 'go1.26.6'
       # setup-go 的 cache 只覆盖模块下载缓存（~/go/pkg/mod），不含编译产物。
       # 实测 CI 上 unit 步骤 409s 中约 250s 是编译、仅 161s 是测试执行，
       # 编译才是真正的瓶颈，故显式缓存 GOCACHE。
@@ -124,7 +124,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Verify Go version
         run: |
-          go version | grep -q 'go1.26.5'
+          go version | grep -q 'go1.26.6'
       - name: Cache Go build artifacts
         uses: actions/cache@v4
         with:
@@ -173,7 +173,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Verify Go version
         run: |
-          go version | grep -q 'go1.26.5'
+          go version | grep -q 'go1.26.6'
       # 与 test job 用不同 key 前缀：两者编译的 tag 组合不同，
       # 共用同一 key 会互相覆盖导致双方命中率都下降。
       - name: Cache Go build artifacts
