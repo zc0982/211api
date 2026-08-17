@@ -1,0 +1,20 @@
+# Generated ORM/runtime code. Keep the hand-written Ent schemas as architecture input.
+backend/ent/**
+!backend/ent/schema/
+!backend/ent/schema/**
+
+# Generated dependency-injection and bundled frontend artifacts.
+backend/cmd/server/wire_gen.go
+backend/internal/web/dist/**
+frontend/dist/**
+frontend/vite.config.js
+frontend/vite.config.d.ts
+*.tsbuildinfo
+
+# Local agent/runtime metadata and transient data are not product architecture.
+.ace-tool/**
+.agents/**
+.claude/**
+.codex/**
+.worktrees/**
+tmp/**

@@ -1,2 +1,0 @@
-{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Defines the main-only race gate, ci-ok dependency contract, and deployment-blocking behavior that this workflow fix must preserve."}
-{"file":".trellis/spec/guides/index.md","reason":"Requires searching configuration values before modification and checking related consumers."}
