@@ -35,6 +35,7 @@ type antigravityRetryLoopParams struct {
 	settingService  *SettingService
 	accountRepo     AccountRepository // 用于智能重试的模型级别限流
 	handleError     func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
+	baseURL         string // 测试可显式注入；生产留空时按 Antigravity 配置解析
 	requestedModel  string // 用于限流检查的原始请求模型
 	isStickySession bool   // 是否为粘性会话（用于账号切换时的缓存计费判断）
 	groupID         int64  // 用于模型级限流时清除粘性会话
@@ -488,7 +489,10 @@ func (s *AntigravityGatewayService) antigravityRetryLoop(p antigravityRetryLoopP
 		}
 	}
 
-	baseURL := resolveAntigravityForwardBaseURL()
+	baseURL := strings.TrimSpace(p.baseURL)
+	if baseURL == "" {
+		baseURL = resolveAntigravityForwardBaseURL()
+	}
 	if baseURL == "" {
 		return nil, errors.New("no antigravity forward base url configured")
 	}
