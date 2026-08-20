@@ -1,4 +1,4 @@
-.PHONY: build generate test test-unit test-integration test-race-service test-e2e
+.PHONY: build generate test test-unit test-integration test-race-service test-version-integrity test-e2e
 
 VERSION ?= $(shell ./scripts/resolve-version.sh)
 LDFLAGS ?= -s -w -X main.Version=$(VERSION)
@@ -28,6 +28,10 @@ test-unit:
 
 test-race-service:
 	go test -tags=unit -race -count=1 ./internal/service
+
+test-version-integrity:
+	sh ./scripts/tests/verify-version-test.sh
+	sh ./scripts/verify-version.sh
 
 test-integration:
 	go test -tags=integration $(INTEGRATION_PKGS)

@@ -48,7 +48,7 @@ corepack prepare pnpm@9.15.9 --activate
 
 | Workflow | 触发条件 | 检查内容 |
 |----------|----------|----------|
-| **backend-ci.yml** | push、pull request | 部署脚本 Shell 语法、单元测试、集成测试、前端检查、golangci-lint |
+| **backend-ci.yml** | main push、pull request | VERSION 完整性、部署脚本 Shell、单元/集成测试、service race、前端检查、golangci-lint |
 | **security-scan.yml** | push、pull request、每周一 03:00 UTC | govulncheck + pnpm audit（例外表 `.github/audit-exceptions.yml`） |
 | **deploy.yml** | `main` push、手动触发 | 构建并推送 `ghcr.io/<owner>/<repo>:main` 与 `:<sha>`，SSH 到生产机 `docker compose pull && up -d` |
 | **release.yml** | `v*` tag push、手动触发 | 发布 GHCR 镜像与 Release 产物 |
@@ -61,14 +61,19 @@ corepack prepare pnpm@9.15.9 --activate
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
 - CI/CD 全部在 GitHub Actions 上运行；镜像仓库为 GHCR（`ghcr.io`）
 - `upstream` remote 仍用于拉取公开上游（Wei-Shaw/sub2api）更新
+- 所有 backend PR 与 main push 都执行同一个 `make test-race-service`；PR 阶段的等待是必需合并门禁，避免数据竞争合并后才阻断 Deploy
+- main 的 Deploy 只等待同一 commit SHA 的 `ci-ok`；镜像 digest、`/health` 和运行中二进制版本必须全部通过
 
 ### 本地测试命令
 
 ```bash
 # 与 GitHub Actions 对应的本地命令
-make -C backend test-unit          # backend-ci.yml: test
-make -C backend test-integration   # backend-ci.yml: test（需要 Docker）
-make test-frontend                 # backend-ci.yml: frontend
+make -C backend test-version-integrity # VERSION 格式及同步目标一致性
+make -C backend test-unit              # backend-ci.yml: test
+make -C backend test-integration       # backend-ci.yml: test（需要 Docker）
+make -C backend test-race-service      # backend-ci.yml: race-service（PR/main）
+go -C backend run ./cmd/server --version # 检查运行时构建版本
+make test-frontend                     # backend-ci.yml: frontend
 golangci-lint run --timeout=30m    # backend-ci.yml: golangci-lint（在 backend/ 下执行）
 
 # 安全扫描（security-scan.yml）
@@ -80,6 +85,7 @@ python tools/check_pnpm_audit_exceptions.py \
 # 部署脚本语法（backend-ci.yml: shell）
 bash -n deploy/apple-container.sh
 bash deploy/tests/apple-container-test.sh
+sh deploy/tests/release-delivery-integrity-test.sh
 ```
 
 ## 四、常见坑点 & 解决方案
@@ -246,8 +252,11 @@ git add ent/       # 生成的文件也要提交
 
 提交 PR 前务必本地验证：
 
+- [ ] `make -C backend test-version-integrity` 通过
 - [ ] `make -C backend test-unit` 通过
 - [ ] `make -C backend test-integration` 通过（需要 Docker）
+- [ ] `make -C backend test-race-service` 通过（所有 backend PR 必跑）
+- [ ] `go -C backend run ./cmd/server --version` 与 `backend/cmd/server/VERSION` 一致
 - [ ] `make test-frontend` 通过
 - [ ] `golangci-lint run --timeout=30m`（在 `backend/` 下执行）无新增问题
 - [ ] `govulncheck ./...`（backend）与 `pnpm audit --prod --audit-level=high`（frontend）通过
@@ -277,12 +286,17 @@ psql -U sub2api -h 127.0.0.1 -d sub2api -f migration.sql
 ### Git 操作
 
 ```bash
-# 同步上游
-git fetch upstream
-git checkout -b sync/upstream-YYYYMMDD main
-git merge upstream/main
+# 按正式 release tag 同步上游（示例目标 v0.1.179）
+git fetch upstream --tags
+git rev-parse --verify 'refs/tags/v0.1.179^{commit}'
+git checkout -b sync/upstream-0.1.179 main
+git merge v0.1.179
+printf '%s\n' '0.1.179' > backend/cmd/server/VERSION
+make -C backend test-version-integrity
+make -C backend test-race-service
+go -C backend run ./cmd/server --version
 git push origin HEAD
-# 然后在 GitHub 创建 pull request（gh pr create）；受保护 main 禁止直接 push
+# 然后创建 PR；受保护 main 禁止直接 push。不要 merge 移动的 upstream/main。
 
 # 创建功能分支
 git checkout -b feature/xxx
@@ -305,6 +319,13 @@ pnpm dev
 # 构建
 pnpm build
 ```
+
+### 上游同步与并行测试约束
+
+- 上游正式 tag 中的 `backend/cmd/server/VERSION` 也可能仍是上一版本。同步完成后必须以目标 tag `vX.Y.Z` 为事实源，将 VERSION 显式规范化为 `X.Y.Z`；不能盲信 tag 内文件。
+- `backend/scripts/resolve-version.sh` 在 exact-tag checkout 时优先取 tag，只保障该 tag 的构建版本；未打 tag 的 main 会回退读取 VERSION，因此 exact-tag 正确不代表可合入 main 的元数据正确。
+- 调用 `t.Parallel()` 的测试及其 goroutine 禁止暂时写包级 slice、singleton、cache、默认 client 等未同步进程级状态；`t.Cleanup` 恢复值不提供并发隔离。
+- 优先通过 request 参数、service 实例或依赖接口注入测试值。确实无法注入时必须取消并行，并在 cleanup/恢复前等待后台 goroutine 完全退出。
 
 ### 后端操作
 

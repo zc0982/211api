@@ -56,6 +56,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Resolve and verify build version
+        id: version
+        run: |
+          backend/scripts/verify-version.sh
+          version=$(tr -d '\r\n' < backend/cmd/server/VERSION)
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "本次部署版本: $version"
+
       - name: Set image name
         id: image
         run: |
@@ -81,6 +89,9 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.value }}
+            COMMIT=${{ github.sha }}
           tags: |
             ${{ steps.image.outputs.name }}:${{ env.IMAGE_TAG }}
             ${{ steps.image.outputs.name }}:${{ github.sha }}
@@ -170,4 +181,15 @@ jobs:
                docker compose ps
                docker compose logs --tail=120 sub2api
                exit 1
-             fi"
+             fi &&
+             expected_version='${{ steps.version.outputs.value }}' &&
+             version_output=\$(SUB2API_IMAGE=\"\$deploy_image\" docker compose exec -T sub2api /app/sub2api --version 2>&1) &&
+             echo \"运行中二进制版本: \$version_output\" &&
+             running_version=\$(printf '%s\\n' \"\$version_output\" | sed -n 's/.*Sub2API \\([0-9][0-9]*\\.[0-9][0-9]*\\.[0-9][0-9]*\\).*/\\1/p' | tail -n 1) &&
+             if [ -z \"\$running_version\" ] || [ \"\$running_version\" != \"\$expected_version\" ]; then
+               echo \"运行中版本不匹配：期望 \$expected_version，实际 \${running_version:-<无法解析>}\" >&2
+               docker compose ps
+               docker compose logs --tail=120 sub2api
+               exit 1
+             fi &&
+             echo \"部署版本校验通过: \$running_version\""
