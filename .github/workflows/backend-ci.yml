@@ -51,6 +51,7 @@ jobs:
             deploy:
               - 'deploy/**'
               - '.github/workflows/backend-ci.yml'
+              - '.github/workflows/deploy.yml'
 
   shell:
     needs: changes
@@ -70,6 +71,7 @@ jobs:
           /bin/sh deploy/tests/docker-compose-security-test.sh
           /bin/sh deploy/tests/docker-compose-openai-timeout-test.sh
           /bin/sh deploy/tests/docker-runtime-resources-test.sh
+          /bin/sh deploy/tests/release-delivery-integrity-test.sh
           /bin/sh deploy/test-caddyfile-cache.sh
 
   test:
@@ -98,6 +100,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gobuild-test-${{ hashFiles('backend/go.sum') }}-
             ${{ runner.os }}-gobuild-test-
+      - name: Verify release version integrity
+        working-directory: backend
+        run: make test-version-integrity
       - name: Verify INTEGRATION_PKGS is up to date
         working-directory: backend
         run: make test-integration-pkgs-check
@@ -108,10 +113,11 @@ jobs:
         working-directory: backend
         run: make test-integration
 
-  # race 检测只在 backend 变更合入 main 后执行，避免为 PR 增加额外等待时间。
+  # backend PR 与 main push 使用同一套 race 门禁：PR 在合并前首检，
+  # main 对部署所绑定的最终 SHA 复验，避免只在合并后才暴露数据竞争。
   race-service:
     needs: changes
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
