@@ -3,103 +3,88 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UserEditModal from '../UserEditModal.vue'
 
-const { update, showSuccess, showError } = vi.hoisted(() => ({
+const { update, updateUserAttributeValues, showSuccess, showError } = vi.hoisted(() => ({
   update: vi.fn(),
+  updateUserAttributeValues: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    users: {
-      update
-    },
-    userAttributes: {
-      updateUserAttributeValues: vi.fn()
-    }
+    users: { update },
+    userAttributes: { updateUserAttributeValues }
   }
 }))
 
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    showSuccess,
-    showError
-  })
+  useAppStore: () => ({ showSuccess, showError })
 }))
 
 vi.mock('@/composables/useClipboard', () => ({
-  useClipboard: () => ({
-    copyToClipboard: vi.fn()
+  useClipboard: () => ({ copyToClipboard: vi.fn() })
+}))
+
+// useStepUp pulls in the API client, which needs the real i18n instance.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key
   })
 }))
 
-vi.mock('@/composables/useStepUp', () => ({
-  useStepUp: () => ({
-    run: (action: () => Promise<unknown>) => action()
-  }),
-  isStepUpBlocked: () => false,
-  isStepUpCancelled: () => false,
-  stepUpBlockReason: () => null
-}))
-
-vi.mock('vue-i18n', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('vue-i18n')>()
-  return {
-    ...actual,
-    useI18n: () => ({
-      t: (key: string) => key
-    })
-  }
-})
-
-const user = {
-  id: 12,
-  email: 'merchant@example.com',
-  username: 'merchant',
-  notes: '',
-  role: 'user',
-  concurrency: 5,
-  rpm_limit: 0
-} as any
-
-const mountModal = () => mount(UserEditModal, {
+const mountModal = (concurrency: number) => mount(UserEditModal, {
   props: {
     show: true,
-    user
+    user: { id: 7, email: 'user@example.test', username: 'user', notes: '', role: 'user', concurrency, rpm_limit: 0 } as never
   },
   global: {
     stubs: {
       BaseDialog: {
         props: ['show', 'title'],
-        emits: ['close'],
         template: '<div v-if="show"><slot /><slot name="footer" /></div>'
       },
-      UserAttributeForm: true,
+      Select: true,
       Icon: true,
+      UserAttributeForm: true,
       TotpStepUpDialog: true
     }
   }
 })
 
-describe('UserEditModal', () => {
+describe('UserEditModal concurrency', () => {
   beforeEach(() => {
     update.mockReset()
+    updateUserAttributeValues.mockReset()
     showSuccess.mockReset()
     showError.mockReset()
-    update.mockResolvedValue({ ...user, concurrency: 0 })
+    update.mockResolvedValue({})
   })
 
-  it('allows zero concurrency and sends it to the update API', async () => {
-    const wrapper = mountModal()
+  // Regression coverage for issue #5977: the gateway treats concurrency <= 0 as
+  // unlimited (AcquireUserSlot) and both the batch limits endpoint and the bulk
+  // edit modal accept 0, so this dialog must not be the only place that rejects
+  // it — doing so blocked every other edit on such a user.
+  it('saves an unlimited (0) concurrency instead of blocking the whole form', async () => {
+    const wrapper = mountModal(0)
 
-    const input = wrapper.get('[data-test="concurrency-input"]')
-    expect(input.attributes('min')).toBe('0')
-
-    await input.setValue('0')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(showError).not.toHaveBeenCalledWith('admin.users.concurrencyMin')
-    expect(update).toHaveBeenCalledWith(12, expect.objectContaining({ concurrency: 0 }))
+    expect(showError).not.toHaveBeenCalled()
+    expect(update).toHaveBeenCalledWith(7, expect.objectContaining({ concurrency: 0 }))
+    expect(wrapper.emitted('success')).toBeTruthy()
+  })
+
+  it('still rejects a negative concurrency', async () => {
+    const wrapper = mountModal(3)
+
+    await wrapper.get('[data-test="concurrency-input"]').setValue('-1')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.users.concurrencyNonNegative')
+    expect(update).not.toHaveBeenCalled()
   })
 })

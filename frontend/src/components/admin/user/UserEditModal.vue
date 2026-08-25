@@ -49,6 +49,7 @@
           min="0"
           step="1"
           class="input"
+          :placeholder="t('admin.users.form.concurrencyPlaceholder')"
           data-test="concurrency-input"
         />
         <p class="input-hint">{{ t('admin.users.form.concurrencyHint') }}</p>
@@ -140,8 +141,9 @@ const handleUpdateUser = async () => {
     appStore.showError(t('admin.users.emailRequired'))
     return
   }
+  // 0 = 不限制，与网关 (AcquireUserSlot: maxConcurrency <= 0) 和批量改限额一致
   if (!Number.isInteger(form.concurrency) || form.concurrency < 0) {
-    appStore.showError(t('admin.users.concurrencyMin'))
+    appStore.showError(t('admin.users.concurrencyNonNegative'))
     return
   }
   const userId = props.user.id
