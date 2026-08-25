@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
@@ -60,6 +61,18 @@ func (r *epAccountRepo) SetError(_ context.Context, _ int64, _ string) error {
 // Helpers
 // ---------------------------------------------------------------------------
 
+func saveAndSetBaseURLs(t *testing.T) {
+	t.Helper()
+	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
+	oldAvail := antigravity.DefaultURLAvailability
+	antigravity.BaseURLs = []string{"https://ep-test.example"}
+	antigravity.DefaultURLAvailability = antigravity.NewURLAvailability(time.Minute)
+	t.Cleanup(func() {
+		antigravity.BaseURLs = oldBaseURLs
+		antigravity.DefaultURLAvailability = oldAvail
+	})
+}
+
 func newRetryParams(account *Account, upstream HTTPUpstream, handleError func(context.Context, string, *Account, int, http.Header, []byte, string, int64, string, bool) *handleModelRateLimitResult) antigravityRetryLoopParams {
 	return antigravityRetryLoopParams{
 		ctx:            context.Background(),
@@ -69,7 +82,6 @@ func newRetryParams(account *Account, upstream HTTPUpstream, handleError func(co
 		action:         "generateContent",
 		body:           []byte(`{"input":"test"}`),
 		httpUpstream:   upstream,
-		baseURL:        "https://ep-test.example",
 		requestedModel: "claude-sonnet-4-5",
 		handleError:    handleError,
 	}
@@ -129,6 +141,8 @@ func TestRetryLoop_ErrorPolicy_CustomErrorCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			saveAndSetBaseURLs(t)
+
 			upstream := &epFixedUpstream{statusCode: tt.upstreamStatus, body: tt.upstreamBody}
 			repo := &epAccountRepo{}
 			rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -201,6 +215,8 @@ func TestRetryLoop_ErrorPolicy_TempUnschedulable(t *testing.T) {
 	}
 
 	t.Run("503_overloaded_matches_rule", func(t *testing.T) {
+		saveAndSetBaseURLs(t)
+
 		upstream := &epFixedUpstream{statusCode: 503, body: `overloaded`}
 		repo := &epAccountRepo{}
 		rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -222,6 +238,8 @@ func TestRetryLoop_ErrorPolicy_TempUnschedulable(t *testing.T) {
 	})
 
 	t.Run("429_rate_limited_keyword_matches_rule", func(t *testing.T) {
+		saveAndSetBaseURLs(t)
+
 		upstream := &epFixedUpstream{statusCode: 429, body: `rate limited keyword`}
 		repo := &epAccountRepo{}
 		rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -243,6 +261,8 @@ func TestRetryLoop_ErrorPolicy_TempUnschedulable(t *testing.T) {
 	})
 
 	t.Run("503_body_no_match_continues_default_retry", func(t *testing.T) {
+		saveAndSetBaseURLs(t)
+
 		upstream := &epFixedUpstream{statusCode: 503, body: `random`}
 		repo := &epAccountRepo{}
 		rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -275,6 +295,8 @@ func TestRetryLoop_ErrorPolicy_TempUnschedulable(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRetryLoop_ErrorPolicy_NilRateLimitService(t *testing.T) {
+	saveAndSetBaseURLs(t)
+
 	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"rate limited"}`}
 	// rateLimitService is nil — must not panic
 	svc := &AntigravityGatewayService{rateLimitService: nil}
@@ -309,7 +331,8 @@ func TestRetryLoop_ErrorPolicy_NilRateLimitService(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRetryLoop_ErrorPolicy_NoPolicy_OriginalBehavior(t *testing.T) {
-	t.Parallel()
+	saveAndSetBaseURLs(t)
+
 	upstream := &epFixedUpstream{statusCode: 429, body: `{"error":"rate limited"}`}
 	repo := &epAccountRepo{}
 	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -389,6 +412,8 @@ func TestCustomErrorCode599_SkippedErrors_Return500_NoRateLimit(t *testing.T) {
 
 	for _, upstreamStatus := range errorCodes {
 		t.Run(http.StatusText(upstreamStatus), func(t *testing.T) {
+			saveAndSetBaseURLs(t)
+
 			upstream := &epFixedUpstream{
 				statusCode: upstreamStatus,
 				body:       `{"error":"some upstream error"}`,
