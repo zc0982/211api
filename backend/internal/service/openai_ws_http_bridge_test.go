@@ -1676,7 +1676,10 @@ func TestOpenAIWSHTTPBridgeAcceptsFirstFrameAboveLegacy16MiB(t *testing.T) {
 		defer func() { _ = conn.CloseNow() }()
 		conn.SetReadLimit(ResolveOpenAIWSClientReadLimitBytes(cfg))
 
-		readCtx, cancelRead := context.WithTimeout(r.Context(), 10*time.Second)
+		// Reading a 17 MiB frame under -race is substantially slower on shared CI
+		// runners; keep this above the normal-path latency budget while still
+		// bounding a genuinely stalled client.
+		readCtx, cancelRead := context.WithTimeout(r.Context(), 30*time.Second)
 		msgType, firstMessage, err := conn.Read(readCtx)
 		cancelRead()
 		if err != nil {
