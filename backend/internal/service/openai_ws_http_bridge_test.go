@@ -1717,7 +1717,9 @@ func TestOpenAIWSHTTPBridgeAcceptsFirstFrameAboveLegacy16MiB(t *testing.T) {
 
 	var eventTypes []string
 	for {
-		readCtx, cancelRead := context.WithTimeout(context.Background(), 10*time.Second)
+		// The echoed response is also larger than 16 MiB and takes longer to
+		// receive under -race on shared CI runners.
+		readCtx, cancelRead := context.WithTimeout(context.Background(), 30*time.Second)
 		msgType, event, readErr := clientConn.Read(readCtx)
 		cancelRead()
 		require.NoError(t, readErr)
