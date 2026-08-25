@@ -22,6 +22,7 @@ assert_contains .github/workflows/deploy.yml 'ref: ${{ github.sha }}'
 assert_contains .github/workflows/deploy.yml 'VERSION=${{ steps.version.outputs.value }}'
 assert_contains .github/workflows/deploy.yml 'COMMIT=${{ github.sha }}'
 assert_contains .github/workflows/deploy.yml 'docker compose exec -T sub2api /app/sub2api --version'
+assert_contains deploy/docker-compose.local.yml 'image: ${SUB2API_IMAGE:-weishaw/sub2api:latest}'
 
 race_block=$(awk '
   /^  race-service:$/ { in_job = 1 }
