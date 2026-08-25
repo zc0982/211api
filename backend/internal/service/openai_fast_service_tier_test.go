@@ -778,8 +778,6 @@ func TestUpstreamResponseModelObserver_ObservesServiceTier(t *testing.T) {
 }
 
 func TestResolvedOpenAIUpstreamServiceTier(t *testing.T) {
-	t.Parallel()
-
 	priority := func() *string { v := "priority"; return &v }()
 
 	t.Run("upstream echo wins over outbound tier", func(t *testing.T) {
