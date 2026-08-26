@@ -116,8 +116,6 @@ func TestIsUpstreamModelRestrictedByChannel_CompactMappingMatchesForwardPath(t *
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
 				ID:                 1,
 				Status:             StatusActive,
@@ -185,8 +183,6 @@ func TestIsUpstreamModelRestrictedByChannel_PassthroughMatchesForwardPath(t *tes
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
 				ID:                 1,
 				Status:             StatusActive,
@@ -242,8 +238,6 @@ func TestIsUpstreamModelRestrictedByChannel_PassthroughFlagWithRawChatFallbackMa
 			name = "legacy compact"
 		}
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
 			channelSvc := newTestChannelService(makeStandardRepo(Channel{
 				ID:                 1,
 				Status:             StatusActive,
