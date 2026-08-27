@@ -5,6 +5,14 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Production maintenance operation
+        required: true
+        default: cloudflared-preflight
+        type: choice
+        options:
+          - cloudflared-preflight
 
 permissions:
   contents: read
@@ -44,11 +52,132 @@ jobs:
           wait-interval: 15
           allowed-conclusions: success,skipped
 
+  cloudflared-maintenance:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'cloudflared-preflight'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Prepare SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' '${{ secrets.DEPLOY_SSH_KEY }}' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Inspect cloudflared installation
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+
+          echo "host=$(hostnamectl --static 2>/dev/null || hostname)"
+          if [[ -r /etc/os-release ]]; then
+            . /etc/os-release
+            echo "os=${ID:-unknown} version=${VERSION_ID:-unknown} codename=${VERSION_CODENAME:-unknown}"
+          fi
+          echo "machine_arch=$(uname -m)"
+          if command -v dpkg >/dev/null 2>&1; then
+            echo "package_arch=$(dpkg --print-architecture)"
+          fi
+
+          unit_files=()
+          while IFS= read -r unit; do
+            [[ -n "$unit" ]] && unit_files+=("$unit")
+          done < <(
+            {
+              systemctl list-unit-files --type=service --no-legend 2>/dev/null \
+                | awk 'tolower($1) ~ /cloudflared/ {print $1}'
+              grep -RIl --include='*.service' 'cloudflared' \
+                /etc/systemd/system /usr/lib/systemd/system /lib/systemd/system 2>/dev/null \
+                | xargs -r -n1 basename
+            } | sort -u
+          )
+
+          if ((${#unit_files[@]})); then
+            printf 'systemd_units=%s\n' "${unit_files[*]}"
+            for unit in "${unit_files[@]}"; do
+              systemctl show "$unit" --no-pager \
+                -p LoadState -p ActiveState -p SubState -p UnitFileState \
+                -p FragmentPath -p MainPID -p ExecMainStatus
+            done
+          else
+            echo 'systemd_units=<none>'
+          fi
+
+          binary=''
+          if command -v cloudflared >/dev/null 2>&1; then
+            binary=$(readlink -f "$(command -v cloudflared)")
+          else
+            for unit in "${unit_files[@]}"; do
+              pid=$(systemctl show "$unit" -p MainPID --value 2>/dev/null || true)
+              if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && [[ -e "/proc/$pid/exe" ]]; then
+                candidate=$(readlink -f "/proc/$pid/exe")
+                if [[ $(basename "$candidate") == cloudflared ]]; then
+                  binary=$candidate
+                  break
+                fi
+              fi
+            done
+          fi
+
+          if [[ -n "$binary" ]]; then
+            echo 'install_surface=native'
+            echo "binary=$binary"
+            "$binary" version --short 2>&1 || "$binary" version 2>&1
+            if command -v dpkg-query >/dev/null 2>&1 \
+              && dpkg-query -W cloudflared >/dev/null 2>&1; then
+              echo 'package_manager=dpkg'
+              dpkg-query -W -f='package_status=${db:Status-Status}\npackage_version=${Version}\npackage_architecture=${Architecture}\n' cloudflared
+            elif [[ -e /usr/local/etc/cloudflared/.installedFromPackageManager ]]; then
+              echo 'package_manager=marker-present'
+            else
+              echo 'package_manager=standalone-binary'
+            fi
+            exit 0
+          fi
+
+          container_found=0
+          if command -v docker >/dev/null 2>&1; then
+            while IFS=$'\t' read -r name image status; do
+              [[ -z "$name" ]] && continue
+              if [[ "${name,,} ${image,,}" == *cloudflared* ]]; then
+                container_found=1
+                printf 'container_runtime=docker name=%s image=%s status=%s\n' "$name" "$image" "$status"
+                docker exec "$name" cloudflared version --short 2>&1 \
+                  || docker exec "$name" cloudflared version 2>&1 \
+                  || true
+              fi
+            done < <(docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}')
+          fi
+
+          if command -v podman >/dev/null 2>&1; then
+            while IFS=$'\t' read -r name image status; do
+              [[ -z "$name" ]] && continue
+              if [[ "${name,,} ${image,,}" == *cloudflared* ]]; then
+                container_found=1
+                printf 'container_runtime=podman name=%s image=%s status=%s\n' "$name" "$image" "$status"
+                podman exec "$name" cloudflared version --short 2>&1 \
+                  || podman exec "$name" cloudflared version 2>&1 \
+                  || true
+              fi
+            done < <(podman ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}')
+          fi
+
+          if ((container_found == 0)); then
+            echo 'cloudflared_installation=<not-found>' >&2
+            exit 20
+          fi
+          REMOTE
+
   deploy:
     needs: wait-ci
-    # wait-ci 在 workflow_dispatch 下被 skip，此处需显式放行 skipped，
-    # 否则 deploy 会被连带跳过（默认只在依赖 success 时运行）。
-    if: always() && needs.wait-ci.result != 'failure' && needs.wait-ci.result != 'cancelled'
+    # 应用部署只允许 main push 在 CI 通过后进入。生产维护的
+    # workflow_dispatch 不得构建镜像、覆盖配置或重启应用。
+    if: always() && github.event_name == 'push' && needs.wait-ci.result == 'success'
     runs-on: ubuntu-latest
     environment: production
 
