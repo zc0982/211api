@@ -7,11 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Production maintenance operation
+        description: Production operation
         required: true
-        default: cloudflared-preflight
+        default: deploy-application
         type: choice
         options:
+          - deploy-application
           - cloudflared-preflight
           - cloudflared-update-2026.8.2
 
@@ -65,16 +66,29 @@ jobs:
 
     steps:
       - name: Prepare SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          ((10#$DEPLOY_PORT >= 1 && 10#$DEPLOY_PORT <= 65535))
+          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]]
           install -m 700 -d ~/.ssh
-          printf '%s\n' '${{ secrets.DEPLOY_SSH_KEY }}' > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Inspect cloudflared installation
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
             'bash -s' <<'REMOTE'
           set -euo pipefail
 
@@ -179,9 +193,13 @@ jobs:
 
       - name: Update cloudflared to 2026.8.2
         if: inputs.operation == 'cloudflared-update-2026.8.2'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
             'bash -s' <<'REMOTE'
           set -Eeuo pipefail
 
@@ -204,6 +222,10 @@ jobs:
             set +e
             if ((changed == 1)) && [[ -n "$backup" && -f "$backup" ]]; then
               echo "upgrade_failed=true; restoring=$backup" >&2
+              if ! sha256sum -c "${backup}.sha256"; then
+                echo 'automatic_rollback=<backup-checksum-failed>' >&2
+                exit "$original_status"
+              fi
               install -o "$owner" -g "$group" -m "$mode" "$backup" "${binary}.rollback"
               mv -f "${binary}.rollback" "$binary"
               systemctl restart "$service"
@@ -255,7 +277,7 @@ jobs:
 
           backup_dir='/var/lib/cloudflared-maintenance/backups'
           install -d -m 0700 "$backup_dir"
-          backup="$backup_dir/cloudflared-${current_version}-$(date -u +%Y%m%dT%H%M%SZ)"
+          backup="$backup_dir/cloudflared-${current_version}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
           cp --preserve=mode,ownership,timestamps "$binary" "$backup"
           sha256sum "$backup" > "${backup}.sha256"
           echo "backup=$backup"
@@ -298,6 +320,7 @@ jobs:
             break
           done
           echo "metrics_verified=$metrics_verified"
+          [[ "$metrics_verified" == 1 ]]
 
           health=''
           for attempt in $(seq 1 12); do
@@ -307,8 +330,8 @@ jobs:
             fi
             sleep 5
           done
-          echo "public_health=$health"
           grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' <<<"$health"
+          echo 'public_health=ok'
 
           changed=0
           trap - ERR
@@ -317,9 +340,12 @@ jobs:
 
   deploy:
     needs: wait-ci
-    # 应用部署只允许 main push 在 CI 通过后进入。生产维护的
-    # workflow_dispatch 不得构建镜像、覆盖配置或重启应用。
-    if: always() && github.event_name == 'push' && needs.wait-ci.result == 'success'
+    # main push 必须等待同 SHA CI。手动应用部署保留既有显式放行语义；
+    # cloudflared 维护操作不得构建镜像、覆盖配置或重启应用。
+    if: >-
+      always() &&
+      ((github.event_name == 'push' && needs.wait-ci.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-application'))
     runs-on: ubuntu-latest
     environment: production
 
