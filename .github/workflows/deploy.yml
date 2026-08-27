@@ -5,6 +5,16 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Production operation
+        required: true
+        default: deploy-application
+        type: choice
+        options:
+          - deploy-application
+          - cloudflared-preflight
+          - cloudflared-update-2026.8.2
 
 permissions:
   contents: read
@@ -44,11 +54,298 @@ jobs:
           wait-interval: 15
           allowed-conclusions: success,skipped
 
+  cloudflared-maintenance:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.operation == 'cloudflared-preflight' ||
+      inputs.operation == 'cloudflared-update-2026.8.2')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Prepare SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          ((10#$DEPLOY_PORT >= 1 && 10#$DEPLOY_PORT <= 65535))
+          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]]
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Inspect cloudflared installation
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+
+          echo "host=$(hostnamectl --static 2>/dev/null || hostname)"
+          if [[ -r /etc/os-release ]]; then
+            . /etc/os-release
+            echo "os=${ID:-unknown} version=${VERSION_ID:-unknown} codename=${VERSION_CODENAME:-unknown}"
+          fi
+          echo "machine_arch=$(uname -m)"
+          if command -v dpkg >/dev/null 2>&1; then
+            echo "package_arch=$(dpkg --print-architecture)"
+          fi
+
+          unit_files=()
+          while IFS= read -r unit; do
+            [[ -n "$unit" ]] && unit_files+=("$unit")
+          done < <(
+            {
+              systemctl list-unit-files --type=service --no-legend 2>/dev/null \
+                | awk 'tolower($1) ~ /cloudflared/ {print $1}'
+              grep -RIl --include='*.service' 'cloudflared' \
+                /etc/systemd/system /usr/lib/systemd/system /lib/systemd/system 2>/dev/null \
+                | xargs -r -n1 basename
+            } | sort -u
+          )
+
+          if ((${#unit_files[@]})); then
+            printf 'systemd_units=%s\n' "${unit_files[*]}"
+            for unit in "${unit_files[@]}"; do
+              systemctl show "$unit" --no-pager \
+                -p LoadState -p ActiveState -p SubState -p UnitFileState \
+                -p FragmentPath -p MainPID -p ExecMainStatus
+            done
+          else
+            echo 'systemd_units=<none>'
+          fi
+
+          binary=''
+          if command -v cloudflared >/dev/null 2>&1; then
+            binary=$(readlink -f "$(command -v cloudflared)")
+          else
+            for unit in "${unit_files[@]}"; do
+              pid=$(systemctl show "$unit" -p MainPID --value 2>/dev/null || true)
+              if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && [[ -e "/proc/$pid/exe" ]]; then
+                candidate=$(readlink -f "/proc/$pid/exe")
+                if [[ $(basename "$candidate") == cloudflared ]]; then
+                  binary=$candidate
+                  break
+                fi
+              fi
+            done
+          fi
+
+          if [[ -n "$binary" ]]; then
+            echo 'install_surface=native'
+            echo "binary=$binary"
+            "$binary" version --short 2>&1 || "$binary" version 2>&1
+            if command -v dpkg-query >/dev/null 2>&1 \
+              && dpkg-query -W cloudflared >/dev/null 2>&1; then
+              echo 'package_manager=dpkg'
+              dpkg-query -W -f='package_status=${db:Status-Status}\npackage_version=${Version}\npackage_architecture=${Architecture}\n' cloudflared
+            elif [[ -e /usr/local/etc/cloudflared/.installedFromPackageManager ]]; then
+              echo 'package_manager=marker-present'
+            else
+              echo 'package_manager=standalone-binary'
+            fi
+            exit 0
+          fi
+
+          container_found=0
+          if command -v docker >/dev/null 2>&1; then
+            while IFS=$'\t' read -r name image status; do
+              [[ -z "$name" ]] && continue
+              if [[ "${name,,} ${image,,}" == *cloudflared* ]]; then
+                container_found=1
+                printf 'container_runtime=docker name=%s image=%s status=%s\n' "$name" "$image" "$status"
+                docker exec "$name" cloudflared version --short 2>&1 \
+                  || docker exec "$name" cloudflared version 2>&1 \
+                  || true
+              fi
+            done < <(docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}')
+          fi
+
+          if command -v podman >/dev/null 2>&1; then
+            while IFS=$'\t' read -r name image status; do
+              [[ -z "$name" ]] && continue
+              if [[ "${name,,} ${image,,}" == *cloudflared* ]]; then
+                container_found=1
+                printf 'container_runtime=podman name=%s image=%s status=%s\n' "$name" "$image" "$status"
+                podman exec "$name" cloudflared version --short 2>&1 \
+                  || podman exec "$name" cloudflared version 2>&1 \
+                  || true
+              fi
+            done < <(podman ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}')
+          fi
+
+          if ((container_found == 0)); then
+            echo 'cloudflared_installation=<not-found>' >&2
+            exit 20
+          fi
+          REMOTE
+
+      - name: Update cloudflared to 2026.8.2
+        if: inputs.operation == 'cloudflared-update-2026.8.2'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+
+          readonly target_version='2026.8.2'
+          readonly expected_current_version='2026.7.1'
+          readonly expected_sha256='fcfb02b575a52ca1af2e3267af4e1517bcdeb30ac48c834c69abaed3c0576ad2'
+          readonly service='cloudflared-211api.service'
+          readonly binary='/usr/local/bin/cloudflared'
+          readonly release_url="https://github.com/cloudflare/cloudflared/releases/download/${target_version}/cloudflared-linux-amd64"
+
+          changed=0
+          backup=''
+          owner=''
+          group=''
+          mode=''
+
+          rollback() {
+            original_status=$?
+            trap - ERR
+            set +e
+            if ((changed == 1)) && [[ -n "$backup" && -f "$backup" ]]; then
+              echo "upgrade_failed=true; restoring=$backup" >&2
+              if ! sha256sum -c "${backup}.sha256"; then
+                echo 'automatic_rollback=<backup-checksum-failed>' >&2
+                exit "$original_status"
+              fi
+              install -o "$owner" -g "$group" -m "$mode" "$backup" "${binary}.rollback"
+              mv -f "${binary}.rollback" "$binary"
+              systemctl restart "$service"
+              restored_version=$($binary version --short 2>/dev/null)
+              restored_state=$(systemctl is-active "$service" 2>/dev/null)
+              echo "rollback_version=$restored_version"
+              echo "rollback_service_state=$restored_state"
+              if [[ "$restored_version" != "$expected_current_version" || "$restored_state" != active ]]; then
+                echo 'automatic_rollback=<failed>' >&2
+              else
+                echo 'automatic_rollback=<succeeded>' >&2
+              fi
+            fi
+            exit "$original_status"
+          }
+          trap rollback ERR
+
+          [[ $(uname -m) == x86_64 ]]
+          [[ $(readlink -f "$(command -v cloudflared)") == "$binary" ]]
+          [[ $(systemctl show "$service" -p LoadState --value) == loaded ]]
+          [[ $(systemctl is-enabled "$service") == enabled ]]
+          [[ $(systemctl is-active "$service") == active ]]
+
+          current_version=$($binary version --short)
+          echo "current_version=$current_version"
+          echo "target_version=$target_version"
+          if [[ "$current_version" == "$target_version" ]]; then
+            echo 'upgrade=<already-current>'
+            exit 0
+          fi
+          [[ "$current_version" == "$expected_current_version" ]]
+
+          owner=$(stat -c '%u' "$binary")
+          group=$(stat -c '%g' "$binary")
+          mode=$(stat -c '%a' "$binary")
+          old_pid=$(systemctl show "$service" -p MainPID --value)
+
+          work_dir=$(mktemp -d /var/tmp/cloudflared-update.XXXXXX)
+          candidate="$work_dir/cloudflared-${target_version}"
+          trap 'rm -f "$candidate"; rmdir "$work_dir" 2>/dev/null || true' EXIT
+
+          curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
+            --output "$candidate" "$release_url"
+          printf '%s  %s\n' "$expected_sha256" "$candidate" | sha256sum -c -
+          chmod 0755 "$candidate"
+          candidate_version=$($candidate version --short)
+          echo "candidate_version=$candidate_version"
+          [[ "$candidate_version" == "$target_version" ]]
+
+          backup_dir='/var/lib/cloudflared-maintenance/backups'
+          install -d -m 0700 "$backup_dir"
+          backup="$backup_dir/cloudflared-${current_version}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+          cp --preserve=mode,ownership,timestamps "$binary" "$backup"
+          sha256sum "$backup" > "${backup}.sha256"
+          echo "backup=$backup"
+
+          install -o "$owner" -g "$group" -m "$mode" "$candidate" "${binary}.new"
+          mv -f "${binary}.new" "$binary"
+          changed=1
+          systemctl restart "$service"
+
+          for attempt in $(seq 1 30); do
+            if [[ $(systemctl is-active "$service" 2>/dev/null) == active ]]; then
+              break
+            fi
+            sleep 1
+          done
+
+          new_version=$($binary version --short)
+          new_state=$(systemctl is-active "$service")
+          new_pid=$(systemctl show "$service" -p MainPID --value)
+          exec_status=$(systemctl show "$service" -p ExecMainStatus --value)
+          echo "new_version=$new_version"
+          echo "service_state=$new_state"
+          echo "service_pid_changed=$([[ "$new_pid" != "$old_pid" ]] && echo true || echo false)"
+          echo "service_exec_status=$exec_status"
+          [[ "$new_version" == "$target_version" ]]
+          [[ "$new_state" == active ]]
+          [[ "$new_pid" =~ ^[1-9][0-9]*$ && "$new_pid" != "$old_pid" ]]
+          [[ "$exec_status" == 0 ]]
+
+          metrics_verified=0
+          for port in 20241 20242 20243 20244 20245; do
+            metrics=$(curl --fail --silent --max-time 2 "http://127.0.0.1:${port}/metrics" 2>/dev/null || true)
+            [[ -z "$metrics" ]] && continue
+            ha_connections=$(printf '%s\n' "$metrics" \
+              | awk '$1 == "cloudflared_tunnel_ha_connections" {sum += $2} END {print sum + 0}')
+            echo "metrics_port=$port"
+            echo "ha_connections=$ha_connections"
+            awk -v value="$ha_connections" 'BEGIN {exit !(value > 0)}'
+            metrics_verified=1
+            break
+          done
+          echo "metrics_verified=$metrics_verified"
+          [[ "$metrics_verified" == 1 ]]
+
+          health=''
+          for attempt in $(seq 1 12); do
+            if health=$(curl --fail --silent --show-error --max-time 10 \
+              'https://www.211api.com/health'); then
+              break
+            fi
+            sleep 5
+          done
+          grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' <<<"$health"
+          echo 'public_health=ok'
+
+          changed=0
+          trap - ERR
+          echo 'upgrade=<succeeded>'
+          REMOTE
+
   deploy:
     needs: wait-ci
-    # wait-ci 在 workflow_dispatch 下被 skip，此处需显式放行 skipped，
-    # 否则 deploy 会被连带跳过（默认只在依赖 success 时运行）。
-    if: always() && needs.wait-ci.result != 'failure' && needs.wait-ci.result != 'cancelled'
+    # main push 必须等待同 SHA CI。手动应用部署保留既有显式放行语义；
+    # cloudflared 维护操作不得构建镜像、覆盖配置或重启应用。
+    if: >-
+      always() &&
+      ((github.event_name == 'push' && needs.wait-ci.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-application'))
     runs-on: ubuntu-latest
     environment: production
 
