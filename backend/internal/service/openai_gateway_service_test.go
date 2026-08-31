@@ -2467,7 +2467,7 @@ func TestOpenAIStreamingPassthroughKeepaliveUsesDownstreamIdle(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "response.completed")
 }
 
-func TestOpenAIStreamingPassthroughSkipsKeepaliveBeforeOutput(t *testing.T) {
+func TestOpenAIStreamingPassthroughKeepsPreOutputConnectionAliveForFailover(t *testing.T) {
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
 			StreamKeepaliveInterval: 1,
@@ -2505,8 +2505,9 @@ func TestOpenAIStreamingPassthroughSkipsKeepaliveBeforeOutput(t *testing.T) {
 	case err := <-done:
 		var failoverErr *UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
-		require.False(t, c.Writer.Written(), "keepalive must not commit before failover is decided")
-		require.Empty(t, rec.Body.String())
+		require.True(t, c.Writer.Written(), "pre-output keepalive should commit the streaming response")
+		require.Contains(t, rec.Body.String(), ": keepalive\n\n")
+		require.Equal(t, -1, OpenAICompactKeepaliveAdjustedWrittenSize(c), "keepalive bytes must not block pre-output failover")
 	case <-time.After(3 * time.Second):
 		t.Fatal("stream did not finish")
 	}
@@ -3870,7 +3871,11 @@ func TestHandleSSEToJSON_NoFinalResponseKeepsSSEBody(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `data: {"type":"response.in_progress"`)
 }
 
-func TestHandleSSEToJSON_ResponseFailedReturnsProtocolError(t *testing.T) {
+// 无账号时没有可换的对象：newOpenAIStreamFailoverError 要拿 account 记录 ops 归属与
+// 账号健康，故这一支保持原有的协议错误行为。带真实账号的同一报文改为换号，
+// 由 TestNonStreamingSSEToJSON_UnclassifiedFailedEventFailsOver 钉死（issue #5281）。
+func TestHandleSSEToJSON_ResponseFailedWithoutAccountReturnsProtocolError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
