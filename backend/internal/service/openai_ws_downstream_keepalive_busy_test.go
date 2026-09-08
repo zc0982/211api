@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"net"
@@ -211,7 +212,7 @@ func TestOpenAIWSPassthroughDownstreamKeepaliveBusyReaderRealSocket(t *testing.T
 	}
 }
 
-// Pause a real transport write after coder/websocket has acquired writeFrameMu.
+// Pause a large business write after coder/websocket has acquired writeFrameMu.
 // This models a slow frame without depending on platform TCP buffer sizes.
 type keepaliveBlockedNetConn struct {
 	net.Conn
@@ -223,7 +224,11 @@ type keepaliveBlockedNetConn struct {
 func (c *keepaliveBlockedNetConn) unblock() { c.releaseOnce.Do(func() { close(c.release) }) }
 
 func (c *keepaliveBlockedNetConn) Write(p []byte) (int, error) {
-	if c.paused.Load() {
+	// Server control frames are unmasked and at most 2 header + 125 payload
+	// bytes. The 1 MiB business message fills the buffered writer, so stall
+	// only its large writes. A Ping that wins the race must remain writable.
+	const maxServerControlFrameBytes = 2 + 125
+	if c.paused.Load() && len(p) > maxServerControlFrameBytes {
 		c.enterOnce.Do(func() { close(c.entered) })
 		<-c.release
 	}
@@ -256,37 +261,65 @@ func (w keepaliveHijackWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func TestOpenAIWSPassthroughDownstreamKeepaliveBusyWriterRealSocket(t *testing.T) {
-	upstream := newStagedPassthroughConn()
-	transport := &keepaliveBlockedNetConn{entered: make(chan struct{}), release: make(chan struct{})}
-	h := startDownstreamKeepaliveTestRelay(t, upstream, nil, func(w http.ResponseWriter) http.ResponseWriter {
-		return keepaliveHijackWriter{ResponseWriter: w, conn: transport}
-	}, nil)
-	t.Cleanup(transport.unblock)
-	upstream.Send(`{"type":"response.created","response":{"id":"resp_slow_write"}}`)
-	h.readFrame(t)
-	transport.paused.Store(true)
-	upstream.Send(`{"type":"response.output_text.delta","delta":"` + strings.Repeat("x", 1<<20) + `"}`)
-	select {
-	case <-transport.entered:
-	case <-time.After(time.Second):
-		t.Fatal("business write did not acquire the transport write lock")
+	for _, mode := range []string{"business_write_first", "ping_before_business_write"} {
+		t.Run(mode, func(t *testing.T) {
+			upstream := newStagedPassthroughConn()
+			transport := &keepaliveBlockedNetConn{entered: make(chan struct{}), release: make(chan struct{})}
+			ready, releaseBusiness := make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			startBusiness := func() { releaseOnce.Do(func() { close(releaseBusiness) }) }
+			h := startDownstreamKeepaliveTestRelay(t, upstream, nil, func(w http.ResponseWriter) http.ResponseWriter {
+				return keepaliveHijackWriter{ResponseWriter: w, conn: transport}
+			}, nil, func(options *openaiwsv2.RelayOptions) {
+				if mode == "ping_before_business_write" {
+					options.BeforeClientWrite = func(_ coderws.MessageType, payload []byte) {
+						if bytes.HasPrefix(payload, []byte(`{"type":"response.output_text.delta"`)) {
+							close(ready)
+							<-releaseBusiness
+						}
+					}
+				}
+			})
+			t.Cleanup(transport.unblock)
+			t.Cleanup(startBusiness)
+			upstream.Send(`{"type":"response.created","response":{"id":"resp_slow_write"}}`)
+			h.readFrame(t)
+			transport.paused.Store(true)
+			upstream.Send(`{"type":"response.output_text.delta","delta":"` + strings.Repeat("x", 1<<20) + `"}`)
+			if mode == "ping_before_business_write" {
+				select {
+				case <-ready:
+				case <-time.After(time.Second):
+					t.Fatal("business write did not reach the test barrier")
+				}
+				// Model a slow CI runner preparing a large response: a Ping
+				// reaches the armed transport before the business write does.
+				h.waitTrace(t, "downstream_ping_ok")
+				startBusiness()
+			}
+			select {
+			case <-transport.entered:
+			case <-time.After(time.Second):
+				t.Fatal("business write did not acquire the transport write lock")
+			}
+			for range 4 {
+				h.waitTrace(t, "downstream_ping_deferred")
+			}
+			transport.unblock()
+			require.Contains(t, string(h.readFrame(t)), "response.output_text.delta")
+			h.waitTrace(t, "downstream_ping_ok")
+			upstream.Send(`{"type":"response.completed","response":{"id":"resp_slow_write","usage":{"input_tokens":13,"output_tokens":8}}}`)
+			require.Contains(t, string(h.readFrame(t)), "response.completed")
+			select {
+			case turn := <-h.turns:
+				require.Equal(t, 13, turn.Usage.InputTokens)
+				require.Equal(t, 8, turn.Usage.OutputTokens)
+			case <-time.After(time.Second):
+				t.Fatal("slow response usage was not settled")
+			}
+			require.Empty(t, h.turns)
+		})
 	}
-	for range 4 {
-		h.waitTrace(t, "downstream_ping_deferred")
-	}
-	transport.unblock()
-	require.Contains(t, string(h.readFrame(t)), "response.output_text.delta")
-	h.waitTrace(t, "downstream_ping_ok")
-	upstream.Send(`{"type":"response.completed","response":{"id":"resp_slow_write","usage":{"input_tokens":13,"output_tokens":8}}}`)
-	require.Contains(t, string(h.readFrame(t)), "response.completed")
-	select {
-	case turn := <-h.turns:
-		require.Equal(t, 13, turn.Usage.InputTokens)
-		require.Equal(t, 8, turn.Usage.OutputTokens)
-	case <-time.After(time.Second):
-		t.Fatal("slow response usage was not settled")
-	}
-	require.Empty(t, h.turns)
 }
 
 func TestOpenAIWSPassthroughDownstreamKeepaliveBusinessWriteDuringPingRealSocket(t *testing.T) {
