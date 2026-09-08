@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"go.uber.org/zap"
@@ -368,6 +369,20 @@ func (s *OpenAIGatewayService) openAIWSWriteTimeout() time.Duration {
 		return time.Duration(s.cfg.Gateway.OpenAIWS.WriteTimeoutSeconds) * time.Second
 	}
 	return 2 * time.Minute
+}
+
+func (s *OpenAIGatewayService) openAIWSPassthroughDownstreamPingInterval() time.Duration {
+	if s != nil && s.cfg != nil {
+		return time.Duration(s.cfg.Gateway.OpenAIWS.PassthroughDownstreamPingIntervalSeconds) * time.Second
+	}
+	return time.Duration(config.DefaultOpenAIWSPassthroughDownstreamPingIntervalSeconds) * time.Second
+}
+
+func (s *OpenAIGatewayService) openAIWSPassthroughDownstreamPingTimeout() time.Duration {
+	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.PassthroughDownstreamPingTimeoutSeconds > 0 {
+		return time.Duration(s.cfg.Gateway.OpenAIWS.PassthroughDownstreamPingTimeoutSeconds) * time.Second
+	}
+	return time.Duration(config.DefaultOpenAIWSPassthroughDownstreamPingTimeoutSeconds) * time.Second
 }
 
 func (s *OpenAIGatewayService) openAIWSEventFlushBatchSize() int {

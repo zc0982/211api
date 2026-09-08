@@ -325,6 +325,11 @@ gateway:
     client_first_message_timeout_seconds: 30
     # Close a client WebSocket that stays idle between completed turns (seconds). Set 0 to disable.
     ingress_inter_turn_idle_timeout_seconds: 300
+    # WS v2 passthrough：首个下游业务帧后，空闲时发送 Ping；0 禁用。
+    # 只保活客户端连接，不延长上面的轮间空闲期限。环境变量同名大写、点换下划线。
+    passthrough_downstream_ping_interval_seconds: 20
+    # 等待 Pong 的超时，启用时须大于 0 且小于心跳间隔；失败后仍尽力 drain 上游 usage。
+    passthrough_downstream_ping_timeout_seconds: 5
     # Limit live client WebSocket ingress sessions per API key across all instances. Set 0 to disable.
     max_ingress_connections_per_api_key: 64
     # 全局总开关，默认 true；关闭时所有请求保持原有 HTTP/SSE 路由

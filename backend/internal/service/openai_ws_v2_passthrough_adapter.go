@@ -25,6 +25,14 @@ type openAIWSClientFrameConn struct {
 	interTurnIdleTimeout time.Duration
 	interTurnStarted     chan struct{}
 	waitingForNextTurn   atomic.Bool
+	// Odd epochs mean ReadFrame can consume control frames. Every transition
+	// advances the epoch, including a read that finishes and restarts within
+	// one Ping, so slow policy/upstream work cannot cause a false Pong timeout.
+	readEpoch atomic.Uint64
+	// Writes remain concurrent with Ping's Pong wait. Track both in-flight
+	// writers and their generation to detect a write that races a probe.
+	activeWrites atomic.Int64
+	writeEpoch   atomic.Uint64
 	// The relay observes upstream payloads, while clients must keep seeing the
 	// model identifier they supplied for the current turn.
 	restoreResponseModel func([]byte) []byte
@@ -47,6 +55,17 @@ type openAIWSPolicyEnforcingFrameConn struct {
 }
 
 var _ openaiwsv2.FrameConn = (*openAIWSPolicyEnforcingFrameConn)(nil)
+var _ openaiwsv2.PingableFrameConn = (*openAIWSPolicyEnforcingFrameConn)(nil)
+
+func (c *openAIWSPolicyEnforcingFrameConn) Ping(ctx context.Context) error {
+	if c == nil || c.inner == nil {
+		return errOpenAIWSConnClosed
+	}
+	if conn, ok := c.inner.(openaiwsv2.PingableFrameConn); ok {
+		return conn.Ping(ctx)
+	}
+	return openaiwsv2.ErrDownstreamPingUnsupported
+}
 
 func (c *openAIWSPolicyEnforcingFrameConn) ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error) {
 	if c == nil || c.inner == nil {
@@ -594,12 +613,15 @@ func openAIWSPassthroughIsTerminalOutput(payload []byte) bool {
 }
 
 var _ openaiwsv2.FrameConn = (*openAIWSClientFrameConn)(nil)
+var _ openaiwsv2.PingableFrameConn = (*openAIWSClientFrameConn)(nil)
 var _ openaiwsv2.FrameConn = (*openAIWSPassthroughFirstOutputFrameConn)(nil)
 
 func (c *openAIWSClientFrameConn) ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error) {
 	if c == nil || c.conn == nil {
 		return coderws.MessageText, nil, errOpenAIWSConnClosed
 	}
+	c.readEpoch.Add(1)
+	defer c.readEpoch.Add(1)
 	controlCtx := ctx
 	if c.controlCtx != nil {
 		controlCtx = c.controlCtx
@@ -651,7 +673,33 @@ func (c *openAIWSClientFrameConn) WriteFrame(ctx context.Context, msgType coderw
 			payload = c.restoreToolNames(payload)
 		}
 	}
+	c.activeWrites.Add(1)
+	c.writeEpoch.Add(1)
+	defer c.activeWrites.Add(-1)
 	return c.conn.Write(ctx, msgType, payload)
+}
+
+func (c *openAIWSClientFrameConn) Ping(ctx context.Context) error {
+	if c == nil || c.conn == nil {
+		return errOpenAIWSConnClosed
+	}
+	readEpoch := c.readEpoch.Load()
+	writeEpoch := c.writeEpoch.Load()
+	if readEpoch%2 == 0 || c.activeWrites.Load() != 0 {
+		return openaiwsv2.ErrDownstreamPingDeferred
+	}
+	err := c.conn.Ping(ctx)
+	if errors.Is(err, context.DeadlineExceeded) &&
+		(c.readEpoch.Load() != readEpoch || c.writeEpoch.Load() != writeEpoch || c.activeWrites.Load() != 0) {
+		// A business message may arrive before the Pong. ReadFrame then exits
+		// to run synchronous policy checks / upstream writes. The probe no
+		// longer had a continuous reader. A concurrent business write can
+		// also win coder/websocket's frame lock after the check above. Its
+		// lock-acquisition timeout does not close the socket, and is not a
+		// missing Pong. Retry without blocking business writes on Pong waits.
+		return openaiwsv2.ErrDownstreamPingDeferred
+	}
+	return err
 }
 
 func (c *openAIWSClientFrameConn) Close() error {
@@ -1130,7 +1178,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				return
 			}
 			writeCtx, cancel := context.WithTimeout(ctx, s.openAIWSWriteTimeout())
-			_ = clientConn.Write(writeCtx, coderws.MessageText, eventBytes)
+			_ = clientFrameConn.WriteFrame(writeCtx, coderws.MessageText, eventBytes)
 			cancel()
 		},
 	}
@@ -1186,6 +1234,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			// clientFrameConn. The relay-wide activity watchdog would also
 			// terminate a healthy active upstream turn.
 			IdleTimeout:                     0,
+			DownstreamPingInterval:          s.openAIWSPassthroughDownstreamPingInterval(),
+			DownstreamPingTimeout:           s.openAIWSPassthroughDownstreamPingTimeout(),
 			FirstMessageType:                coderws.MessageText,
 			FirstMessageSent:                upstreamFirstMessageSent,
 			StartClientAfterFirstDownstream: true,
