@@ -73,6 +73,8 @@ type RelayOptions struct {
 	WriteTimeout                    time.Duration
 	IdleTimeout                     time.Duration
 	UpstreamDrainTimeout            time.Duration
+	DownstreamPingInterval          time.Duration
+	DownstreamPingTimeout           time.Duration
 	FirstTurnStartedAt              time.Time
 	TakeNextTurnStartedAt           func() time.Time
 	FirstMessageType                coderws.MessageType
@@ -195,6 +197,7 @@ func Relay(
 
 	lastActivity := atomic.Int64{}
 	lastActivity.Store(nowFn().UnixNano())
+	dropDownstreamWrites := atomic.Bool{}
 	markActivity := func() {
 		lastActivity.Store(nowFn().UnixNano())
 	}
@@ -205,6 +208,9 @@ func Relay(
 		return upstreamConn.WriteFrame(writeCtx, msgType, payload)
 	}
 	writeClientFrameUpstream := func(msgType coderws.MessageType, payload []byte) error {
+		if dropDownstreamWrites.Load() {
+			return io.EOF
+		}
 		isResponseCreate := isClientResponseCreateFrame(msgType, payload)
 		if isResponseCreate {
 			state.setRequestModel(strings.TrimSpace(gjson.GetBytes(payload, "model").String()))
@@ -280,13 +286,55 @@ func Relay(
 	markActivity()
 
 	exitCh := make(chan relayExitSignal, 3)
-	dropDownstreamWrites := atomic.Bool{}
+	// Ping failure and the client reader describe the same disconnected peer.
+	// Publish only one exit, otherwise the second client exit would end the
+	// upstream drain before its terminal/usage event arrives.
+	var clientExitOnce sync.Once
+	reportClientExit := func(exit relayExitSignal) bool {
+		reported := false
+		clientExitOnce.Do(func() {
+			reported = true
+			if exit.stage == "read_client" && exit.graceful {
+				dropDownstreamWrites.Store(true)
+			}
+			exitCh <- exit
+		})
+		return reported
+	}
+	keepaliveCtx, stopKeepalive := context.WithCancel(relayCtx)
+	defer stopKeepalive()
+	var keepaliveStarted atomic.Bool
+	var keepaliveWG sync.WaitGroup
+	var lastDownstreamWrite atomic.Int64
+	var closeClientAfterDrain atomic.Bool
+	markDownstreamWrite := func() {
+		lastDownstreamWrite.Store(nowFn().UnixNano())
+		if options.DownstreamPingInterval <= 0 || !keepaliveStarted.CompareAndSwap(false, true) {
+			return
+		}
+		keepaliveWG.Add(1)
+		go func() {
+			defer keepaliveWG.Done()
+			runDownstreamKeepalive(keepaliveCtx, clientConn, options.DownstreamPingInterval, options.DownstreamPingTimeout,
+				nowFn, &lastDownstreamWrite, onTrace, func(exit relayExitSignal) {
+					if reportClientExit(exit) {
+						closeClientAfterDrain.Store(true)
+					}
+				})
+		}()
+	}
 	clientReaderStarted := atomic.Bool{}
+	clientReaderDone := make(chan struct{})
 	startClientReader := func() {
 		if !clientReaderStarted.CompareAndSwap(false, true) {
 			return
 		}
-		go runClientToUpstream(relayCtx, clientConn, options.ReadClientFrame, writeClientFrameUpstream, markActivity, clientToUpstreamFrames, onTrace, exitCh)
+		go func() {
+			defer close(clientReaderDone)
+			clientExit := make(chan relayExitSignal, 1)
+			runClientToUpstream(relayCtx, clientConn, options.ReadClientFrame, writeClientFrameUpstream, markActivity, clientToUpstreamFrames, onTrace, clientExit)
+			reportClientExit(<-clientExit)
+		}()
 	}
 	if !options.StartClientAfterFirstDownstream {
 		startClientReader()
@@ -310,6 +358,7 @@ func Relay(
 				if options.StartClientAfterFirstDownstream {
 					startClientReader()
 				}
+				markDownstreamWrite()
 			},
 			&dropDownstreamWrites,
 			upstreamToClientFrames,
@@ -322,6 +371,7 @@ func Relay(
 	go runIdleWatchdog(relayCtx, nowFn, options.IdleTimeout, &lastActivity, onTrace, exitCh)
 
 	firstExit := <-exitCh
+	stopKeepalive()
 	// An outer ingress cancellation is a control-plane close, not a graceful
 	// upstream disconnect. Leave the client connection open here so the
 	// adapter can emit the precise lease/request close code. Internal
@@ -376,6 +426,19 @@ func Relay(
 	// fallback. Join the reader before touching relayState or firing the final
 	// turn callback; otherwise a late read can race Relay's result settlement.
 	<-upstreamDone
+	// No more downstream writes can start keepalive after the upstream joins.
+	// An in-flight Ping keeps its own timeout, so relay cancellation cannot
+	// hard-close the client before the adapter sends its close frame.
+	keepaliveWG.Wait()
+	if closeClientAfterDrain.Load() {
+		// Ping's Pong timeout does not necessarily close the socket. The
+		// adapter reader intentionally ignores relay cancellation to preserve
+		// close frames, so close explicitly and join it before returning.
+		_ = clientConn.Close()
+		if clientReaderStarted.Load() {
+			<-clientReaderDone
+		}
+	}
 
 	emitTurnComplete(options.OnTurnComplete, state, finalizePendingBareError(state, nowFn()))
 	enrichResult(&result, state, nowFn().Sub(startAt))
@@ -639,6 +702,19 @@ func runUpstreamToClient(
 		writeErr := writeClient(msgType, payload)
 		if afterClientWrite != nil {
 			afterClientWrite(msgType, payload, writeErr)
+		}
+		if writeErr != nil && dropDownstreamWrites != nil && dropDownstreamWrites.Load() {
+			// A business write may already be in flight when the client reader
+			// or Ping reports a graceful disconnect. Keep draining instead of
+			// letting that racing write error discard later upstream usage.
+			if droppedFrames != nil {
+				droppedFrames.Add(1)
+			}
+			if observedEvent.terminal {
+				exitCh <- relayExitSignal{stage: "drain_terminal", graceful: true, wroteDownstream: wroteDownstream}
+				return
+			}
+			continue
 		}
 		if writeErr != nil {
 			emitRelayTrace(onTrace, RelayTraceEvent{
