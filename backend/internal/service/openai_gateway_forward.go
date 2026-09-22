@@ -159,13 +159,17 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return s.forwardGrokResponses(ctx, c, account, body, originalModel, reqStream, startTime)
 	}
 
+	openCodeGoNativeResponses := false
 	if account.IsOpenCodeGo() {
 		mapped := resolveOpenCodeGoMappedModel(account, body, "")
 		switch openCodeGoNativeProtocol(account, mapped) {
 		case APIProtocolAnthropic:
 			return s.forwardResponsesViaNativeAnthropic(ctx, c, account, body, "")
 		case APIProtocolResponses:
-			break
+			// 原生 Responses 上游（转发至官方校验器的线路）需要与 OpenAI 账号
+			// 同等的回放净化：reasoning/message 等项 ID 前缀契约、compact 的
+			// store=false reasoning 约束。
+			openCodeGoNativeResponses = true
 		default:
 			return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
 		}
@@ -194,6 +198,20 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		reqModel, reqStream, promptCacheKey = requestView.Model, requestView.Stream, requestView.PromptCacheKey
 		originalModel = reqModel
 	}
+	// OpenCode Go 原生 Responses 线路的 compact 直达官方校验器（无 encrypted_content
+	// 的 reasoning 项会被拒）：与 OpenAI API key 账号同样按 store=false 语义收敛。
+	// 普通轮次保持原样转发——这些上游对 /responses 的 reasoning 回放是宽容的。
+	if openCodeGoNativeResponses && compactPath {
+		if normalized, changed, normalizeErr := normalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, true); normalizeErr != nil {
+			return nil, normalizeErr
+		} else if changed {
+			body = normalized
+			originalBody = normalized
+			requestView = newOpenAIRequestView(body)
+			reqModel, reqStream, promptCacheKey = requestView.Model, requestView.Stream, requestView.PromptCacheKey
+			originalModel = reqModel
+		}
+	}
 
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
@@ -211,17 +229,21 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			reqModel, reqStream, promptCacheKey = requestView.Model, requestView.Stream, requestView.PromptCacheKey
 			originalModel = reqModel
 		}
-		sanitizedBody, changed, sanitizeErr := sanitizeOpenAIResponsesInputItemIDs(body)
-		if sanitizeErr != nil {
-			return nil, fmt.Errorf("sanitize OpenAI Responses input item IDs: %w", sanitizeErr)
-		}
-		if changed {
-			body = sanitizedBody
-			originalBody = sanitizedBody
-			requestView = newOpenAIRequestView(sanitizedBody)
-			reqModel, reqStream, promptCacheKey = requestView.Model, requestView.Stream, requestView.PromptCacheKey
-			originalModel = reqModel
-		}
+	}
+	// 到达这里的请求都会以原生 Responses 协议转发（Grok / Anthropic 原生 /
+	// raw-CC 均已在上方分流）。项 ID 前缀契约（reasoning→rs_、message→msg_ 等）
+	// 对所有遵循官方校验的上游一致适用，不再限于 OpenAI 平台账号：opencode_go
+	// 等第三方 Responses 线路回放转换层生成的 item_* 时同样会被 400 拒绝。
+	sanitizedBody, itemIDsChanged, sanitizeErr := sanitizeOpenAIResponsesInputItemIDs(body)
+	if sanitizeErr != nil {
+		return nil, fmt.Errorf("sanitize OpenAI Responses input item IDs: %w", sanitizeErr)
+	}
+	if itemIDsChanged {
+		body = sanitizedBody
+		originalBody = sanitizedBody
+		requestView = newOpenAIRequestView(sanitizedBody)
+		reqModel, reqStream, promptCacheKey = requestView.Model, requestView.Stream, requestView.PromptCacheKey
+		originalModel = reqModel
 	}
 
 	compatMessagesBridge := isOpenAICompatMessagesBridgeBody(body)
