@@ -276,6 +276,9 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	failureDelivered := false
 	suppressCurrentEvent := false
 	var bareErrorPayload []byte
+	// 裸 error 终止帧的原始负载（不限平台）：上游只发 error 就 EOF 时，
+	// 供 finalizeStream 合成 response.failed 提取错误详情与序号。
+	var terminalErrorPayload []byte
 	bareErrorAccountSideEffectsPending := false
 	pendingSSEEventType := ""
 	eventInProgress := false
@@ -427,6 +430,22 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				failureDelivered = true
 			}
 		}
+		// 部分上游（opencode zen 等）以裸 error 事件直接终止流，不补发协议要求的
+		// response.failed。Codex 不把裸 error 帧当终止事件，随后的 EOF 会被报成
+		// "stream closed before response.completed"，与网络截断无法区分。compaction
+		// v2 请求同样补一帧合成的 response.failed 收尾，让流协议完整；其余非 OAuth
+		// 客户端保持原样转发（通用 SDK 能自行处理 error 帧，见
+		// TestOpenAIResponseFlush_CompatibleAPIKeyDoesNotUseCodexBareErrorSynthesis）。
+		if terminalEventType == "error" && !sawResponseFailed &&
+			!(codexFailureTerminal && sawBareError) && IsOpenAINativeCompactionV2(c) &&
+			!clientDisconnected && streamEarlyErr == nil && !errorEventSent {
+			applyAttemptResponseHeaders()
+			if _, err := writePendingString(buildOpenAIResponseFailedSSE(responseID, originalModel, terminalErrorPayload, failedMessage)); err != nil {
+				handlePendingWriteError(err)
+			} else {
+				failureDelivered = true
+			}
+		}
 		if sawTerminalEvent && !sawFailedEvent {
 			s.clearOpenAIProxyStreamDisconnect(account)
 		}
@@ -561,6 +580,9 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			cyberHit := false
 			if eventType == "response.failed" || eventType == "error" {
+				if eventType == "error" {
+					terminalErrorPayload = append(terminalErrorPayload[:0], dataBytes...)
+				}
 				if codexFailureTerminal && eventType == "error" {
 					sawBareError = true
 					bareErrorPayload = append(bareErrorPayload[:0], dataBytes...)
@@ -1893,17 +1915,27 @@ func buildOpenAIResponseFailedSSE(responseID, model string, source []byte, fallb
 		"status": "failed",
 		"output": []any{},
 		"error":  errorBody,
+		// 严格客户端把 response.created_at 当必填字段，缺失会让整帧反序列化失败，
+		// 终止事件白发（退化成盲重连）。与 writeOpenAICompactSSEFailureMessage 对齐。
+		"created_at": time.Now().Unix(),
 	}
 	if model = strings.TrimSpace(model); model != "" {
 		response["model"] = model
 	}
+	// grok-build 把单调递增的 sequence_number 当必填：接在源错误帧的序号之后，
+	// 源帧未携带时退化为 0（此时客户端此前也没见过任何序号，不会冲突）。
+	sequenceNumber := int64(0)
+	if seq := gjson.GetBytes(source, "sequence_number"); seq.Exists() {
+		sequenceNumber = seq.Int() + 1
+	}
 	payload, err := marshalOpenAIUpstreamJSON(gin.H{
-		"type":     "response.failed",
-		"response": response,
+		"type":            "response.failed",
+		"sequence_number": sequenceNumber,
+		"response":        response,
 	})
 	if err != nil {
 		// All values above are JSON primitives, so this is only a defensive fallback.
-		payload = []byte(`{"type":"response.failed","response":{"status":"failed","output":[],"error":{"code":"upstream_error","message":"Upstream response failed"}}}`)
+		payload = []byte(`{"type":"response.failed","sequence_number":0,"response":{"status":"failed","output":[],"error":{"code":"upstream_error","message":"Upstream response failed"}}}`)
 	}
 	return "event: response.failed\ndata: " + string(payload) + "\n\n"
 }
