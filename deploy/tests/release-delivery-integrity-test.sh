@@ -17,7 +17,7 @@ assert_contains() {
 
 assert_contains .github/workflows/backend-ci.yml "run: make test-version-integrity"
 assert_contains .github/workflows/backend-ci.yml "if: needs.changes.outputs.backend == 'true'"
-assert_contains .github/workflows/backend-ci.yml "needs: [changes, shell, test, race-service, frontend, golangci-lint]"
+assert_contains .github/workflows/backend-ci.yml "needs: [changes, shell, test, race-service, frontend, golangci-lint, release-helpers]"
 assert_contains .github/workflows/deploy.yml 'ref: ${{ github.sha }}'
 assert_contains .github/workflows/deploy.yml 'VERSION=${{ steps.version.outputs.value }}'
 assert_contains .github/workflows/deploy.yml 'COMMIT=${{ github.sha }}'
