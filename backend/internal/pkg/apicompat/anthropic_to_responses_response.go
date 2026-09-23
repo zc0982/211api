@@ -39,7 +39,7 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 			if block.Thinking != "" {
 				outputs = append(outputs, ResponsesOutput{
 					Type: "reasoning",
-					ID:   generateItemID(),
+					ID:   generateItemIDForType("reasoning"),
 					Summary: []ResponsesSummary{{
 						Type: "summary_text",
 						Text: block.Thinking,
@@ -60,7 +60,7 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 			}
 			outputs = append(outputs, ResponsesOutput{
 				Type:      "function_call",
-				ID:        generateItemID(),
+				ID:        generateItemIDForType("function_call"),
 				CallID:    toResponsesCallID(block.ID),
 				Name:      block.Name,
 				Arguments: args,
@@ -73,7 +73,7 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 	if len(msgParts) > 0 {
 		outputs = append(outputs, ResponsesOutput{
 			Type:    "message",
-			ID:      generateItemID(),
+			ID:      generateItemIDForType("message"),
 			Role:    "assistant",
 			Content: msgParts,
 			Status:  "completed",
@@ -83,7 +83,7 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 	if len(outputs) == 0 {
 		outputs = append(outputs, ResponsesOutput{
 			Type:    "message",
-			ID:      generateItemID(),
+			ID:      generateItemIDForType("message"),
 			Role:    "assistant",
 			Content: []ResponsesContentPart{{Type: "output_text", Text: ""}},
 			Status:  "completed",
@@ -290,7 +290,7 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 		// 会稳定产生 text → thinking 这个顺序。
 		events = append(events, closeCurrentResponsesItem(state)...)
 
-		state.CurrentItemID = generateItemID()
+		state.CurrentItemID = generateItemIDForType("reasoning")
 		state.CurrentItemType = "reasoning"
 		state.ContentIndex = 0
 
@@ -310,7 +310,7 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 			// 的「开新 item 前先关旧的」保持同一条不变式，而不是留一个仅 text 例外。
 			events = append(events, closeCurrentResponsesItem(state)...)
 
-			state.CurrentItemID = generateItemID()
+			state.CurrentItemID = generateItemIDForType("message")
 			state.CurrentItemType = "message"
 			state.ContentIndex = 0
 
@@ -345,7 +345,7 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 		// Close previous item if any
 		events = append(events, closeCurrentResponsesItem(state)...)
 
-		state.CurrentItemID = generateItemID()
+		state.CurrentItemID = generateItemIDForType("function_call")
 		state.CurrentItemType = "function_call"
 		state.CurrentCallID = toResponsesCallID(evt.ContentBlock.ID)
 		state.CurrentName = evt.ContentBlock.Name
@@ -659,4 +659,36 @@ func generateItemID() string {
 	b := make([]byte, 12)
 	_, _ = rand.Read(b)
 	return "item_" + hex.EncodeToString(b)
+}
+
+// responsesItemIDPrefixByType 是生成侧与回放侧共用的项 ID 前缀约定：
+// 官方 /responses 与 /responses/compact 校验器按类型强制前缀
+// （reasoning 必须以 rs_ 开头，否则 400 "Expected an ID that begins with 'rs'"），
+// 与 service 层 openAIResponsesInputItemIDPrefix 的剥离规则一一对应。
+func responsesItemIDPrefixByType(itemType string) string {
+	switch itemType {
+	case "reasoning":
+		return "rs"
+	case "message":
+		return "msg"
+	case "function_call":
+		return "fc"
+	case "custom_tool_call":
+		return "ctc"
+	case "tool_search_call":
+		return "tsc"
+	case "web_search_call":
+		return "ws"
+	default:
+		return "item"
+	}
+}
+
+// generateItemIDForType 按 Responses 项类型生成符合官方前缀约定的项 ID。
+// 转换层若统一用 item_ 前缀，Codex 等客户端存档后回放（续传/compact）会被
+// 上游校验器整单拒绝。
+func generateItemIDForType(itemType string) string {
+	b := make([]byte, 12)
+	_, _ = rand.Read(b)
+	return responsesItemIDPrefixByType(itemType) + "_" + hex.EncodeToString(b)
 }
