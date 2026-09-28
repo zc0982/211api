@@ -587,34 +587,37 @@ func buildToolSchemaNullTypeBody(t *testing.T, hits int) []byte {
 // 构造请求可以塞进百万级命中，会被放大成 TB 级 memcpy。这里用分配次数锁死该行为：
 // 命中数放大 500 倍，分配次数不得随之增长。
 func TestSanitizeOpenAIResponsesToolParameterTypes_RewriteCountIndependentOfHits(t *testing.T) {
-	small := buildToolSchemaNullTypeBody(t, 4)
 	large := buildToolSchemaNullTypeBody(t, 2000)
 
-	measureAllocs := func(body []byte) float64 {
-		// race instrumentation 与并行运行的完整 service 套件会偶发放大单次
-		// AllocsPerRun 结果；取多组样本的最小值仍能稳定识别逐命中全量重写，
-		// 又不会把调度器/GC 噪声误判为算法退化。
-		best := testing.AllocsPerRun(2, func() {
-			_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(body)
-		})
-		for range 4 {
-			allocs := testing.AllocsPerRun(2, func() {
+	if !raceDetectorEnabled {
+		small := buildToolSchemaNullTypeBody(t, 4)
+		measureAllocs := func(body []byte) float64 {
+			// 取多组样本的最小值，避免调度器/GC 噪声误判为算法退化。
+			best := testing.AllocsPerRun(2, func() {
 				_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(body)
 			})
-			if allocs < best {
-				best = allocs
+			for range 4 {
+				allocs := testing.AllocsPerRun(2, func() {
+					_, _, _ = sanitizeOpenAIResponsesToolParameterTypes(body)
+				})
+				if allocs < best {
+					best = allocs
+				}
 			}
+			return best
 		}
-		return best
-	}
-	smallAllocs := measureAllocs(small)
-	largeAllocs := measureAllocs(large)
+		smallAllocs := measureAllocs(small)
+		largeAllocs := measureAllocs(large)
 
-	// 命中切片扩容是对数级，留出充裕余量；线性写法在这里会是 2000 量级。
-	// 干净环境实测 large 约 17 allocs，200 是 10 倍余量，同时容忍 CI 慢 pod 上
-	// 包内后台 goroutine（日志/ticker）对进程级 Mallocs 的噪声污染。
-	require.Less(t, largeAllocs, 200.0,
-		"分配次数随命中数线性增长，说明退回了逐路径全量重写 (small=%v large=%v)", smallAllocs, largeAllocs)
+		// 命中切片扩容是对数级，留出充裕余量；线性写法在这里会是 2000 量级。
+		// 干净环境实测 large 约 17 allocs；200 是 10 倍余量。
+		require.Less(t, largeAllocs, 200.0,
+			"分配次数随命中数线性增长，说明退回了逐路径全量重写 (small=%v large=%v)", smallAllocs, largeAllocs)
+	} else {
+		// race runtime 自身的分配会污染进程级 AllocsPerRun 计数；普通 unit job
+		// 仍执行上面的性能复杂度断言，这里只验证并发检测下的转换结果。
+		t.Log("跳过受 race runtime 分配污染的复杂度计数；非 race unit job 会执行该断言")
+	}
 
 	// 同时确认大 body 的结果确实全部修好了。
 	sanitized, changed, err := sanitizeOpenAIResponsesToolParameterTypes(large)
