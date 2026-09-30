@@ -31,7 +31,10 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/ModelWhitelistSelector.spec.ts \
 	src/components/keys/__tests__/UseKeyModal.spec.ts \
 	src/composables/__tests__/useModelWhitelist.spec.ts \
-	src/views/admin/__tests__/DashboardView.spec.ts
+	src/views/admin/__tests__/DashboardView.spec.ts \
+	src/api/__tests__/codex.spec.ts \
+	src/components/account/__tests__/credentialsBuilder.spec.ts \
+	src/components/common/__tests__/PlatformTypeBadge.openaiPlans.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

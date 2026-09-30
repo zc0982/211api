@@ -17,6 +17,7 @@ type balanceEligibilityCacheStub struct {
 	billingCacheWorkerStub
 
 	balance                  float64
+	deductErr                error
 	cacheMissAfterInvalidate bool
 	invalidated              atomic.Bool
 	deductCalls              atomic.Int64
@@ -32,7 +33,7 @@ func (s *balanceEligibilityCacheStub) GetUserBalance(context.Context, int64) (fl
 
 func (s *balanceEligibilityCacheStub) DeductUserBalance(context.Context, int64, float64) error {
 	s.deductCalls.Add(1)
-	return nil
+	return s.deductErr
 }
 
 func (s *balanceEligibilityCacheStub) InvalidateUserBalance(context.Context, int64) error {
@@ -125,4 +126,27 @@ func TestSyncBalanceCacheAfterDeduction_QueuesDeductWhenBalanceStillEligible(t *
 	require.Eventually(t, func() bool {
 		return cache.deductCalls.Load() == 1
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestSyncBalanceCacheAfterDeduction_InvalidatesAfterSynchronousDeductFailure(t *testing.T) {
+	cache := &balanceEligibilityCacheStub{
+		balance:                  1,
+		deductErr:                errors.New("redis response lost"),
+		cacheMissAfterInvalidate: true,
+	}
+	cfg := &config.Config{}
+	cfg.Billing.MinimumBalanceReserve = 0.01
+	cfg.Billing.InflightReservation.Enabled = true
+	svc := NewBillingCacheService(cache, &balanceLoadUserRepoStub{balance: 0.75}, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(svc.Stop)
+
+	newBalance := 0.75
+	syncBalanceCacheAfterDeduction(context.Background(), &postUsageBillingParams{
+		Cost: &CostBreakdown{ActualCost: 0.25},
+		User: &User{ID: 1},
+	}, &billingDeps{billingCacheService: svc}, &UsageBillingApplyResult{NewBalance: &newBalance})
+
+	require.Equal(t, int64(1), cache.deductCalls.Load())
+	require.Equal(t, int64(1), cache.invalidateCalls.Load())
+	require.True(t, cache.invalidated.Load())
 }
