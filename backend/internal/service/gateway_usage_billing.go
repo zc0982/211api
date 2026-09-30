@@ -485,7 +485,20 @@ func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingPara
 		if err == nil {
 			return
 		}
-		logger.LegacyPrintf("service.gateway", "Warning: sync deduct balance cache failed for user %d, falling back to queue: %v", p.User.ID, err)
+		logger.LegacyPrintf("service.gateway", "Warning: sync deduct balance cache failed for user %d: %v", p.User.ID, err)
+		// The Redis decrement may have failed before applying or after applying
+		// while its response was lost. Invalidate the cache before releasing the
+		// reservation so the next admission reloads the DB's committed balance;
+		// replaying a decrement against an uncertain result could double-charge
+		// the cache, and queueing it would leave a stale-balance admission window.
+		if invalidateErr := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); invalidateErr == nil {
+			return
+		} else {
+			slog.Warn("invalidate balance cache after synchronous deduction failed",
+				"user_id", p.User.ID,
+				"error", invalidateErr,
+			)
+		}
 	}
 	deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)
 }
