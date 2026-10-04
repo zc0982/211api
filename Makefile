@@ -19,6 +19,15 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \
+	src/components/account/__tests__/AccountPriorityCell.spec.ts \
+	src/components/account/__tests__/BulkEditAccountModal.spec.ts \
+	src/components/account/__tests__/CreateAccountModal.spec.ts \
+	src/components/payment/__tests__/AmountInput.spec.ts \
+	src/components/user/__tests__/UserPlatformQuotaCell.spec.ts \
+	src/components/user/dashboard/__tests__/UserDashboardStats.spec.ts \
+	src/constants/__tests__/platforms.spec.ts \
+	src/i18n/__tests__/opsLocaleKeys.spec.ts \
+	src/utils/__tests__/rechargeBonus.spec.ts \
 	src/views/admin/__tests__/AccountsView.lite.spec.ts \
 	src/components/account/__tests__/UpstreamRequestIdHeaderField.spec.ts \
 	src/components/admin/group/__tests__/CodexManifestAccountsField.spec.ts \
