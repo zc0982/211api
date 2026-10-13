@@ -5,6 +5,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/client.spec.ts \
 	src/api/__tests__/tokenRefresh.spec.ts \
 	src/api/__tests__/keys.bulkUpdate.spec.ts \
+	src/composables/__tests__/useModelWhitelist.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.transport.spec.ts \
 	src/components/account/__tests__/OpenAIQuotaResetCell.spark_shadow.spec.ts \
@@ -39,7 +40,6 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/EditAccountModal.spec.ts \
 	src/components/account/__tests__/ModelWhitelistSelector.spec.ts \
 	src/components/keys/__tests__/UseKeyModal.spec.ts \
-	src/composables/__tests__/useModelWhitelist.spec.ts \
 	src/views/admin/__tests__/DashboardView.spec.ts \
 	src/api/__tests__/codex.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.spec.ts \
@@ -82,7 +82,20 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/AirwallexPaymentView.lifecycle.spec.ts \
 	src/views/user/__tests__/CustomPageView.race.spec.ts \
 	src/views/user/__tests__/StripePaymentView.spec.ts \
-	src/views/user/__tests__/UsageView.spec.ts
+	src/views/user/__tests__/UsageView.spec.ts \
+	src/components/account/__tests__/UsageProgressBar.spec.ts \
+	src/components/admin/group/__tests__/GroupI18nField.spec.ts \
+	src/components/admin/group/__tests__/GroupRPMOverridesModal.requests.spec.ts \
+	src/components/admin/group/__tests__/GroupRateMultipliersModal.edit.spec.ts \
+	src/components/common/__tests__/LocaleSwitcher.spec.ts \
+	src/components/common/__tests__/Select.ime.spec.ts \
+	src/components/payment/__tests__/paymentCountdown.spec.ts \
+	src/composables/__tests__/useGeminiOAuth.errors.spec.ts \
+	src/features/channel-monitor-v2/__tests__/MonitorSettingsPanel.spec.ts \
+	src/utils/__tests__/geminiExplicitCache.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsDashboardHeader.timezone.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsRequestDetailsModal.spec.ts \
+	src/views/user/__tests__/ChannelStatusV1View.details.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend
