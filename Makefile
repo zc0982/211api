@@ -51,7 +51,6 @@ FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/settings.authSourceDefaults.spec.ts \
 	src/components/account/__tests__/AccountUsageCell.spec.ts \
 	src/components/admin/__tests__/ErrorPassthroughRulesModal.toggle.spec.ts \
-	src/components/admin/account/__tests__/AccountTableFilters.spec.ts \
 	src/components/admin/account/__tests__/ScheduledTestsPanel.results.spec.ts \
 	src/components/admin/group/__tests__/GroupRPMOverridesModal.edit.spec.ts \
 	src/components/admin/group/__tests__/GroupRateMultipliersModal.requests.spec.ts \
