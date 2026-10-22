@@ -124,14 +124,15 @@ var codexCLIOnlyDebugHeaderWhitelist = []string{
 
 // OpenAICodexUsageSnapshot represents Codex API usage limits from response headers
 type OpenAICodexUsageSnapshot struct {
-	PrimaryUsedPercent          *float64 `json:"primary_used_percent,omitempty"`
-	PrimaryResetAfterSeconds    *int     `json:"primary_reset_after_seconds,omitempty"`
-	PrimaryWindowMinutes        *int     `json:"primary_window_minutes,omitempty"`
-	SecondaryUsedPercent        *float64 `json:"secondary_used_percent,omitempty"`
-	SecondaryResetAfterSeconds  *int     `json:"secondary_reset_after_seconds,omitempty"`
-	SecondaryWindowMinutes      *int     `json:"secondary_window_minutes,omitempty"`
-	PrimaryOverSecondaryPercent *float64 `json:"primary_over_secondary_percent,omitempty"`
-	UpdatedAt                   string   `json:"updated_at,omitempty"`
+	PrimaryUsedPercent          *float64       `json:"primary_used_percent,omitempty"`
+	PrimaryResetAfterSeconds    *int           `json:"primary_reset_after_seconds,omitempty"`
+	PrimaryWindowMinutes        *int           `json:"primary_window_minutes,omitempty"`
+	SecondaryUsedPercent        *float64       `json:"secondary_used_percent,omitempty"`
+	SecondaryResetAfterSeconds  *int           `json:"secondary_reset_after_seconds,omitempty"`
+	SecondaryWindowMinutes      *int           `json:"secondary_window_minutes,omitempty"`
+	PrimaryOverSecondaryPercent *float64       `json:"primary_over_secondary_percent,omitempty"`
+	Credits                     *OpenAICredits `json:"credits,omitempty"`
+	UpdatedAt                   string         `json:"updated_at,omitempty"`
 }
 
 // NormalizedCodexLimits contains normalized 5h/7d rate limit data

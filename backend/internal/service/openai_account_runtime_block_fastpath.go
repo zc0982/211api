@@ -40,6 +40,13 @@ const (
 // classifyOpenAIOAuth429 区分账号配额耗尽信号与普通瞬时 429。只有窗口达到
 // 100% 或响应体明确给出 reset 时间时，才视为配额限流信号。
 func classifyOpenAIOAuth429(headers http.Header, responseBody []byte) (openAIOAuth429Disposition, *time.Time) {
+	// A quota-window 429 does not mean the account is unusable when the same
+	// response advertises spendable Codex credits. Treat it as transient so the
+	// bounded same-account retry can consume those credits instead of parking the
+	// account until the rolling window resets.
+	if openAISpendableCreditsAvailableFromHeaders(headers) {
+		return openAIOAuth429Transient, nil
+	}
 	if snapshot := ParseCodexRateLimitHeaders(headers); snapshot != nil {
 		if normalized := snapshot.Normalize(); normalized != nil {
 			if normalized.Used7dPercent != nil && *normalized.Used7dPercent >= 100 {
@@ -225,6 +232,10 @@ func (s *OpenAIGatewayService) markOpenAIOAuth429RateLimited(ctx context.Context
 		return
 	}
 	s.recordOpenAIOAuth429()
+	if openAIQuotaExhaustedWithCredits(account, time.Now()) {
+		s.openAIOAuth429RetryWindowActive(account)
+		return
+	}
 	disposition, resetAt := classifyOpenAIOAuth429(headers, responseBody)
 	if disposition == openAIOAuth429Transient && s.openAIOAuth429RetryWindowActive(account) {
 		return
@@ -254,6 +265,9 @@ func (s *OpenAIGatewayService) shouldRetryOpenAIOAuth429OnSameAccountWithRespons
 	if shouldDisable || statusCode != http.StatusTooManyRequests || !isOpenAIOAuthAccount(account) || account.IsShadow() {
 		return false
 	}
+	if openAIQuotaExhaustedWithCredits(account, time.Now()) {
+		return s.openAIOAuth429RetryWindowActive(account)
+	}
 	disposition, _ := classifyOpenAIOAuth429(headers, responseBody)
 	if disposition != openAIOAuth429Transient {
 		return false
@@ -271,6 +285,9 @@ func (s *OpenAIGatewayService) shouldRetryOpenAIOAuth429OnSameAccountWithRespons
 func (s *OpenAIGatewayService) ShouldRetryOpenAIOAuth429(account *Account, headers http.Header, responseBody []byte) bool {
 	if s == nil || !isOpenAIOAuthAccount(account) || account.IsShadow() || s.isOpenAIAccountRuntimeBlocked(account) {
 		return false
+	}
+	if openAIQuotaExhaustedWithCredits(account, time.Now()) {
+		return s.openAIOAuth429RetryWindowActive(account)
 	}
 	disposition, _ := classifyOpenAIOAuth429(headers, responseBody)
 	if disposition != openAIOAuth429Transient {

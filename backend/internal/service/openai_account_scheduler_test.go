@@ -1826,6 +1826,42 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseBy5hT
 	require.Equal(t, int64(35002), account.ID)
 }
 
+func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_UsesSpendableCreditsAfterQuotaExhaustion(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	balance := "9.5"
+	account := Account{
+		ID:          35003,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Extra: map[string]any{
+			"codex_5h_used_percent":   100.0,
+			"codex_5h_reset_at":       now.Add(time.Hour).Format(time.RFC3339),
+			"codex_usage_updated_at":  now.Format(time.RFC3339),
+			"auto_pause_5h_threshold": 0.95,
+			openaiQuotaCreditsKey: openAICreditsSnapshot{
+				Credits: &OpenAICredits{
+					HasCredits: true,
+					Balance:    &balance,
+				},
+				FetchedAt: now.Unix(),
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{account}},
+		cfg:         &config.Config{},
+	}
+
+	selected, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gpt-5.1", nil)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, account.ID, selected.ID)
+}
+
 func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AllowsBelow5hThreshold(t *testing.T) {
 	ctx := context.Background()
 	primary := Account{

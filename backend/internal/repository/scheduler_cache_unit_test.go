@@ -424,10 +424,18 @@ func TestBuildSchedulerMetadataAccount_KeepsQuotaAutoPauseFields(t *testing.T) {
 			"codex_5h_reset_after_seconds": 300,
 			"codex_7d_reset_after_seconds": 600,
 			"codex_usage_updated_at":       "2026-05-29T09:00:00Z",
-			"auto_pause_5h_threshold":      0.95,
-			"auto_pause_7d_threshold":      0.96,
-			"auto_pause_5h_disabled":       true,
-			"auto_pause_7d_disabled":       false,
+			"codex_credits_snapshot": map[string]any{
+				"credits": map[string]any{
+					"has_credits": true,
+					"unlimited":   false,
+					"balance":     "12.5",
+				},
+				"fetched_at": 1770000000,
+			},
+			"auto_pause_5h_threshold": 0.95,
+			"auto_pause_7d_threshold": 0.96,
+			"auto_pause_5h_disabled":  true,
+			"auto_pause_7d_disabled":  false,
 		},
 	}
 
@@ -440,6 +448,7 @@ func TestBuildSchedulerMetadataAccount_KeepsQuotaAutoPauseFields(t *testing.T) {
 	require.Equal(t, 300, got.Extra["codex_5h_reset_after_seconds"])
 	require.Equal(t, 600, got.Extra["codex_7d_reset_after_seconds"])
 	require.Equal(t, "2026-05-29T09:00:00Z", got.Extra["codex_usage_updated_at"])
+	require.Equal(t, account.Extra["codex_credits_snapshot"], got.Extra["codex_credits_snapshot"])
 	require.Equal(t, 0.95, got.Extra["auto_pause_5h_threshold"])
 	require.Equal(t, 0.96, got.Extra["auto_pause_7d_threshold"])
 	require.Equal(t, true, got.Extra["auto_pause_5h_disabled"])
