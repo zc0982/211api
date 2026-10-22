@@ -532,41 +532,33 @@ func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) 
 		return false, openAIQuotaAutoPauseDecision{}
 	}
 	now := time.Now()
-	// Spendable Codex credits are capacity independent of the rolling 5h/7d
-	// subscription windows. A window may be at 100% while requests still succeed
-	// by drawing from this balance. Keep the account schedulable and let the
-	// background auto-reset evaluator decide whether a reset credit is worth
-	// consuming; otherwise a single-account group turns usable capacity into 503.
-	if openAIQuotaExhaustedWithCredits(account, now) {
-		if config := ResolveOpenAIAutoResetCreditConfig(account); config.Enabled {
-			utilization5h, has5h := resolveOpenAIQuotaUtilization(account.Extra, "5h", now)
-			utilization7d, has7d := resolveOpenAIQuotaUtilization(account.Extra, "7d", now)
-			if (has5h && utilization5h >= config.Threshold5h) || (has7d && utilization7d >= config.Threshold7d) {
-				notifyOpenAIAutoResetFromScheduler(account.ID)
-			}
-		}
-		return false, openAIQuotaAutoPauseDecision{}
-	}
+	utilization5h, has5h := resolveOpenAIQuotaUtilization(account.Extra, "5h", now)
+	utilization7d, has7d := resolveOpenAIQuotaUtilization(account.Extra, "7d", now)
+	hasCredits := openAISpendableCreditsAvailable(account, now)
+	// Credits exempt an exhausted window, not another window's earlier pause threshold.
+	creditsCover5h := hasCredits && has5h && utilization5h >= 1
+	creditsCover7d := hasCredits && has7d && utilization7d >= 1
 	// 自动用卡有独立阈值：没有可消费点数时，达到消费阈值必须先退出调度；
 	// 仅达到普通暂停阈值时，只有新鲜状态明确存在可用重置卡才继续放行到消费阈值。
-	// 可消费点数已在上面优先保证可用性，后台仍会按阈值评估是否使用重置卡。
 	if config := ResolveOpenAIAutoResetCreditConfig(account); config.Enabled {
-		utilization5h, has5h := resolveOpenAIQuotaUtilization(account.Extra, "5h", now)
-		utilization7d, has7d := resolveOpenAIQuotaUtilization(account.Extra, "7d", now)
 		if has5h && utilization5h >= config.Threshold5h {
 			notifyOpenAIAutoResetFromScheduler(account.ID)
-			return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: config.Threshold5h, utilization: utilization5h, reason: "quota_auto_reset_pending_5h"}
+			if !creditsCover5h {
+				return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: config.Threshold5h, utilization: utilization5h, reason: "quota_auto_reset_pending_5h"}
+			}
 		}
 		if has7d && utilization7d >= config.Threshold7d {
 			notifyOpenAIAutoResetFromScheduler(account.ID)
-			return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: config.Threshold7d, utilization: utilization7d, reason: "quota_auto_reset_pending_7d"}
+			if !creditsCover7d {
+				return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: config.Threshold7d, utilization: utilization7d, reason: "quota_auto_reset_pending_7d"}
+			}
 		}
 
 		disabled5h := resolveAccountExtraBool(account.Extra, "auto_pause_5h_disabled")
 		disabled7d := resolveAccountExtraBool(account.Extra, "auto_pause_7d_disabled")
 		pause5h, pause7d := resolveOpenAIQuotaAutoPauseThresholds(ctx, account)
-		pauseReached5h := !disabled5h && pause5h > 0 && has5h && utilization5h >= pause5h
-		pauseReached7d := !disabled7d && pause7d > 0 && has7d && utilization7d >= pause7d
+		pauseReached5h := !creditsCover5h && !disabled5h && pause5h > 0 && has5h && utilization5h >= pause5h
+		pauseReached7d := !creditsCover7d && !disabled7d && pause7d > 0 && has7d && utilization7d >= pause7d
 		if pauseReached5h || pauseReached7d {
 			state := openAIAutoResetStateFromExtra(account.Extra)
 			if state != nil && state.Status == OpenAIAutoResetStatusAvailable && state.AvailableCount > 0 && !openAIAutoResetStateStale(state, now) {
@@ -587,15 +579,11 @@ func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) 
 	disabled5h := resolveAccountExtraBool(account.Extra, "auto_pause_5h_disabled")
 	disabled7d := resolveAccountExtraBool(account.Extra, "auto_pause_7d_disabled")
 	threshold5h, threshold7d := resolveOpenAIQuotaAutoPauseThresholds(ctx, account)
-	if !disabled5h && threshold5h > 0 {
-		if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "5h", now); ok && utilization >= threshold5h {
-			return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: threshold5h, utilization: utilization}
-		}
+	if !creditsCover5h && !disabled5h && threshold5h > 0 && has5h && utilization5h >= threshold5h {
+		return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: threshold5h, utilization: utilization5h}
 	}
-	if !disabled7d && threshold7d > 0 {
-		if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "7d", now); ok && utilization >= threshold7d {
-			return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: threshold7d, utilization: utilization}
-		}
+	if !creditsCover7d && !disabled7d && threshold7d > 0 && has7d && utilization7d >= threshold7d {
+		return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: threshold7d, utilization: utilization7d}
 	}
 	return false, openAIQuotaAutoPauseDecision{}
 }

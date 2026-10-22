@@ -52,7 +52,16 @@ func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]
 	var winner *accountSchedulingThresholdCandidate
 	switch decision.Platform {
 	case PlatformOpenAI:
-		winner = pickLatestResetSchedulingCandidate(openAIThresholdCandidates(account, now), threshold, now)
+		candidates := openAIThresholdCandidates(account, now)
+		if openAISpendableCreditsAvailable(account, now) {
+			// Exempt only exhausted windows; another window can still hit an administrative threshold.
+			for i, candidate := range candidates {
+				if candidate != nil && candidate.usedPercent >= 100 {
+					candidates[i] = nil
+				}
+			}
+		}
+		winner = pickLatestResetSchedulingCandidate(candidates, threshold, now)
 	case PlatformAnthropic:
 		winner = pickLatestResetSchedulingCandidate(anthropicThresholdCandidates(account), threshold, now)
 	case PlatformGrok:
@@ -66,14 +75,6 @@ func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]
 	if winner == nil {
 		return decision
 	}
-	// OpenAI OAuth can continue past an exhausted rolling window from its
-	// spendable Codex credit balance. Preserve lower configured thresholds, but
-	// do not persist a guaranteed-unusable window when credits are available.
-	if decision.Platform == PlatformOpenAI && winner.usedPercent >= 100 &&
-		openAISpendableCreditsAvailable(account, now) {
-		return decision
-	}
-
 	decision.ShouldPause = true
 	decision.Window = winner.window
 	decision.Scope = winner.scope
