@@ -49,7 +49,6 @@ func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]
 	if !ok || threshold >= 100 {
 		return decision
 	}
-
 	var winner *accountSchedulingThresholdCandidate
 	switch decision.Platform {
 	case PlatformOpenAI:
@@ -65,6 +64,13 @@ func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]
 	}
 
 	if winner == nil {
+		return decision
+	}
+	// OpenAI OAuth can continue past an exhausted rolling window from its
+	// spendable Codex credit balance. Preserve lower configured thresholds, but
+	// do not persist a guaranteed-unusable window when credits are available.
+	if decision.Platform == PlatformOpenAI && winner.usedPercent >= 100 &&
+		openAISpendableCreditsAvailable(account, now) {
 		return decision
 	}
 

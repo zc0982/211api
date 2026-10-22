@@ -72,6 +72,67 @@ func TestOpenAI429FastPath_BlocksOAuthOnlyAfterRetryWindow(t *testing.T) {
 	require.False(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
 }
 
+func TestOpenAI429FastPath_SpendableCreditsKeepOAuthRetryable(t *testing.T) {
+	repo := &oauth429RateLimitRepo{}
+	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
+	rateLimits.SetAccountRuntimeBlocker(svc)
+	account := &Account{ID: 421, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	headers := http.Header{}
+	headers.Set("x-codex-primary-used-percent", "100")
+	headers.Set("x-codex-primary-reset-after-seconds", "3600")
+	headers.Set("x-codex-primary-window-minutes", "300")
+	headers.Set("x-codex-credits-has-credits", "true")
+	headers.Set("x-codex-credits-unlimited", "false")
+	headers.Set("x-codex-credits-balance", "5.25")
+
+	disposition, resetAt := classifyOpenAIOAuth429(headers, nil)
+	require.Equal(t, openAIOAuth429Transient, disposition)
+	require.Nil(t, resetAt)
+
+	shouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, nil)
+	require.False(t, shouldDisable)
+	require.Zero(t, repo.setRateLimitedCalls, "credits-backed retries must not persist a quota reset cooldown")
+	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.True(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
+}
+
+func TestOpenAI429FastPath_CachedSpendableCreditsKeepOAuthRetryable(t *testing.T) {
+	repo := &oauth429RateLimitRepo{}
+	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
+	rateLimits.SetAccountRuntimeBlocker(svc)
+	now := time.Now()
+	balance := "3.5"
+	account := &Account{
+		ID:       422,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			"codex_5h_used_percent":  100.0,
+			"codex_5h_reset_at":      now.Add(time.Hour).Format(time.RFC3339),
+			"codex_usage_updated_at": now.Format(time.RFC3339),
+			openaiQuotaCreditsKey: openAICreditsSnapshot{
+				Credits: &OpenAICredits{
+					HasCredits: true,
+					Balance:    &balance,
+				},
+				FetchedAt: now.Unix(),
+			},
+		},
+	}
+	headers := http.Header{}
+	headers.Set("x-codex-secondary-used-percent", "100")
+	headers.Set("x-codex-secondary-reset-after-seconds", "3600")
+	headers.Set("x-codex-secondary-window-minutes", "300")
+
+	shouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, nil)
+	require.False(t, shouldDisable)
+	require.Zero(t, repo.setRateLimitedCalls)
+	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	require.True(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
+}
+
 func TestOpenAI429FastPath_DoesNotBlockOAuthWhenFallbackDisabled(t *testing.T) {
 	repo := &oauth429RateLimitRepo{}
 	settingRepo := newMockSettingRepo()

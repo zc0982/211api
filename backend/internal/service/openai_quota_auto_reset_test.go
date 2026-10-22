@@ -99,6 +99,44 @@ func TestShouldAutoPauseOpenAIAccountByQuota_AutoResetCreditStates(t *testing.T)
 		paused, _ := shouldAutoPauseOpenAIAccountByQuota(context.Background(), account)
 		require.False(t, paused)
 	})
+
+	t.Run("有可消费点数时窗口耗尽仍保持可调度", func(t *testing.T) {
+		balance := "12.5"
+		extra := cloneOpenAIAutoResetExtra(baseExtra)
+		extra["codex_5h_used_percent"] = 100.0
+		extra[openaiQuotaCreditsKey] = openAICreditsSnapshot{
+			Credits: &OpenAICredits{
+				HasCredits: true,
+				Balance:    &balance,
+			},
+			FetchedAt: now.Unix(),
+		}
+		extra[OpenAIAutoResetCreditStateExtraKey] = OpenAIAutoResetCreditState{
+			Status:         OpenAIAutoResetStatusNoCredit,
+			CheckedAt:      now.Format(time.RFC3339),
+			AvailableCount: 0,
+		}
+		account := &Account{ID: 5, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Extra: extra}
+
+		paused, decision := shouldAutoPauseOpenAIAccountByQuota(context.Background(), account)
+		require.False(t, paused)
+		require.Empty(t, decision.reason)
+	})
+
+	t.Run("可消费点数不绕过未耗尽的提前停调阈值", func(t *testing.T) {
+		balance := "12.5"
+		extra := cloneOpenAIAutoResetExtra(baseExtra)
+		extra["codex_5h_used_percent"] = 90.0
+		extra[openaiQuotaCreditsKey] = openAICreditsSnapshot{
+			Credits:   &OpenAICredits{HasCredits: true, Balance: &balance},
+			FetchedAt: now.Unix(),
+		}
+		account := &Account{ID: 6, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Extra: extra}
+
+		paused, decision := shouldAutoPauseOpenAIAccountByQuota(context.Background(), account)
+		require.True(t, paused)
+		require.Equal(t, "quota_auto_reset_credit_check_5h", decision.reason)
+	})
 }
 
 func TestNotifyOpenAIAutoResetFromScheduler_CoolsDownPerAccount(t *testing.T) {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/http"
 	"testing"
 	"time"
 )
@@ -221,5 +222,36 @@ func TestBuildCodexUsageExtraUpdates_WithoutNormalizedWindowFields(t *testing.T)
 	}
 	if _, ok := updates["codex_7d_reset_at"]; ok {
 		t.Fatalf("did not expect codex_7d_reset_at in updates: %v", updates["codex_7d_reset_at"])
+	}
+}
+
+func TestParseCodexRateLimitHeaders_PersistsSpendableCredits(t *testing.T) {
+	headers := http.Header{}
+	headers.Set("x-codex-primary-used-percent", "100")
+	headers.Set("x-codex-credits-has-credits", "true")
+	headers.Set("x-codex-credits-unlimited", "false")
+	headers.Set("x-codex-credits-balance", "12.500")
+
+	snapshot := ParseCodexRateLimitHeaders(headers)
+	if snapshot == nil || snapshot.Credits == nil {
+		t.Fatalf("expected credits snapshot, got %#v", snapshot)
+	}
+	if !snapshot.Credits.HasCredits || snapshot.Credits.Unlimited {
+		t.Fatalf("unexpected credit flags: %#v", snapshot.Credits)
+	}
+	if snapshot.Credits.Balance == nil || *snapshot.Credits.Balance != "12.500" {
+		t.Fatalf("unexpected credit balance: %#v", snapshot.Credits.Balance)
+	}
+
+	fetchedAt := time.Date(2026, 10, 22, 10, 0, 0, 0, time.UTC)
+	snapshot.UpdatedAt = fetchedAt.Format(time.RFC3339)
+	updates := buildCodexUsageExtraUpdates(snapshot, fetchedAt)
+	cached, ok := updates[openaiQuotaCreditsKey].(openAICreditsSnapshot)
+	if !ok {
+		t.Fatalf("expected cached credits snapshot, got %#v", updates[openaiQuotaCreditsKey])
+	}
+	if cached.FetchedAt != fetchedAt.Unix() || cached.Credits == nil || cached.Credits.Balance == nil ||
+		*cached.Credits.Balance != "12.500" {
+		t.Fatalf("unexpected cached credits: %#v", cached)
 	}
 }
