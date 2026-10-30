@@ -51,3 +51,11 @@ Gemini 默认列表移除已停用的 2.x 和 3-pro-preview；仍需使用这些
 后端 58 个 unit 包通过，service race 全量通过（280.032s）；前端 lint、typecheck、376 个文件的 3,023 项测试及生产构建通过。包含前端资源的后端 release 构建通过，产物 `-version` 回读为 `0.2.19`；`go mod verify` 全部通过。
 
 代码同步和本地验证完成；PR CI、合并与生产部署是独立步骤，本记录不代表生产已升级。
+
+## 合并后的安全扫描补修（2026-10-29）
+
+PR #84 已合并为 `7cb4d4a2876fc0b3a9938a8bc077addcbadd6f6c`，合并树与 PR head 一致。原 PR 的 CI / Security Scan 通过；合并后的 [Security Scan](https://github.com/zc0982/211api/actions/runs/40987905082) 在 `frontend-security / Check audit exceptions` 失败，报告 [GHSA-qr28-fpjm-wq7f](https://github.com/advisories/GHSA-qr28-fpjm-wq7f)。该公告于 2026-10-29 收录至 GitHub Advisory Database。
+
+依赖路径为 `@lobehub/icons → @lobehub/ui → query-string → decode-uri-component@0.4.1`，受影响版本为 `<=0.5.0`。通过 pnpm override 将受影响的间接依赖固定到修复版 `0.5.1`，同步锁文件；不新增安全豁免，不改变应用逻辑。
+
+补修使用 CI 同代工具链 Node `24.22.2` / pnpm `9.15.9` 验证：冻结锁文件安装、lint、typecheck、102 个文件的 1,363 项关键前端测试、生产构建及安全例外校验通过。query-string 的中文、重复参数、畸形编码和序列化往返兼容性检查通过，公告中的 224 KB 输入正常完成解码；扫描中已无 decode-uri-component 告警，剩余 2 项 high 仍为已有有效的 SheetJS 例外。
