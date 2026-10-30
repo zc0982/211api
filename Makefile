@@ -2,6 +2,8 @@
 
 FRONTEND_CRITICAL_VITEST := \
 	src/i18n/__tests__/localeKeyCompleteness.spec.ts \
+	src/i18n/__tests__/localesMessageCompile.spec.ts \
+	src/i18n/__tests__/runtime.spec.ts \
 	src/api/__tests__/client.spec.ts \
 	src/api/__tests__/tokenRefresh.spec.ts \
 	src/api/__tests__/keys.bulkUpdate.spec.ts \
@@ -24,6 +26,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/BulkEditAccountModal.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.spec.ts \
 	src/components/payment/__tests__/AmountInput.spec.ts \
+	src/components/payment/__tests__/SubscriptionPlanCard.spec.ts \
 	src/components/user/__tests__/UserPlatformQuotaCell.spec.ts \
 	src/components/user/dashboard/__tests__/UserDashboardStats.spec.ts \
 	src/constants/__tests__/platforms.spec.ts \
@@ -42,6 +45,11 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/keys/__tests__/UseKeyModal.spec.ts \
 	src/views/admin/__tests__/DashboardView.spec.ts \
 	src/api/__tests__/codex.spec.ts \
+	src/api/__tests__/admin.accounts.grokModelDiagnostics.spec.ts \
+	src/components/account/__tests__/GrokModelDiagnosticsPanel.spec.ts \
+	src/components/account/__tests__/EditAccountModal.grokUpstream.spec.ts \
+	src/components/admin/settings/__tests__/AdminAccessKeysSettings.spec.ts \
+	src/views/admin/__tests__/ChannelsView.webSearchEmulation.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.spec.ts \
 	src/components/common/__tests__/PlatformTypeBadge.openaiPlans.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.platformCatalog.spec.ts \
