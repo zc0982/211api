@@ -1,6 +1,15 @@
 .PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
+	src/api/__tests__/admin.emailBlacklist.spec.ts \
+	src/components/account/__tests__/OpenAIImageSizeTiersField.spec.ts \
+	src/components/admin/settings/__tests__/AdminAccessKeysSettings.i18n.spec.ts \
+	src/components/admin/settings/__tests__/RegistrationEmailBlacklistEditor.spec.ts \
+	src/router/__tests__/mcp-route.spec.ts \
+	src/views/auth/__tests__/MCPLoginRedirect.spec.ts \
+	src/views/auth/__tests__/MCPOAuthAuthorizeView.spec.ts \
+	src/views/user/__tests__/MCPView.spec.ts \
+	src/utils/__tests__/registrationEmailBlacklist.spec.ts \
 	src/i18n/__tests__/localeKeyCompleteness.spec.ts \
 	src/i18n/__tests__/localesMessageCompile.spec.ts \
 	src/i18n/__tests__/runtime.spec.ts \
