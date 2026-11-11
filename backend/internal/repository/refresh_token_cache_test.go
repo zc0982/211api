@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -23,13 +24,10 @@ func newRefreshTokenCacheForTest(t *testing.T) *refreshTokenCache {
 	return &refreshTokenCache{rdb: rdb}
 }
 
-type consumeResult struct {
-	data *service.RefreshTokenData
-	err  error
-}
+type rotationResult struct{ err error }
 
-// 同一个 refresh token 被并发消费时，只能有一个调用成功。
-func TestRefreshTokenCacheConsumeIsAtomic(t *testing.T) {
+// 并发尝试不同后继时，只有一个后继能提交。
+func TestRefreshTokenCacheRotationRejectsDifferentSuccessors(t *testing.T) {
 	cache := newRefreshTokenCacheForTest(t)
 	ctx := context.Background()
 
@@ -39,17 +37,17 @@ func TestRefreshTokenCacheConsumeIsAtomic(t *testing.T) {
 	}, time.Minute))
 
 	const workers = 16
-	results := make(chan consumeResult, workers)
+	results := make(chan rotationResult, workers)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			<-start
-			data, err := cache.ConsumeRefreshToken(ctx, "hash-1")
-			results <- consumeResult{data: data, err: err}
-		}()
+			err := cache.RotateRefreshToken(ctx, "hash-1", fmt.Sprintf("next-%d", i), &service.RefreshTokenData{UserID: 7, FamilyID: "family-1"}, time.Minute)
+			results <- rotationResult{err: err}
+		}(i)
 	}
 	close(start)
 	wg.Wait()
@@ -60,7 +58,6 @@ func TestRefreshTokenCacheConsumeIsAtomic(t *testing.T) {
 		switch {
 		case result.err == nil:
 			successes++
-			require.Equal(t, int64(7), result.data.UserID)
 		case errors.Is(result.err, service.ErrRefreshTokenNotFound):
 			notFound++
 		default:
@@ -70,6 +67,10 @@ func TestRefreshTokenCacheConsumeIsAtomic(t *testing.T) {
 	require.Equal(t, 1, successes)
 	require.Equal(t, workers-1, notFound)
 
-	_, err := cache.GetRefreshToken(ctx, "hash-1")
-	require.ErrorIs(t, err, service.ErrRefreshTokenNotFound)
+	receipt, err := cache.GetRefreshToken(ctx, "hash-1")
+	require.NoError(t, err)
+	require.Empty(t, receipt.RotatedTo, "retry reads the active successor metadata")
+	hashes, err := cache.GetFamilyTokenHashes(ctx, "family-1")
+	require.NoError(t, err)
+	require.Len(t, hashes, 2, "one receipt and exactly one successor")
 }

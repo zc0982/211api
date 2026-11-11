@@ -12,6 +12,7 @@ var ErrRefreshTokenNotFound = errors.New("refresh token not found")
 
 // RefreshTokenData 存储在Redis中的Refresh Token数据
 type RefreshTokenData struct {
+	RotatedTo    string    `json:"rotated_to,omitempty"` // 短时轮转回执，仅存后继令牌哈希
 	UserID       int64     `json:"user_id"`
 	TokenVersion int64     `json:"token_version"`          // 用于检测密码更改后的Token失效
 	FamilyID     string    `json:"family_id"`              // Token家族ID，用于防重放攻击
@@ -34,7 +35,7 @@ type RefreshTokenCache interface {
 	// ttl: Token过期时间
 	StoreRefreshToken(ctx context.Context, tokenHash string, data *RefreshTokenData, ttl time.Duration) error
 
-	// GetRefreshToken 获取Refresh Token数据
+	// GetRefreshToken 获取Refresh Token数据；短时轮转回执返回仍有效的直接后继元数据。
 	// 返回 (data, nil) 如果Token存在
 	// 返回 (nil, ErrRefreshTokenNotFound) 如果Token不存在
 	// 返回 (nil, err) 如果发生其他错误
@@ -44,10 +45,9 @@ type RefreshTokenCache interface {
 	// 用于Token轮转时使旧Token失效
 	DeleteRefreshToken(ctx context.Context, tokenHash string) error
 
-	// ConsumeRefreshToken 原子地读取并删除 Refresh Token。
-	// 并发轮转时只有一个调用能成功，其余返回 ErrRefreshTokenNotFound，
-	// 用于避免同一个 Refresh Token 被重复兑换（double-spend）。
-	ConsumeRefreshToken(ctx context.Context, tokenHash string) (*RefreshTokenData, error)
+	// RotateRefreshToken 原子写入后继令牌及撤销索引，并使旧令牌仅能短时重试同一后继。
+	// 重试不得延长回执或令牌 TTL；后继已失效时返回 ErrRefreshTokenNotFound。
+	RotateRefreshToken(ctx context.Context, oldHash, newHash string, data *RefreshTokenData, ttl time.Duration) error
 
 	// DeleteUserRefreshTokens 删除用户的所有Refresh Token
 	// 用于密码更改或用户主动登出所有设备

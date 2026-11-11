@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -1800,7 +1801,7 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 }
 
 // RefreshTokenPair 使用Refresh Token刷新Token对
-// 实现Token轮转：每次刷新都会生成新的Refresh Token，旧Token立即失效
+// 原子轮转到唯一后继；旧Token只在短时回执窗口内可重试取回同一后继。
 func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string) (*TokenPairWithUser, error) {
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
@@ -1869,24 +1870,31 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		}
 	}
 
-	// Token轮转：原子消费旧Token。并发刷新时只有一个请求能成功，
-	// 其余请求拿到 ErrRefreshTokenNotFound，避免同一个 Refresh Token 被兑换两次。
-	if _, err := s.refreshTokenCache.ConsumeRefreshToken(ctx, tokenHash); err != nil {
+	// Prepare before mutating Redis. Deriving a domain-separated successor means
+	// retries (including on another instance) recover the same token without
+	// storing bearer credentials or allowing multiple successor chains.
+	mac := hmac.New(sha256.New, []byte(s.cfg.JWT.Secret))
+	_, _ = mac.Write([]byte("sub2api:refresh-rotation:v1:" + refreshToken))
+	newToken := refreshTokenPrefix + hex.EncodeToString(mac.Sum(nil))
+	accessToken, err := s.generateAccessToken(user, data.FamilyID, sessionBindingHashFromContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("generate access token: %w", err)
+	}
+	now := time.Now()
+	ttl := time.Duration(s.cfg.JWT.RefreshTokenExpireDays) * 24 * time.Hour
+	next := &RefreshTokenData{
+		UserID: user.ID, TokenVersion: resolvedTokenVersion(user), FamilyID: data.FamilyID,
+		BindingHash: sessionBindingHashFromContext(ctx), CreatedAt: now, ExpiresAt: now.Add(ttl),
+	}
+	if err := s.refreshTokenCache.RotateRefreshToken(ctx, tokenHash, hashToken(newToken), next, ttl); err != nil {
 		if errors.Is(err, ErrRefreshTokenNotFound) {
-			logger.LegacyPrintf("service.auth", "[Auth] Refresh token already consumed, possible reuse attack")
 			return nil, ErrRefreshTokenInvalid
 		}
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to consume old refresh token: %v", err)
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to rotate refresh token: %v", err)
 		return nil, ErrServiceUnavailable
 	}
-
-	// 生成新的Token对，保持同一个家族ID
-	pair, err := s.GenerateTokenPair(ctx, user, data.FamilyID)
-	if err != nil {
-		return nil, err
-	}
 	return &TokenPairWithUser{
-		TokenPair: *pair,
+		TokenPair: TokenPair{AccessToken: accessToken, RefreshToken: newToken, ExpiresIn: s.GetAccessTokenExpiresIn()},
 		UserRole:  user.Role,
 	}, nil
 }

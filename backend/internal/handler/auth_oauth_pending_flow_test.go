@@ -2881,8 +2881,8 @@ func (s *oauthPendingFlowRefreshTokenCacheStub) DeleteTokenFamily(context.Contex
 	return nil
 }
 
-func (s *oauthPendingFlowRefreshTokenCacheStub) ConsumeRefreshToken(context.Context, string) (*service.RefreshTokenData, error) {
-	return nil, service.ErrRefreshTokenNotFound
+func (s *oauthPendingFlowRefreshTokenCacheStub) RotateRefreshToken(context.Context, string, string, *service.RefreshTokenData, time.Duration) error {
+	return service.ErrRefreshTokenNotFound
 }
 
 func (s *oauthPendingFlowRefreshTokenCacheStub) AddToUserTokenSet(context.Context, int64, string, time.Duration) error {

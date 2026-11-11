@@ -4,7 +4,6 @@ package service_test
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 )
 
 // barrierRefreshTokenCacheStub 让所有并发请求都先读到旧 token，再统一放行，
-// 从而确定性地复现 "Get 之后、消费之前" 的 double-spend 窗口。
+// 从而确定性地复现 "Get 之后、轮转之前" 的 double-spend 窗口。
 type barrierRefreshTokenCacheStub struct {
 	*emailBindRefreshTokenCacheStub
 
@@ -45,8 +44,8 @@ func (s *barrierRefreshTokenCacheStub) GetRefreshToken(ctx context.Context, toke
 	return data, err
 }
 
-// 同一个 refresh token 并发刷新时，只能有一个请求成功兑换，其余必须失败。
-func TestAuthServiceRefreshTokenPairConsumesTokenOnce(t *testing.T) {
+// 同一个 refresh token 并发刷新只能得到同一后继，不能生成多条会话链。
+func TestAuthServiceRefreshTokenPairReturnsOneSuccessor(t *testing.T) {
 	ctx := context.Background()
 	const workers = 8
 	cache := newBarrierRefreshTokenCacheStub(workers)
@@ -74,31 +73,39 @@ func TestAuthServiceRefreshTokenPairConsumesTokenOnce(t *testing.T) {
 
 	start := make(chan struct{})
 	errs := make(chan error, workers)
+	tokens := make(chan string, workers)
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			<-start
-			_, refreshErr := svc.RefreshTokenPair(ctx, pair.RefreshToken)
+			refreshed, refreshErr := svc.RefreshTokenPair(ctx, pair.RefreshToken)
+			if refreshed != nil {
+				tokens <- refreshed.RefreshToken
+			}
 			errs <- refreshErr
 		}()
 	}
 	close(start)
 	wg.Wait()
 	close(errs)
+	close(tokens)
 
-	successes, invalid := 0, 0
 	for refreshErr := range errs {
-		switch {
-		case refreshErr == nil:
-			successes++
-		case errors.Is(refreshErr, service.ErrRefreshTokenInvalid):
-			invalid++
-		default:
-			t.Fatalf("unexpected refresh error: %v", refreshErr)
-		}
+		require.NoError(t, refreshErr)
 	}
-	require.Equal(t, 1, successes)
-	require.Equal(t, workers-1, invalid)
+	var successor string
+	for token := range tokens {
+		if successor == "" {
+			successor = token
+		}
+		require.Equal(t, successor, token)
+	}
+	require.NotEmpty(t, successor)
+	require.NotEqual(t, pair.RefreshToken, successor)
+	_, err = svc.RefreshTokenPair(ctx, successor)
+	require.NoError(t, err)
+	_, err = svc.RefreshTokenPair(ctx, pair.RefreshToken)
+	require.ErrorIs(t, err, service.ErrRefreshTokenInvalid)
 }
