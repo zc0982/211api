@@ -541,18 +541,18 @@ func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) 
 	// Credits exempt an exhausted window, not another window's earlier pause threshold.
 	creditsCover5h := hasCredits && has5h && utilization5h >= 1
 	creditsCover7d := hasCredits && has7d && utilization7d >= 1
-	// 自动用卡有独立阈值：没有可消费点数时，达到消费阈值必须先退出调度；
-	// 仅达到普通暂停阈值时，只有新鲜状态明确存在可用重置卡才继续放行到消费阈值。
+	// 自动用卡阈值仅触发重置流程；有新鲜可消费点数时，无需等待重置卡，
+	// 即使用量尚未达到 100%。独立的普通停调阈值仍在下方逐窗口评估。
 	if config := ResolveOpenAIAutoResetCreditConfig(account); config.Enabled {
 		if has5h && utilization5h >= config.Threshold5h {
 			notifyOpenAIAutoResetFromScheduler(account.ID)
-			if !creditsCover5h {
+			if !hasCredits {
 				return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: config.Threshold5h, utilization: utilization5h, reason: "quota_auto_reset_pending_5h"}
 			}
 		}
 		if has7d && utilization7d >= config.Threshold7d {
 			notifyOpenAIAutoResetFromScheduler(account.ID)
-			if !creditsCover7d {
+			if !hasCredits {
 				return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: config.Threshold7d, utilization: utilization7d, reason: "quota_auto_reset_pending_7d"}
 			}
 		}

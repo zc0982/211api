@@ -1,6 +1,10 @@
 .PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
+	src/components/admin/channel/__tests__/types.spec.ts \
+	src/components/modelPlaza/__tests__/PlazaModelPricingTable.spec.ts \
+	src/components/payment/__tests__/PaymentProviderDialog.spec.ts \
+	src/utils/__tests__/intervalPrices.spec.ts \
 	src/api/__tests__/admin.emailBlacklist.spec.ts \
 	src/components/account/__tests__/OpenAIImageSizeTiersField.spec.ts \
 	src/components/admin/settings/__tests__/AdminAccessKeysSettings.i18n.spec.ts \
