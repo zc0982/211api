@@ -31,8 +31,18 @@ PostgreSQL/Redis 集成测试 4 个包通过。首次运行因 testcontainers �
 
 版本完整性、integration 包登记、部署脚本、Compose 环境/安全/资源配置、Caddy 缓存及 10 项 release matrix 测试通过。Compose 使用临时适配器调用本机独立 docker-compose，release matrix 的 PyYAML 安装在临时 venv，未改项目依赖。
 
-安全检查：govulncheck 的代码受影响漏洞为 0，`go mod verify` 全部通过；pnpm 生产依赖 high/critical 门禁沿用现有审计例外通过，无新增豁免。
+首次本地安全检查在当时取得的漏洞库索引下显示代码受影响漏洞为 0，`go mod verify` 全部通过；pnpm 生产依赖 high/critical 门禁沿用现有审计例外通过，无新增豁免。随后 PR 安全扫描发现新发布的 Go 标准库漏洞，首次本地结果不能代表当前安全门禁，见下文。
 
 完整后端 unit 60 个包通过，其中 service 用时 175.339 秒；完整 service race 通过，用时 280.435 秒，无 DATA RACE。
 
-最新 origin/main 祖先检查与净 diff/whitespace 检查通过，未包含本地配置。以上均为本地验证；未推送、未建 PR、未合并到 main、未部署，生产仍运行基线版本。
+初次交付时 origin/main 祖先检查与净 diff/whitespace 检查通过，未包含本地配置。随后已创建 PR #87；未合并到 main、未部署。
+
+## PR #87 后端安全门禁修复
+
+- 旧 head `902bb1885d703d1ee8e77bec3619cc77d75871f8` 的 CI 工作流通过，但 [Security Scan 42952766554](https://github.com/zc0982/211api/actions/runs/42952766554) 在 govulncheck 阶段退出码 3，报告 `GO-2026-6859`：Go 1.27.3 的 net/http HTTP/1 服务崩溃漏洞，修复版本为 1.27.4。
+- 本地旧扫描器为 v1.8.0，CI 为 v1.9.0；换用 v1.9.0 后，本地默认漏洞库索引仍显示 2026-11-05，但官方 OSV 条目已于 2026-11-11T02:51:11Z 发布。不能将差异仅归因为扫描器版本。使用官方原始条目的临时定向扫描已在 Go 1.27.3 复现同一漏洞与退出码。
+- 将 go.mod、三个 Dockerfile 以及 CI/Release/Security 的所有版本断言统一升级到 Go 1.27.4。补充发布一致性校验，避免 CI 升级而镜像仍使用旧标准库。
+- 本地和 CI 改用共享 `make test-security`，每次临时安装最新 govulncheck，打印实际 Go、扫描器和漏洞库时间，并保留扫描失败退出码。不增加漏洞豁免，也不替换 CI 的默认漏洞库。
+- Go 1.27.4 下完整 unit 60 个包、PostgreSQL/Redis 集成测试 4 个包、完整 service race（272.409 秒）、lint（0 issues）、含前端资源的发行构建均通过；二进制工具链回读为 Go 1.27.4，应用版本为 0.2.21。发布一致性检查及旧 Docker 镜像/单处旧 CI 断言的反例检查通过，release matrix 10 项测试通过。
+- 完整 unit 曾出现计费估算内存守卫读取到约 8.75 MB 的进程堆增量，超过原 8 MiB 上限；同一用例独立执行 3 次通过。现将测量放入独立进程，保留 20,000 次调用、原内存上限及全部业务断言；修改后的完整 unit 与该用例 3 次 race 验证通过。
+- 官方原始漏洞条目定向扫描在 Go 1.27.4 下通过。默认漏洞库的本地全量扫描也通过，但索引仍显示 2026-11-05，不能据此宣称新 head CI 安全门禁已通过；PR 检查状态需在推送后回读。

@@ -56,8 +56,9 @@ corepack prepare pnpm@9.15.9 --activate
 
 ### CI 要求
 
-- Go 版本必须是 **1.27.3**：三个 workflow 都用 `go-version-file: backend/go.mod` 取版本，随后硬断言 `go version | grep -q 'go1.27.3'`。升级 Go 时要同时改 `backend/go.mod`、`backend-ci.yml`（三处）、`release.yml`、`security-scan.yml` 里的这句断言，**以及三个 Dockerfile 里的 Go 构建镜像**（`Dockerfile` / `deploy/Dockerfile` 的 `ARG GOLANG_IMAGE`、`backend/Dockerfile` 的 `FROM golang:`）。前者漏了 CI 会在版本校验步骤直接失败；**后者漏了 CI 不会报，而是等到有人用这些 Dockerfile 构建时才失败**（`go.mod requires go >= X (running Y; GOTOOLCHAIN=local)`）。
+- Go 版本必须是 **1.27.4**：三个 workflow 使用 `go-version-file: backend/go.mod`，并断言实际版本。升级时须同时更新 `backend/go.mod`、backend-ci（3 处）/release/security-scan 的断言，以及 `Dockerfile`、`deploy/Dockerfile`、`backend/Dockerfile` 的 Go 构建镜像。`release-delivery-integrity-test.sh` 会在 backend CI 中核对全部入口，避免测试环境已升级而发行镜像仍使用旧标准库。
 - golangci-lint 必须是 **2.14.0**，pnpm 必须是 **9.15.9**
+- 本地与 CI 安全扫描统一使用 `make -C backend test-security`，临时安装最新扫描器并输出工具链、扫描器和漏洞库时间。索引未包含新漏洞时，本地通过不能替代 exact-head CI；详见 `docs/spec/go-security-validation.md`。
 - 前端使用 `pnpm install --frozen-lockfile`，必须提交 `pnpm-lock.yaml`
 - CI/CD 全部在 GitHub Actions 上运行；镜像仓库为 GHCR（`ghcr.io`）
 - `upstream` remote 仍用于拉取公开上游（Wei-Shaw/sub2api）更新
@@ -77,7 +78,7 @@ make test-frontend                     # backend-ci.yml: frontend
 golangci-lint run --timeout=30m    # backend-ci.yml: golangci-lint（在 backend/ 下执行）
 
 # 安全扫描（security-scan.yml）
-cd backend && govulncheck ./...
+make -C backend test-security
 cd frontend && pnpm audit --prod --audit-level=high --json > audit.json || true
 python tools/check_pnpm_audit_exceptions.py \
   --audit frontend/audit.json --exceptions .github/audit-exceptions.yml
@@ -259,7 +260,7 @@ git add ent/       # 生成的文件也要提交
 - [ ] `go -C backend run ./cmd/server --version` 与 `backend/cmd/server/VERSION` 一致
 - [ ] `make test-frontend` 通过
 - [ ] `golangci-lint run --timeout=30m`（在 `backend/` 下执行）无新增问题
-- [ ] `govulncheck ./...`（backend）与 `pnpm audit --prod --audit-level=high`（frontend）通过
+- [ ] `make -C backend test-security` 与 `pnpm audit --prod --audit-level=high`（frontend）通过
 - [ ] `bash -n deploy/apple-container.sh` 通过
 - [ ] `pnpm-lock.yaml` 已同步（如果改了 package.json）
 - [ ] 所有 test stub 补全新接口方法（如果改了 interface）

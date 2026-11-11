@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
+	"os/exec"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -434,6 +436,18 @@ func attachInflightSnapshot(svc *GatewayService, snap *inflightSnapshotCacheStub
 
 // 已定价模型永不查账号映射；随机未定价模型名不直接查库、不产生按模型名的缓存（内存有界）。
 func TestInflightEstimate_AccountMappingNoDBAndBoundedMemory(t *testing.T) {
+	// HeapAlloc 是进程级指标；独立进程排除其他用例后台活动对内存增量的影响。
+	const isolatedMemoryEnv = "SUB2API_INFLIGHT_MEMORY_ISOLATED"
+	if os.Getenv(isolatedMemoryEnv) != "1" {
+		executable, err := os.Executable()
+		require.NoError(t, err)
+		command := exec.Command(executable, "-test.run=^"+t.Name()+"$", "-test.count=1", "-test.timeout=1m")
+		command.Env = append(os.Environ(), isolatedMemoryEnv+"=1")
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, "isolated memory guard failed:\n%s", output)
+		return
+	}
+
 	groupID := int64(40)
 	svc := newInflightEstimateGateway(t, nil)
 	snap := &inflightSnapshotCacheStub{byBucket: map[string][]Account{inflightBucketKey(groupID, PlatformAnthropic): {
