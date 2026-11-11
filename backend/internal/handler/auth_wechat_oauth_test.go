@@ -1478,6 +1478,10 @@ func (s *wechatOAuthRefreshTokenCacheStub) DeleteTokenFamily(context.Context, st
 	return nil
 }
 
+func (s *wechatOAuthRefreshTokenCacheStub) RotateRefreshToken(context.Context, string, string, *service.RefreshTokenData, time.Duration) error {
+	return service.ErrRefreshTokenNotFound
+}
+
 func (s *wechatOAuthRefreshTokenCacheStub) AddToUserTokenSet(context.Context, int64, string, time.Duration) error {
 	return nil
 }

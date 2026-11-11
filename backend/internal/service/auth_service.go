@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -1800,7 +1801,7 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 }
 
 // RefreshTokenPair 使用Refresh Token刷新Token对
-// 实现Token轮转：每次刷新都会生成新的Refresh Token，旧Token立即失效
+// 原子轮转到唯一后继；旧Token只在短时回执窗口内可重试取回同一后继。
 func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string) (*TokenPairWithUser, error) {
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
@@ -1869,19 +1870,31 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		}
 	}
 
-	// Token轮转：立即使旧Token失效
-	if err := s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
-		// 继续处理，不影响主流程
-	}
-
-	// 生成新的Token对，保持同一个家族ID
-	pair, err := s.GenerateTokenPair(ctx, user, data.FamilyID)
+	// Prepare before mutating Redis. Deriving a domain-separated successor means
+	// retries (including on another instance) recover the same token without
+	// storing bearer credentials or allowing multiple successor chains.
+	mac := hmac.New(sha256.New, []byte(s.cfg.JWT.Secret))
+	_, _ = mac.Write([]byte("sub2api:refresh-rotation:v1:" + refreshToken))
+	newToken := refreshTokenPrefix + hex.EncodeToString(mac.Sum(nil))
+	accessToken, err := s.generateAccessToken(user, data.FamilyID, sessionBindingHashFromContext(ctx))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate access token: %w", err)
+	}
+	now := time.Now()
+	ttl := time.Duration(s.cfg.JWT.RefreshTokenExpireDays) * 24 * time.Hour
+	next := &RefreshTokenData{
+		UserID: user.ID, TokenVersion: resolvedTokenVersion(user), FamilyID: data.FamilyID,
+		BindingHash: sessionBindingHashFromContext(ctx), CreatedAt: now, ExpiresAt: now.Add(ttl),
+	}
+	if err := s.refreshTokenCache.RotateRefreshToken(ctx, tokenHash, hashToken(newToken), next, ttl); err != nil {
+		if errors.Is(err, ErrRefreshTokenNotFound) {
+			return nil, ErrRefreshTokenInvalid
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to rotate refresh token: %v", err)
+		return nil, ErrServiceUnavailable
 	}
 	return &TokenPairWithUser{
-		TokenPair: *pair,
+		TokenPair: TokenPair{AccessToken: accessToken, RefreshToken: newToken, ExpiresIn: s.GetAccessTokenExpiresIn()},
 		UserRole:  user.Role,
 	}, nil
 }

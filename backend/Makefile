@@ -1,4 +1,4 @@
-.PHONY: build generate test test-unit test-integration test-race-service test-version-integrity test-e2e
+.PHONY: build generate test test-unit test-integration test-race-service test-version-integrity test-security test-e2e
 
 VERSION ?= $(shell ./scripts/resolve-version.sh)
 LDFLAGS ?= -s -w -X main.Version=$(VERSION)
@@ -28,6 +28,16 @@ test-unit:
 
 test-race-service:
 	go test -tags=unit -race -count=1 ./internal/service
+
+# 本地与 CI 使用同一入口，避免 PATH 上的旧扫描器掩盖新漏洞。
+# 输出实际工具链、扫描器与漏洞库时间；不改变失败退出码。
+test-security:
+	@set -eu; \
+	tool_dir=$$(mktemp -d); \
+	trap 'rm -rf "$$tool_dir"' EXIT; \
+	GOBIN="$$tool_dir" go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	"$$tool_dir/govulncheck" -version; \
+	"$$tool_dir/govulncheck" ./...
 
 test-version-integrity:
 	sh ./scripts/tests/verify-version-test.sh

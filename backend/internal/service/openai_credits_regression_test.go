@@ -18,9 +18,95 @@ type credits429SnapshotRepo struct {
 	updates map[string]any
 }
 
+// A reset-card trigger is not an administrative stop threshold. In production,
+// a 99% weekly window with spendable credits and no reset card stranded the pool.
+func TestOpenAICreditsScheduling_ResetTriggerWithSpendableCredits(t *testing.T) {
+	for _, window := range []string{"5h", "7d"} {
+		for _, state := range []string{"", OpenAIAutoResetStatusNoCredit, OpenAIAutoResetStatusChecking, OpenAIAutoResetStatusFailed, OpenAIAutoResetStatusResetting} {
+			t.Run(window+"/"+state, func(t *testing.T) {
+				now := time.Now()
+				balance := "60000.5"
+				account := &Account{ID: 8183, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Extra: map[string]any{
+					"codex_" + window + "_used_percent":      99.0,
+					"codex_" + window + "_reset_at":          now.Add(time.Hour).Format(time.RFC3339),
+					"codex_usage_updated_at":                 now.Format(time.RFC3339),
+					OpenAIAutoResetCreditEnabledExtraKey:     true,
+					OpenAIAutoResetCredit5hThresholdExtraKey: 0.99,
+					OpenAIAutoResetCredit7dThresholdExtraKey: 0.99,
+					OpenAIAutoResetCreditStateExtraKey:       OpenAIAutoResetCreditState{Status: state, CheckedAt: now.Format(time.RFC3339)},
+					openaiQuotaCreditsKey:                    openAICreditsSnapshot{Credits: &OpenAICredits{HasCredits: true, Balance: &balance}, FetchedAt: now.Unix()},
+				}}
+				ctx := context.Background()
+				scheduler := &defaultOpenAIAccountScheduler{}
+				paused, decision := shouldAutoPauseOpenAIAccountByQuota(ctx, account)
+				require.False(t, paused, "reset-card state must not strand spendable credits: %+v", decision)
+				compatible, reason := scheduler.isAccountRequestCompatibleReason(ctx, account, OpenAIAccountScheduleRequest{})
+				require.True(t, compatible, reason)
+				require.Empty(t, openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx, account, PlatformOpenAI, "", false, ""))
+
+				// Independent administrative limits still apply below exhaustion.
+				account.Extra["auto_pause_"+window+"_threshold"] = 0.95
+				paused, decision = shouldAutoPauseOpenAIAccountByQuota(ctx, account)
+				require.True(t, paused)
+				require.Equal(t, window, decision.window)
+				require.True(t, EvaluateAccountSchedulingThreshold(account, map[string]int{PlatformOpenAI: 95}, now).ShouldPause)
+				delete(account.Extra, "auto_pause_"+window+"_threshold")
+
+				for _, snapshot := range []any{
+					nil,
+					openAICreditsSnapshot{Credits: &OpenAICredits{HasCredits: false}, FetchedAt: now.Unix()},
+					openAICreditsSnapshot{Credits: &OpenAICredits{HasCredits: true}, FetchedAt: now.Add(-9 * time.Hour).Unix()},
+				} {
+					account.Extra[openaiQuotaCreditsKey] = snapshot
+					paused, decision = shouldAutoPauseOpenAIAccountByQuota(ctx, account)
+					require.True(t, paused, "missing, exhausted or stale credits must not bypass reset wait")
+					require.Equal(t, "quota_auto_reset_pending_"+window, decision.reason)
+				}
+			})
+		}
+	}
+}
+
 func (r *credits429SnapshotRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
 	r.updates = updates
 	return nil
+}
+
+func TestOpenAICreditsScheduling_SelectAccountAtResetTrigger(t *testing.T) {
+	for _, advanced := range []bool{false, true} {
+		for _, batch := range []bool{false, true} {
+			t.Run("advanced="+strconv.FormatBool(advanced)+"/batch="+strconv.FormatBool(batch), func(t *testing.T) {
+				resetOpenAIAdvancedSchedulerSettingCacheForTest()
+				now := time.Now()
+				account := Account{ID: 8184, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Extra: map[string]any{
+					"codex_7d_used_percent":                  99.0,
+					"codex_7d_reset_at":                      now.Add(24 * time.Hour).Format(time.RFC3339),
+					"codex_usage_updated_at":                 now.Format(time.RFC3339),
+					OpenAIAutoResetCreditEnabledExtraKey:     true,
+					OpenAIAutoResetCredit7dThresholdExtraKey: 0.99,
+					OpenAIAutoResetCreditStateExtraKey:       OpenAIAutoResetCreditState{Status: OpenAIAutoResetStatusNoCredit, CheckedAt: now.Format(time.RFC3339)},
+					openaiQuotaCreditsKey:                    openAICreditsSnapshot{Credits: &OpenAICredits{HasCredits: true}, FetchedAt: now.Unix()},
+				}}
+				cfg := &config.Config{}
+				cfg.Gateway.Scheduling.LoadBatchEnabled = batch
+				svc := &OpenAIGatewayService{
+					accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{account}},
+					cache:       &schedulerTestGatewayCache{}, cfg: cfg,
+					rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService(strconv.FormatBool(advanced)),
+					concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+				}
+				groupID := int64(8184)
+				selection, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-5.4-mini", nil, OpenAIUpstreamTransportAny, false)
+				require.NoError(t, err, "a funded account must not turn the whole pool into a 503")
+				require.NotNil(t, selection)
+				require.NotNil(t, selection.Account)
+				require.Equal(t, account.ID, selection.Account.ID)
+				if selection.ReleaseFunc != nil {
+					selection.ReleaseFunc()
+				}
+			})
+		}
+	}
 }
 
 func TestOpenAI429FastPath_ResponseCreditsOverrideCache(t *testing.T) {
@@ -120,7 +206,7 @@ func TestOpenAICreditsScheduling_PreservesOtherWindowThreshold(t *testing.T) {
 					account.Extra[key] = 0.90
 					paused, quotaDecision = shouldAutoPauseOpenAIAccountByQuota(context.Background(), account)
 					require.True(t, paused)
-					require.Equal(t, "quota_auto_reset_pending_"+otherWindow, quotaDecision.reason)
+					require.Equal(t, "quota_auto_reset_credit_check_"+otherWindow, quotaDecision.reason)
 				}
 
 				account.Extra["codex_"+otherWindow+"_used_percent"] = 80.0

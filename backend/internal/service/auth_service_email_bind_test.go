@@ -911,6 +911,13 @@ func (s *emailBindRefreshTokenCacheStub) GetRefreshToken(_ context.Context, toke
 	if !ok {
 		return nil, service.ErrRefreshTokenNotFound
 	}
+	if data.RotatedTo != "" {
+		next := s.tokens[data.RotatedTo]
+		if next == nil || next.RotatedTo != "" {
+			return nil, service.ErrRefreshTokenNotFound
+		}
+		data = next
+	}
 	cloned := *data
 	return &cloned, nil
 }
@@ -925,6 +932,34 @@ func (s *emailBindRefreshTokenCacheStub) DeleteRefreshToken(_ context.Context, t
 	for _, tokenSet := range s.families {
 		delete(tokenSet, tokenHash)
 	}
+	return nil
+}
+
+func (s *emailBindRefreshTokenCacheStub) RotateRefreshToken(_ context.Context, oldHash, newHash string, next *service.RefreshTokenData, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.tokens[oldHash]
+	if !ok {
+		return service.ErrRefreshTokenNotFound
+	}
+	if old.RotatedTo != "" {
+		successor := s.tokens[newHash]
+		if old.RotatedTo != newHash || successor == nil || successor.RotatedTo != "" {
+			return service.ErrRefreshTokenNotFound
+		}
+		return nil
+	}
+	old.RotatedTo = newHash
+	cloned := *next
+	s.tokens[newHash] = &cloned
+	if s.userSets[next.UserID] == nil {
+		s.userSets[next.UserID] = make(map[string]struct{})
+	}
+	s.userSets[next.UserID][newHash] = struct{}{}
+	if s.families[next.FamilyID] == nil {
+		s.families[next.FamilyID] = make(map[string]struct{})
+	}
+	s.families[next.FamilyID][newHash] = struct{}{}
 	return nil
 }
 
