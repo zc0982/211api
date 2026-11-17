@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
+	"regexp"
 	"testing"
 	"time"
 
@@ -114,10 +117,28 @@ func TestRuntimeLogConfig_RequestRetentionCompatibility(t *testing.T) {
 	require.Equal(t, 90, *reset.RequestRetentionDays)
 }
 
+// initIsolatedTestTimezone runs the current test in a child process before
+// changing time.Local, which background workers in the suite may still read.
+func initIsolatedTestTimezone(t *testing.T, name string) bool {
+	t.Helper()
+	const timezoneEnv = "SUB2API_ISOLATED_TEST_TIMEZONE"
+	if os.Getenv(timezoneEnv) == name {
+		require.NoError(t, timezone.Init(name))
+		return true
+	}
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	command := exec.CommandContext(t.Context(), executable, "-test.run=^"+regexp.QuoteMeta(t.Name())+"$", "-test.count=1", "-test.timeout=1m")
+	command.Env = append(os.Environ(), timezoneEnv+"="+name)
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, "test in timezone %s failed:\n%s", name, output)
+	return false
+}
+
 func TestRequestLogRetention_CutoffAlignsToConfiguredDayStart(t *testing.T) {
-	previous := timezone.Name()
-	require.NoError(t, timezone.Init("Asia/Shanghai"))
-	t.Cleanup(func() { require.NoError(t, timezone.Init(previous)) })
+	if !initIsolatedTestTimezone(t, "Asia/Shanghai") {
+		return
+	}
 
 	for _, tt := range []struct {
 		name      string
@@ -145,9 +166,9 @@ func TestRequestLogRetention_CutoffAlignsToConfiguredDayStart(t *testing.T) {
 
 // 夏令时在零点跳变的日期没有 00:00：日界取该日期实际开始的时刻，而不是前一天的 23:00。
 func TestGroupUsageDayBoundariesSkipMidnightDSTGap(t *testing.T) {
-	previous := timezone.Name()
-	require.NoError(t, timezone.Init("America/Santiago"))
-	t.Cleanup(func() { require.NoError(t, timezone.Init(previous)) })
+	if !initIsolatedTestTimezone(t, "America/Santiago") {
+		return
+	}
 	loc := timezone.Location()
 
 	noon := time.Date(2026, 9, 6, 12, 0, 0, 0, loc)
@@ -170,9 +191,9 @@ func TestGroupUsageDayBoundariesSkipMidnightDSTGap(t *testing.T) {
 
 // 零点出现两次的日期（Asia/Gaza 2020-10-24 在 01:00 回拨到 00:00）：日界取第一次出现的 00:00。
 func TestGroupUsageDayBoundariesUseFirstOfRepeatedMidnight(t *testing.T) {
-	previous := timezone.Name()
-	require.NoError(t, timezone.Init("Asia/Gaza"))
-	t.Cleanup(func() { require.NoError(t, timezone.Init(previous)) })
+	if !initIsolatedTestTimezone(t, "Asia/Gaza") {
+		return
+	}
 
 	start, err := ParseGroupUsageDate("2020-10-24")
 	require.NoError(t, err)
