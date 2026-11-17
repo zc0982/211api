@@ -47,3 +47,16 @@ func TestGroupUsageYesterdayStartHandlesDST(t *testing.T) {
 	require.Equal(t, 23*time.Hour, todayStart.Sub(yesterdayStart))
 	require.Equal(t, "America/New_York", groupUsageTimezoneNameInLocation(location))
 }
+
+func TestGroupUsageDayStartsWhenMidnightIsSkipped(t *testing.T) {
+	location := groupUsageTestLocation(t, "America/Sao_Paulo")
+	dayStart := time.Date(2018, 11, 4, 3, 0, 0, 0, time.UTC)
+	nextDayStart := time.Date(2018, 11, 5, 2, 0, 0, 0, time.UTC)
+
+	parsed, err := parseGroupUsageDateInLocation("2018-11-04", location)
+	require.NoError(t, err)
+	require.Equal(t, dayStart, parsed.UTC())
+	require.Equal(t, dayStart, groupUsageTodayStartInLocation(dayStart, location))
+	require.Equal(t, dayStart, groupUsageYesterdayStartInLocation(nextDayStart, location))
+	require.Equal(t, "2018-11-03", groupUsageDateInLocation(dayStart.Add(-time.Nanosecond), location))
+}

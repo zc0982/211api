@@ -44,11 +44,13 @@ func groupUsageTimezoneNameInLocation(location *time.Location) string {
 }
 
 func groupUsageTodayStartInLocation(at time.Time, location *time.Location) time.Time {
-	return groupUsageStartOfDayInLocation(at, location).UTC()
+	year, month, day := at.In(location).Date()
+	return groupUsageDayStart(year, month, day, location).UTC()
 }
 
 func groupUsageYesterdayStartInLocation(at time.Time, location *time.Location) time.Time {
-	return groupUsageStartOfDayInLocation(at, location).AddDate(0, 0, -1).UTC()
+	// 从当日起点向前 12 小时定位前一个本地日，避免直接构造可能不存在的零点。
+	return groupUsageTodayStartInLocation(groupUsageTodayStartInLocation(at, location).Add(-12*time.Hour), location)
 }
 
 func groupUsageDateInLocation(at time.Time, location *time.Location) string {
@@ -56,10 +58,41 @@ func groupUsageDateInLocation(at time.Time, location *time.Location) string {
 }
 
 func parseGroupUsageDateInLocation(value string, location *time.Location) (time.Time, error) {
-	return time.ParseInLocation(groupUsageDateFormat, value, location)
+	date, err := time.Parse(groupUsageDateFormat, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	year, month, day := date.Date()
+	return groupUsageDayStart(year, month, day, location), nil
 }
 
-func groupUsageStartOfDayInLocation(at time.Time, location *time.Location) time.Time {
-	local := at.In(location)
-	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+// groupUsageDayStart 返回本地日期的第一个时刻。夏令时跳变可使零点消失或重复。
+func groupUsageDayStart(year int, month time.Month, day int, location *time.Location) time.Time {
+	target := groupUsageDateOrdinal(year, month, day)
+	start := time.Date(year, month, day, 0, 0, 0, 0, location)
+	if localGroupUsageDateOrdinal(start, location) == target &&
+		localGroupUsageDateOrdinal(start.Add(-time.Nanosecond), location) < target {
+		return start
+	}
+	// 在前一日正午到当日正午之间找本地日期首次到达目标日期的时刻。
+	low := time.Date(year, month, day-1, 12, 0, 0, 0, location)
+	high := time.Date(year, month, day, 12, 0, 0, 0, location)
+	for high.Sub(low) > time.Nanosecond {
+		mid := low.Add(high.Sub(low) / 2)
+		if localGroupUsageDateOrdinal(mid, location) >= target {
+			high = mid
+		} else {
+			low = mid
+		}
+	}
+	return high
+}
+
+func localGroupUsageDateOrdinal(at time.Time, location *time.Location) int {
+	year, month, day := at.In(location).Date()
+	return groupUsageDateOrdinal(year, month, day)
+}
+
+func groupUsageDateOrdinal(year int, month time.Month, day int) int {
+	return year*10000 + int(month)*100 + day
 }

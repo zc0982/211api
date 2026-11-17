@@ -37,6 +37,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/components/account/__tests__/AccountPriorityCell.spec.ts \
 	src/components/account/__tests__/BulkEditAccountModal.spec.ts \
+	src/components/account/__tests__/CNProviderQuotaCell.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.spec.ts \
 	src/components/payment/__tests__/AmountInput.spec.ts \
 	src/components/payment/__tests__/SubscriptionPlanCard.spec.ts \
@@ -63,6 +64,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/EditAccountModal.grokUpstream.spec.ts \
 	src/components/admin/settings/__tests__/AdminAccessKeysSettings.spec.ts \
 	src/views/admin/__tests__/ChannelsView.webSearchEmulation.spec.ts \
+	src/views/admin/__tests__/ChannelsView.bedrockCompat.spec.ts \
+	src/views/admin/__tests__/GroupsView.openaiForcedTier.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.spec.ts \
 	src/components/common/__tests__/PlatformTypeBadge.openaiPlans.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.platformCatalog.spec.ts \
