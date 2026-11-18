@@ -65,7 +65,9 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/admin/settings/__tests__/AdminAccessKeysSettings.spec.ts \
 	src/views/admin/__tests__/ChannelsView.webSearchEmulation.spec.ts \
 	src/views/admin/__tests__/ChannelsView.bedrockCompat.spec.ts \
+	src/views/admin/__tests__/ChannelsView.ultrafastPricing.spec.ts \
 	src/views/admin/__tests__/GroupsView.openaiForcedTier.spec.ts \
+	src/views/admin/__tests__/groupsOpenAIFast.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.spec.ts \
 	src/components/common/__tests__/PlatformTypeBadge.openaiPlans.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.platformCatalog.spec.ts \
