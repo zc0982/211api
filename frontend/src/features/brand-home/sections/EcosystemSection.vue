@@ -1,12 +1,12 @@
 <template>
-  <section class="bh-eco" aria-labelledby="bh-eco-title">
+  <section v-reveal class="bh-eco" aria-labelledby="bh-eco-title">
     <div class="bh-container">
-      <div class="bh-eco__label">
+      <div class="bh-eco__label" data-reveal style="--bh-i: 0">
         <span class="bh-eco__rule" aria-hidden="true" />
         <h2 id="bh-eco-title" class="bh-eco__title">{{ t('brandHome.ecosystem.title') }}</h2>
         <span class="bh-eco__rule" aria-hidden="true" />
       </div>
-      <ul class="bh-eco__tiles">
+      <ul class="bh-eco__tiles" data-reveal style="--bh-i: 1">
         <li v-for="tool in tools" :key="tool.id" class="bh-eco__tile">
           <span class="bh-eco__mono" aria-hidden="true"><ToolIcon :tool="tool.id" :size="26" /></span>
           <span class="bh-eco__name">{{ tool.name }}</span>
@@ -21,6 +21,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ToolIcon from '../components/ToolIcon.vue'
+import { vReveal } from '../composables/vReveal'
 import { ECOSYSTEM_TOOLS, type EcosystemTool } from '../config'
 
 const { t } = useI18n()

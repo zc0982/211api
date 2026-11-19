@@ -1,15 +1,15 @@
 <template>
-  <section class="bh-section bh-band bh-qs" aria-labelledby="bh-qs-title">
+  <section v-reveal class="bh-section bh-band bh-qs" aria-labelledby="bh-qs-title">
     <span class="bh-qs__bloom bh-qs__bloom--blue" aria-hidden="true" />
     <span class="bh-qs__bloom bh-qs__bloom--gold" aria-hidden="true" />
     <div class="bh-container">
-      <header class="bh-section-head">
+      <header class="bh-section-head" data-reveal style="--bh-i: 0">
         <h2 id="bh-qs-title" class="bh-section-title">{{ t('brandHome.quickstart.title') }}</h2>
         <p class="bh-section-sub">{{ t('brandHome.quickstart.subtitle') }}</p>
       </header>
 
       <div class="bh-qs__grid">
-        <ol class="bh-qs__steps">
+        <ol class="bh-qs__steps" data-reveal style="--bh-i: 1">
           <li class="bh-qs__step">
             <span class="bh-qs__num bh-mono" aria-hidden="true">01</span>
             <div>
@@ -36,7 +36,7 @@
           </li>
         </ol>
 
-        <div class="bh-qs__card">
+        <div class="bh-qs__card" data-reveal style="--bh-i: 2">
           <div class="bh-qs__bar">
             <div class="bh-qs__tabs" role="tablist" :aria-label="t('brandHome.quickstart.languageTabs')" @keydown="onTabKey">
               <button
@@ -105,6 +105,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StatusBadge from '../components/StatusBadge.vue'
+import { vReveal } from '../composables/vReveal'
 import { buildSamples, sampleToText, type SampleLanguage } from '../composables/codeSamples'
 import type { HomeLinks } from '../composables/homeLinks'
 import { API_KEY_PLACEHOLDER } from '../config'

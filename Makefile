@@ -124,7 +124,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/features/brand-home/__tests__/homeLogic.spec.ts \
 	src/features/brand-home/__tests__/plazaCards.spec.ts \
 	src/features/brand-home/__tests__/HomeEntry.spec.ts \
-	src/features/brand-home/__tests__/BrandHome.spec.ts
+	src/features/brand-home/__tests__/BrandHome.spec.ts \
+	src/features/brand-home/__tests__/vReveal.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

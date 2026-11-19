@@ -290,7 +290,23 @@
   animation-delay: calc(var(--bh-i, 0) * 60ms + 80ms);
 }
 
+/* Scroll reveal (composables/vReveal.ts): only sections below the fold at mount get .bh-reveal. */
+.brand-home .bh-reveal [data-reveal] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.brand-home .bh-reveal.is-revealed [data-reveal] {
+  animation: bh-rise 400ms var(--bh-ease) both;
+  animation-delay: calc(var(--bh-i, 0) * 60ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .brand-home .bh-reveal [data-reveal] {
+    transform: none;
+  }
+  .brand-home .bh-reveal.is-revealed [data-reveal] {
+    animation: bh-fade 200ms linear both;
+  }
   .brand-home .bh-blob,
   .brand-home .bh-motion {
     animation: none !important;

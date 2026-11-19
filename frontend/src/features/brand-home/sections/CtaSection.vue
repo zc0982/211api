@@ -1,7 +1,7 @@
 <template>
-  <section class="bh-cta-wrap" aria-labelledby="bh-cta-title">
+  <section v-reveal class="bh-cta-wrap" aria-labelledby="bh-cta-title">
     <div class="bh-container">
-      <div class="bh-cta">
+      <div class="bh-cta" data-reveal style="--bh-i: 0">
         <div class="bh-cta__art" aria-hidden="true">
           <span class="bh-cta__glow bh-cta__glow--blue" />
           <span class="bh-cta__glow bh-cta__glow--lens" />
@@ -59,6 +59,7 @@
 import { useI18n } from 'vue-i18n'
 import BrandButton from '../components/BrandButton.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import { vReveal } from '../composables/vReveal'
 import type { HomeLinks } from '../composables/homeLinks'
 
 /** 最终 CTA（Figma 1:3661）。金线与「200 OK 312ms」标签是装饰，数值为示意。 */
@@ -145,7 +146,11 @@ const { t } = useI18n()
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: bh-draw 900ms ease-out 200ms forwards;
+  animation: bh-draw 900ms ease-out 400ms forwards;
+}
+/* Below the fold the gold trace waits until the band scrolls into view. */
+.bh-reveal:not(.is-revealed) .bh-cta__line {
+  animation-play-state: paused;
 }
 .bh-cta__dest-ring {
   fill: rgba(212, 168, 75, 0.18);

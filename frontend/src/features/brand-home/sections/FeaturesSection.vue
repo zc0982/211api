@@ -1,11 +1,11 @@
 <template>
-  <section class="bh-section bh-band" aria-labelledby="bh-features-title">
+  <section v-reveal class="bh-section bh-band" aria-labelledby="bh-features-title">
     <div class="bh-container">
-      <header class="bh-section-head">
+      <header class="bh-section-head" data-reveal style="--bh-i: 0">
         <h2 id="bh-features-title" class="bh-section-title">{{ t('brandHome.features.title') }}</h2>
         <p class="bh-section-sub">{{ t('brandHome.features.subtitle') }}</p>
       </header>
-      <ul class="bh-features">
+      <ul class="bh-features" data-reveal style="--bh-i: 1">
         <li v-for="item in items" :key="item.key" class="bh-feature">
           <span class="bh-feature__icon" aria-hidden="true">
             <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -54,6 +54,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { vReveal } from '../composables/vReveal'
 
 /** 核心能力：同质条目用顶部细线分隔的开放栅格，不做卡片。图标取自 Figma 1:2821。 */
 const { t } = useI18n()

@@ -1,7 +1,7 @@
 <template>
-  <section class="bh-section bh-band" aria-labelledby="bh-faq-title">
+  <section v-reveal class="bh-section bh-band" aria-labelledby="bh-faq-title">
     <div class="bh-container">
-      <header class="bh-section-head bh-faq__head">
+      <header class="bh-section-head bh-faq__head" data-reveal style="--bh-i: 0">
         <h2 id="bh-faq-title" class="bh-section-title">{{ t('brandHome.faq.title') }}</h2>
         <p v-if="links.docs && links.contact" class="bh-section-sub">{{ t('brandHome.faq.subtitleBoth') }}</p>
         <p v-else-if="links.docs" class="bh-section-sub">{{ t('brandHome.faq.subtitleDocs') }}</p>
@@ -27,7 +27,7 @@
         </p>
       </header>
 
-      <div class="bh-faq__list">
+      <div class="bh-faq__list" data-reveal style="--bh-i: 1">
         <details class="bh-faq__item" open>
           <summary class="bh-faq__q">
             <h3>{{ t('brandHome.faq.migrateQuestion', { site: siteName }) }}</h3>
@@ -46,6 +46,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BrandButton from '../components/BrandButton.vue'
+import { vReveal } from '../composables/vReveal'
 import type { HomeLinks } from '../composables/homeLinks'
 
 /**

@@ -1,13 +1,13 @@
 <template>
-  <section ref="root" class="bh-section bh-band bh-plaza" aria-labelledby="bh-plaza-title">
+  <section ref="root" v-reveal class="bh-section bh-band bh-plaza" aria-labelledby="bh-plaza-title">
     <div class="bh-container">
-      <header class="bh-section-head">
+      <header class="bh-section-head" data-reveal style="--bh-i: 0">
         <h2 id="bh-plaza-title" class="bh-section-title">{{ t('brandHome.plaza.title') }}</h2>
         <p v-if="links.modelPlaza" class="bh-section-sub">{{ t('brandHome.plaza.subtitle') }}</p>
         <p v-else class="bh-section-sub">{{ t('brandHome.plaza.subtitleNoPricing') }}</p>
       </header>
 
-      <div v-if="showCards" class="bh-plaza__body" :aria-busy="state === 'loading'">
+      <div v-if="showCards" class="bh-plaza__body" :aria-busy="state === 'loading'" data-reveal style="--bh-i: 1">
         <div v-if="state === 'ready'" class="bh-plaza__toolbar" role="group" :aria-label="t('brandHome.plaza.filterLabel')">
           <FilterChip :active="filter === 'all'" @click="filter = 'all'">{{ t('brandHome.plaza.all') }}</FilterChip>
           <FilterChip v-for="vendor in chipVendors" :key="vendor" :active="filter === vendor" @click="filter = vendor">
@@ -43,7 +43,7 @@
         </ul>
       </div>
 
-      <div v-if="links.modelPlaza" class="bh-plaza__foot">
+      <div v-if="links.modelPlaza" class="bh-plaza__foot" data-reveal style="--bh-i: 2">
         <p v-if="state === 'ready'" class="bh-plaza__note">{{ t('brandHome.plaza.footnote') }}</p>
         <BrandButton variant="outline" :to="links.modelPlaza" class="bh-plaza__all">{{ t('brandHome.plaza.viewAll') }} →</BrandButton>
       </div>
@@ -57,6 +57,7 @@ import { useI18n } from 'vue-i18n'
 import BrandButton from '../components/BrandButton.vue'
 import FilterChip from '../components/FilterChip.vue'
 import VendorIcon from '../components/VendorIcon.vue'
+import { vReveal } from '../composables/vReveal'
 import { VENDOR_CHIP_ORDER, VENDOR_LABEL } from '../config'
 import type { HomeLinks } from '../composables/homeLinks'
 import { useModelPlazaCards } from '../composables/useModelPlazaCards'

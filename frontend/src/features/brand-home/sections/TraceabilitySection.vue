@@ -1,5 +1,5 @@
 <template>
-  <section class="bh-section bh-trace" aria-labelledby="bh-trace-title">
+  <section v-reveal class="bh-section bh-trace" aria-labelledby="bh-trace-title">
     <div class="bh-trace__sky" aria-hidden="true">
       <span class="bh-trace__bloom bh-trace__bloom--left" />
       <span class="bh-trace__bloom bh-trace__bloom--right" />
@@ -8,12 +8,12 @@
       <span class="bh-trace__orbit bh-trace__orbit--inner" />
     </div>
     <div class="bh-container">
-      <header class="bh-section-head bh-trace__head">
+      <header class="bh-section-head bh-trace__head" data-reveal style="--bh-i: 0">
         <h2 id="bh-trace-title" class="bh-section-title">{{ t('brandHome.trace.title') }}</h2>
         <p class="bh-section-sub">{{ t('brandHome.trace.subtitle') }}</p>
       </header>
 
-      <ul class="bh-trace__points">
+      <ul class="bh-trace__points" data-reveal style="--bh-i: 1">
         <li v-for="point in points" :key="point.title" class="bh-trace__point">
           <span class="bh-trace__node" aria-hidden="true"><i /></span>
           <div>
@@ -23,7 +23,7 @@
         </li>
       </ul>
 
-      <figure class="bh-console" :aria-label="t('brandHome.trace.panelLabel')">
+      <figure class="bh-console" :aria-label="t('brandHome.trace.panelLabel')" data-reveal style="--bh-i: 2">
         <div aria-hidden="true">
           <div class="bh-console__titlebar">
             <div class="bh-console__name">
@@ -140,6 +140,7 @@ import { useI18n } from 'vue-i18n'
 import SearchField from '../components/SearchField.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import VendorIcon from '../components/VendorIcon.vue'
+import { vReveal } from '../composables/vReveal'
 import type { HomeLinks } from '../composables/homeLinks'
 import type { BrandVendor } from '../config'
 
@@ -498,7 +499,12 @@ const stages = computed(() => [
     left: 0;
   }
   to {
-    left: 34%;
+    left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bh-timeline__light {
+    display: none;
   }
 }
 .bh-timeline__stage {

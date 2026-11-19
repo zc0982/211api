@@ -137,6 +137,14 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 - 变体以 Figma 为准：彩色 Claude、Gemini、Claude Code、Codex、DeepSeek（DSH）、OpenClaw；单色 OpenAI、Grok、Cursor、Pi、NousResearch（Hermes）、OpenCode。
 - 不使用 `utils/platformColors.ts`；控制台的 `ModelIcon.vue`、`PlatformIcon.vue` 不变。仓库已有的 `@lobehub/icons` 是 React 包，不在 Vue 里引用。
 
+## 动效
+
+- 首屏：导航 .5s 滑入（延迟 .1s）；徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）；「海量」金色笔画 600ms 描出；云团 12–20s 漂移。
+- 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。挂载时已在屏内的区块、没有 IntersectionObserver 的浏览器不隐藏。
+- 最终 CTA 金线 900ms 自绘在区块揭示后才开始（隐藏期间 `animation-play-state: paused`），光点沿金线 2.4s 绕行。
+- 调用明细时间线的光点 2.4s 匀速跑完整条线（发起请求 → 计费入账）后循环。
+- `prefers-reduced-motion`：关闭漂移、光点、上浮，金线直接完成，只保留 200ms 淡入。
+
 ## 浑天仪
 
 本期是静态图（Figma `10:959`，WebP 1x / 2x）。`components/ArmillaryHero.vue` 预留 WebGL 接口：props `activeVendor`、`reducedMotion`，事件 `vendor-change`，挂载点 `data-armillary-mount`。铭珠、Model Chip、代码卡、接地阴影是 HTML 叠加层，按 Figma 绝对坐标换算为仪器框（573×607）内的百分比。
