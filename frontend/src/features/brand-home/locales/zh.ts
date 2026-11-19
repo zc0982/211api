@@ -156,11 +156,6 @@ export default {
     migrateAnswer:
       '在控制台创建 API Key，把 SDK 或工具中的 base_url 改为 {baseUrl} 并替换 api_key 即可。模型名称与官方一致，请求和响应格式兼容官方协议，原有代码无需改动；Claude Code、Codex 等工具通过环境变量完成切换。'
   },
-  cta: {
-    title: '一个地址，接入多家模型',
-    subtitle: '创建 API Key，替换 base_url，即可开始调用。',
-    docs: '查看文档'
-  },
   footer: {
     home: '首页',
     register: '注册',

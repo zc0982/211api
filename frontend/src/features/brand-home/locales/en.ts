@@ -156,11 +156,6 @@ export default {
     migrateAnswer:
       'Create an API key in the console, set base_url in your SDK or tool to {baseUrl} and replace api_key. Model names match the official ones and requests and responses follow the official APIs, so existing code keeps working; tools such as Claude Code and Codex switch over through environment variables.'
   },
-  cta: {
-    title: 'Many models, one endpoint. Start here.',
-    subtitle: 'Create an API key, swap your base_url and start calling.',
-    docs: 'Read the docs'
-  },
   footer: {
     home: 'Home',
     register: 'Sign up',

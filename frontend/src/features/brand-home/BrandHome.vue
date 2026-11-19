@@ -11,7 +11,6 @@
       <ModelPlazaSection :links="links" />
       <StatusSection v-if="liveStats && stats" :stats="stats" />
       <FaqSection :links="links" :base-url="baseUrl" :site-name="siteName" />
-      <CtaSection :links="links" />
     </main>
     <FooterSection :links="links" :site-name="siteName" @anchor="scrollToId" />
   </div>
@@ -37,7 +36,6 @@ import FeaturesSection from './sections/FeaturesSection.vue'
 import ModelPlazaSection from './sections/ModelPlazaSection.vue'
 import StatusSection, { type LiveStats } from './sections/StatusSection.vue'
 import FaqSection from './sections/FaqSection.vue'
-import CtaSection from './sections/CtaSection.vue'
 import FooterSection from './sections/FooterSection.vue'
 
 /**
