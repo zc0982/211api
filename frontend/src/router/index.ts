@@ -33,10 +33,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/home',
     name: 'Home',
-    component: () => import('@/views/HomeView.vue'),
+    component: () => import('@/features/brand-home/HomeEntry.vue'),
     meta: {
       requiresAuth: false,
-      title: 'Home'
+      title: 'Home',
+      titleKey: 'brandHome.meta.title'
     }
   },
   {

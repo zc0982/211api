@@ -1,0 +1,173 @@
+/**
+ * brandHome namespace (English). Every key is referenced as a static literal.
+ * Copy is checked against product capabilities in docs/spec/brand-home.md.
+ */
+export default {
+  meta: {
+    title: 'Unified LLM API Gateway'
+  },
+  a11y: {
+    skipToContent: 'Skip to main content',
+    primaryNav: 'Primary',
+    accountNav: 'Account',
+    footerNav: 'Footer',
+    language: 'Language'
+  },
+  nav: {
+    home: 'Home',
+    models: 'Models',
+    docs: 'Docs',
+    login: 'Log in',
+    console: 'Console',
+    getKey: 'Get API Key'
+  },
+  hero: {
+    badge: 'One API · Four providers',
+    titleLine1: 'One API gateway',
+    titleLine2: 'for {emphasis} AI models',
+    titleEmphasis: 'many',
+    lead: 'Reach a wide range of models through one standard API. Power your AI apps, keep usage under control, and build what comes next.',
+    ctaDocs: 'Read the docs',
+    providersLabel: 'Major providers',
+    providersValue: '4',
+    credit: "Inspired by Zhang Heng's armillary sphere, Eastern Han dynasty (c. 117 AD)",
+    illustrative: 'Figures in the interface are illustrative',
+    armillaryAlt: 'Armillary sphere: four inner rings aligned on the equator, the tracked ring in gold',
+    codeCardLabel: 'Your code',
+    trackedModel: 'Tracked model'
+  },
+  ecosystem: {
+    title: 'Works with the apps and tools you already use',
+    captionCli: 'CLI coding agent',
+    captionEditor: 'AI code editor',
+    captionDeepseek: 'DeepSeek coding agent',
+    captionHermes: 'Open-source general agent',
+    captionOpenCode: 'Open-source coding agent',
+    captionOpenClaw: 'Personal AI assistant'
+  },
+  quickstart: {
+    title: 'Built for developers',
+    subtitle: 'Compatible with the OpenAI and Anthropic APIs. Keep your code, SDKs and tools as they are.',
+    step1Title: 'Sign up and create an API key',
+    step1Desc: 'Give each project its own key with its own quota and expiry.',
+    step2Title: 'Point base_url at {site}',
+    step2Desc: 'OpenAI- and Anthropic-compatible. Nothing else in your code changes.',
+    step3Title: 'Make calls and see where each one went',
+    step3Desc: 'Check the model, time to first token, tokens and cost of every request.',
+    languageTabs: 'Sample code language',
+    copy: 'Copy',
+    copied: 'Copied',
+    copyFailed: 'Copy failed',
+    codeComment: 'the only line to change',
+    sampleGreeting: 'Hello, {site}',
+    firstToken: 'TTFT',
+    viewLogs: 'View usage logs'
+  },
+  trace: {
+    title: 'Every call, on the record',
+    subtitle: 'Model, latency, tokens and cost are logged per request, so every bill traces back to a call.',
+    point1Title: 'Timing per request',
+    point1Desc: 'Total duration and time to first token are logged for every request.',
+    point2Title: 'Transparent usage',
+    point2Desc: 'Input, output and cache tokens are logged per request and always queryable.',
+    point3Title: 'Line-by-line billing',
+    point3Desc: 'Cost is broken down to each request and exportable as CSV for reconciliation.',
+    panelTitle: 'Usage logs',
+    panelLabel: 'Example of the usage log screen with sample data',
+    sampleData: 'Sample data',
+    exportCsv: 'Export CSV',
+    filterTime: 'Time range',
+    filterTimeValue: 'Last hour',
+    filterModel: 'Model',
+    filterStatus: 'Status',
+    filterAll: 'All',
+    searchPlaceholder: 'Search request ID',
+    summaryCount: '{count} calls',
+    colRequestId: 'Request ID',
+    colTime: 'Time',
+    colModel: 'Model',
+    colDuration: 'Duration',
+    colFirstToken: 'TTFT',
+    colTokens: 'Input / output tokens',
+    colCost: 'Cost',
+    colStatus: 'Status',
+    timelineLabel: 'Request timeline',
+    timelineFirstToken: 'TTFT {ms}',
+    stageSent: 'Request sent',
+    stageFirstToken: 'First token',
+    stageDone: 'Completed',
+    stageBilled: 'Billed',
+    waitingFirstToken: 'Waiting for first token',
+    detailKey: 'API key',
+    detailTokens: 'Billed tokens',
+    detailTokensValue: 'In {input} · Out {output}',
+    detailCost: 'Cost',
+    detailCostValue: '{cost} · recorded',
+    openInConsole: 'Open in console',
+    footer: 'Showing {shown} of {total} · export to CSV to reconcile',
+    viewAll: 'View all calls'
+  },
+  features: {
+    title: 'The gateway handles the complexity. You keep it simple.',
+    subtitle: 'One API, automatic failover and per-request logs. The gateway absorbs the differences between models.',
+    unifiedTitle: 'One API',
+    unifiedDesc: 'One key and one endpoint for many models, compatible with the OpenAI and Anthropic APIs.',
+    routingTitle: 'Automatic failover',
+    routingDesc: 'Requests are scheduled across accounts and retried elsewhere when an upstream fails.',
+    tracingTitle: 'Per-request logs',
+    tracingDesc: 'Model, tokens, timing and cost are logged for every request, so you always know where a call went.',
+    billingTitle: 'Pay as you go',
+    billingDesc: 'Billed by what each request actually uses.',
+    budgetTitle: 'Usage and budget limits',
+    budgetDesc: 'Set a quota, expiry and periodic spending caps per key. Keys stop when the quota runs out.',
+    accessTitle: 'Access control',
+    accessDesc: 'Restrict keys with IP allow and deny lists, and disable or expire them at any time.'
+  },
+  plaza: {
+    title: 'Four major providers, one endpoint',
+    subtitle: 'Call several providers with the same key. Prices are public.',
+    subtitleNoPricing: 'Call several providers with the same key.',
+    filterLabel: 'Filter by provider',
+    all: 'All',
+    inputPerMillion: 'Input / 1M tokens',
+    outputPerMillion: 'Output / 1M tokens',
+    priceFrom: 'from {price}',
+    footnote: 'One flagship model per provider · lowest price paid · USD per 1M tokens',
+    viewAll: 'View all models'
+  },
+  status: {
+    allOperational: 'All systems operational',
+    label: 'Service status',
+    availability: 'Availability',
+    avgFirstToken: 'Avg. time to first token',
+    providers: 'Major providers',
+    totalCalls: 'Total calls',
+    viewLive: 'View live status'
+  },
+  faq: {
+    title: 'Before you integrate',
+    subtitleBoth: "Can't find an answer? Read the docs or contact us.",
+    subtitleDocs: "Can't find an answer? Read the docs.",
+    subtitleContact: "Can't find an answer? Contact us.",
+    docs: 'Read the docs',
+    contact: 'Contact us',
+    contactLabel: 'Contact: ',
+    migrateQuestion: 'How do I migrate from an official API to {site}?',
+    migrateAnswer:
+      'Create an API key in the console, set base_url in your SDK or tool to {baseUrl} and replace api_key. Model names match the official ones and requests and responses follow the official APIs, so existing code keeps working; tools such as Claude Code and Codex switch over through environment variables.'
+  },
+  cta: {
+    title: 'Many models, one endpoint. Start here.',
+    subtitle: 'Create an API key, swap your base_url and start calling.',
+    docs: 'Read the docs'
+  },
+  footer: {
+    home: 'Home',
+    register: 'Sign up',
+    pricing: 'Model pricing',
+    keys: 'API keys',
+    console: 'Console',
+    login: 'Log in',
+    copyright: '© {year} {site}'
+  }
+}

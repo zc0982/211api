@@ -120,7 +120,11 @@ FRONTEND_CRITICAL_VITEST := \
 	src/utils/__tests__/geminiExplicitCache.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsDashboardHeader.timezone.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsRequestDetailsModal.spec.ts \
-	src/views/user/__tests__/ChannelStatusV1View.details.spec.ts
+	src/views/user/__tests__/ChannelStatusV1View.details.spec.ts \
+	src/features/brand-home/__tests__/homeLogic.spec.ts \
+	src/features/brand-home/__tests__/plazaCards.spec.ts \
+	src/features/brand-home/__tests__/HomeEntry.spec.ts \
+	src/features/brand-home/__tests__/BrandHome.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend
