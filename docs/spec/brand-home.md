@@ -28,9 +28,9 @@
 | `frontend/src/router/index.ts` | `/home` 的 component 与 `titleKey` | 接入入口 |
 | `frontend/tailwind.config.js` | `theme.extend` 下追加 `colors.brand`、`fontFamily.brand-*`、`boxShadow.brand-*`、`borderRadius.brand-*`（相邻已有行只补逗号） | 品牌 token，不改已有键 |
 | `frontend/src/i18n/locales/{zh,en}/index.ts` | 各加一行 import 和 `brandHome` 键 | 文案命名空间 |
-| `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons` | 不追加时图标被并入所有页面都 modulepreload 的 `vendor-misc`（+16.5KB gzip）。经用户确认后加入 |
-| 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 4 个新测试 | CI 只跑这份清单 |
-| `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue` 精确版本 | 厂商 / 工具图标（Vue 3 包） |
+| `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons`、`/node_modules/three/ → vendor-three` | 不追加时图标、three.js 会被并入所有页面都 modulepreload 的 `vendor-misc`。图标分支经用户确认后加入；three 分支由 PR 2 交接提示词指定 |
+| 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 8 个测试 | CI 只跑这份清单 |
+| `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue`、`three`、`@types/three`（dev）精确版本 | 厂商 / 工具图标（Vue 3 包）；首屏浑天仪 WebGL |
 
 不改后端、其他页面和全局样式（`style.css`、`main.ts`）。
 
@@ -141,11 +141,80 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 - 首屏：导航 .5s 滑入（延迟 .1s）；徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）；「海量」金色笔画 600ms 描出；云团 12–20s 漂移。
 - 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。挂载时已在屏内的区块、没有 IntersectionObserver 的浏览器不隐藏。
 - 调用明细时间线的光点 2.4s 匀速跑完整条线（发起请求 → 计费入账）后循环。
-- `prefers-reduced-motion`：关闭漂移、光点、上浮，「海量」金线直接完成，只保留 200ms 淡入。
+- 首屏浑天仪：见下一节。
+- `prefers-reduced-motion`：关闭漂移、光点、上浮，「海量」金线直接完成，只保留 200ms 淡入；浑天仪保留静态图（合轨态），不加载 three.js。
 
 ## 浑天仪
 
-本期是静态图（Figma `10:959`，WebP 1x / 2x）。`components/ArmillaryHero.vue` 预留 WebGL 接口：props `activeVendor`、`reducedMotion`，事件 `vendor-change`，挂载点 `data-armillary-mount`。铭珠、Model Chip、代码卡、接地阴影是 HTML 叠加层，按 Figma 绝对坐标换算为仪器框（573×607）内的百分比。
+规格来源：Figma `10:890`（实现说明，冲突时为准）、`10:872`（分镜）、`10:763` / `10:920`（首屏），视觉对照 `10:959`（静态渲染图）；DESIGN.md「Armillary Hero」；design.json `motion.armillary-cycle`。
+
+### 结构
+
+| 文件 | 内容 | 是否依赖 three |
+|---|---|---|
+| `components/ArmillaryHero.vue` | 静态图、HTML 叠加层（铭珠、Model Chip、代码卡、接地阴影）、降级判定、按需加载 | 否 |
+| `armillary/timeline.ts` | 时间函数（纯函数） | 否 |
+| `armillary/capability.ts` | 降级判定（纯函数）与设备探测 | 否 |
+| `armillary/dials.ts` | 外层三环刻度的 CanvasTexture 绘制 | 否 |
+| `armillary/scene.ts` | three.js 场景、渲染循环、投影、资源释放 | 是，只经 `import()` 加载 |
+
+`ArmillaryHero` 对外接口不变：props `activeVendor`、`reducedMotion`、`alt`，新增可选 `beadLabel`（铭珠的可读名称，`HeroSection` 传 `brandHome.hero.trackVendor`）；事件 `vendor-change`。`HeroSection` 按被追踪厂商取 `config.HERO_VENDOR_MODELS`，刷新 Model Chip 与代码卡的 model（耗时仍是示意值，不按厂商编造）。
+
+各厂商的示例模型取自后端内置默认模型列表里该平台的第一个文本模型：`claude-fable-5-2`（`pkg/claude/constants.go`）、`gpt-5.6-sol`（`pkg/openai/constants.go`）、`gemini-3-flash`（`pkg/geminicli/models.go`，跳过前面的图像模型）、`grok-4.7`（`pkg/xai/models.go`）。
+
+### 加载顺序
+
+1. 首屏文字、按钮和静态图（`assets/hero/armillary*.webp`，合轨态、Claude 金槽）先显示。
+2. 组件挂载后判定降级条件（见下）。不降级才 `import('../armillary/scene')`，连带加载 `vendor-three`。
+3. 创建 `WebGLRenderer`；第一帧画完后静态图 200ms 线性淡出（`ARMILLARY_WEBGL.fadeMs`），铭珠从 Figma 坐标切换到每帧投影坐标。
+
+### 场景
+
+- 外层静止：地平环（r 1.2，十二地支）、子午环（r 1.13，竖直，十天干）、赤道环（r 1.0，垂直于极轴，二十八宿）。极轴在子午面内仰起 34.6°（洛阳纬度）。材质 `MeshPhysicalMaterial` 学院深蓝釉面（`#21418f`，clearcoat），刻度天蓝 `#a9c8f5`。
+- 刻度与刻字由 `dials.ts` 在运行时画进 CanvasTexture，用 RingGeometry 的平面 UV 贴到环面两侧；字体为系统衬线 CJK 栈 `"Songti SC", "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC", SimSun, serif`（品牌衬线是子集字体，未必包含这些字）。
+- 内层四环（`config.ARMILLARY_RINGS`）：抛光银（`MeshStandardMaterial` metalness .92 / roughness .2，`RoomEnvironment` 环境贴图）加蓝槽 `#2f5fd0`；外→内 Claude r .86、OpenAI .75、Gemini .64、Grok .53，环宽 .044。不使用厂商品牌色。
+- 被追踪的环换成金槽 `#d4a84b`，金色光点 2.4s 匀速绕行；仪心是深蓝小球加金环与淡金光晕。合轨时金环亮起、光晕闪一次，一圈蓝色细线沿赤道扩散 1.2s。
+- 取景：相机仰角约 10°、视距 6.85、fov 26°，仪器绕竖轴转 2.23 rad（子午面约 53° 斜视），按 10:959 的椭圆比例反推，合轨态与静态图叠加对齐。
+- 渲染：`alpha: true`、clear alpha 0 叠在 CSS 背景上；`NeutralToneMapping`；`setPixelRatio(min(devicePixelRatio, 2))`；`ResizeObserver` 跟随画布尺寸。画布比仪器区四周各大 10%（`CANVAS_OVERHANG`，给视差留余量），只按宽度定尺寸（窄屏时代码卡在框内，框比仪器高）。画布 `aria-hidden="true"`。
+
+### 时间函数（`armillary/timeline.ts`）
+
+- 首次合轨 3.2s：每环从 `introSpin(i) = π(2.35 + 0.4i)` 按 ease-out cubic 转回 0。
+- 之后每 9.5s 一个周期：合轨停留 2.0s，再翻转 7.5s（smootherstep）。环 i 在第 c 个周期翻 `halfTurns(i, c)` = 1 或 2 个半圈，相邻环交替、方向相反。
+- 每个内环绕自己在赤道面内的一条直径翻转；绕这样的轴转 π 正好回到赤道面，所以角度函数在合轨时刻恰为 π 的整数倍，合轨是角度函数本身保证的，不是插值拼接。测试逐个检查合轨时刻、停留段、相位边界连续性和 4 个周期的重复。
+- 追踪轮换：外→内 Claude → OpenAI → Gemini → Grok → Claude。首次合轨保持 Claude（与静态图、Figma `t = 4.6s` 定格一致），之后每次合轨换下一家。
+- 手动切换：铭珠是 `<button>`（`aria-pressed`、可读名称「追踪 Claude」等），悬停、聚焦、点击都会切换，并通过 `vendor-change` 刷新 Model Chip 与代码卡。切换后自动轮换暂停 12s（`ARMILLARY_WEBGL.manualHoldMs`），移出或失焦时再从那一刻起算 12s；之后的下一次合轨从当前厂商继续轮换。
+- 视差：仅精确指针且可悬停的设备（`(hover: hover) and (pointer: fine)`，触屏不做），整体偏航 ±0.2 rad、俯仰 ±0.07 rad，指数阻尼 2.6/s。
+- 铭珠、Model Chip 每帧由 3D 锚点投影到屏幕，只写 `transform`、`opacity`、`z-index`，不触发布局；转到背面时变淡缩小（opacity .35–1、scale .82–1），被追踪的铭珠保持不透明。
+
+### 降级条件（`armillary/capability.ts`，阈值在 `config.ARMILLARY_WEBGL`）
+
+| 条件 | 时机 | 结果（`data-armillary-reason`） |
+|---|---|---|
+| `prefers-reduced-motion: reduce` | 加载前；运行中切换时立即停止 | `reduced-motion`，保留静态图（合轨态） |
+| 无 `WebGLRenderingContext` | 加载前 | `no-webgl` |
+| `hardwareConcurrency ≤ 4` | 加载前 | `low-cores` |
+| `deviceMemory ≤ 4`（GB，仅 Chromium 提供） | 加载前 | `low-memory` |
+| 创建 WebGL 上下文失败 | 加载后 | `context-failed` |
+| 运行中 `webglcontextlost` | 运行中 | `context-lost` |
+| 首帧之后 60 帧平均帧时长 > 32ms | 运行中 | `slow-frames` |
+| 窄屏（< 860px） | — | 不降级（`enableOnNarrow: true`），见下 |
+
+降级时立即释放场景、恢复静态图和 Figma 坐标的铭珠（装饰、`aria-hidden`），追踪对象回到 Claude，与静态图一致。浏览器不提供的信号（例如 Safari 没有 `deviceMemory`）不参与判定。
+
+窄屏：在 390×844（DPR 3）实测平均帧时长 16.6ms，与桌面相同，CPU 降速 4 倍时 16.7ms；低端机靠核数、内存和 60 帧探测兜底，所以窄屏不单独关闭。测试机是 Apple M4，未在真实低端手机上测过。
+
+离开视口（IntersectionObserver）或 `document.hidden` 时暂停渲染循环，动画时钟随之暂停；恢复时重新开始帧时长探测。
+
+### 分包
+
+- `vite.config.ts` 的 `manualChunks` 在 `vendor-misc` 兜底前追加 `id.includes('/node_modules/three/') → 'vendor-three'`。不追加时 three 会被并入每个页面都 modulepreload 的 `vendor-misc`。
+- `scene.ts` 是单独的应用 chunk，只被 `ArmillaryHero` 的 `import()` 引用；`vendor-three` 只出现在它的依赖里。
+- 构建后检查：`dist/index.html` 的 modulepreload 只有 `vendor-vue`、`vendor-i18n`、`vendor-misc`；`/login`、`/models` 等路由不请求 three。
+
+### 资源释放
+
+卸载或降级时：取消 rAF，断开 ResizeObserver / IntersectionObserver，移除 `pointermove`、`visibilitychange`、`webglcontextlost` 监听；dispose 所有几何体、材质、纹理（含 PMREM 环境贴图和 CanvasTexture），`renderer.renderLists.dispose()`、`renderer.dispose()`，再 `forceContextLoss()`。开发模式下 `window.__armillary` 暴露控制器（`info()`、`freeze(t)`、`debugProject`）用于截图和泄漏检查，生产构建会裁掉。
 
 ## SEO
 
@@ -155,7 +224,8 @@ SPA，不做 SSR 或预渲染。只保证路由 `titleKey`、语义标题层级�
 
 1. 上游 `views/HomeView.vue`：`home_content`、`compact_home_enabled` 的判断与优先级有没有变化；如有，同步 `resolveHomeVariant` 与测试。
 2. 上游 `/home` 路由是否改名或新增 meta；保留本地 component 覆盖与 `titleKey`。
-3. `i18n/locales/{zh,en}/index.ts` 的 `brandHome` 接入行、`tailwind.config.js` 的 `brand` 追加项、`vite.config.ts` 的 `vendor-brand-icons` 分支仍在。
+3. `i18n/locales/{zh,en}/index.ts` 的 `brandHome` 接入行、`tailwind.config.js` 的 `brand` 追加项、`vite.config.ts` 的 `vendor-brand-icons` 与 `vendor-three` 分支仍在（都要在 `vendor-misc` 兜底之前）。构建后 `dist/index.html` 的 modulepreload 里不能出现 `vendor-three`。
 4. `@/api/modelPlaza` 的响应结构、`@/utils/pricing` 与 `PlazaModelPricingTable.vue` 的实付价公式是否变化；变化时同步 `plazaCards.ts`。
 5. `appStore.fetchPublicSettings`、`authStore.isAuthenticated / isAdmin` 的语义是否变化。
 6. 跑 `FRONTEND_CRITICAL_VITEST` 里的 brand-home 测试和 `pnpm build`。
+7. 升级 `three` 时：`NeutralToneMapping`（r162 起）与 `three/examples/jsm/environments/RoomEnvironment.js` 路径仍可用；按「浑天仪 · 资源释放」一节复测上下文释放。

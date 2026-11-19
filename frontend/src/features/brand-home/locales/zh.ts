@@ -34,7 +34,8 @@ export default {
     illustrative: '界面数值为示意',
     armillaryAlt: '浑天仪：四个内环落在赤道面上，被追踪的一环呈金色',
     codeCardLabel: '你的代码',
-    trackedModel: '当前追踪的模型'
+    trackedModel: '当前追踪的模型',
+    trackVendor: '追踪 {vendor}'
   },
   ecosystem: {
     title: '全面兼容主流应用与生态工具',

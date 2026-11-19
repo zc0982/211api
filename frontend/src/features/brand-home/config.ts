@@ -75,3 +75,50 @@ export const ECOSYSTEM_TOOLS: readonly { id: EcosystemTool; name: string }[] = [
 
 /** Viewport margin before the model section starts fetching. */
 export const PLAZA_PREFETCH_MARGIN = '400px 0px'
+
+/**
+ * Model shown in the hero Model Chip and code card for each tracked vendor.
+ * Each id is the first text model in that platform's built-in default list
+ * (backend/internal/pkg/claude/constants.go, openai/constants.go,
+ * geminicli/models.go, xai/models.go), so it is a model the gateway knows.
+ */
+export const HERO_VENDOR_MODELS: Readonly<Record<BrandVendor, string>> = {
+  claude: HERO_DEFAULT_MODEL,
+  openai: 'gpt-5.6-sol',
+  gemini: 'gemini-3-flash',
+  grok: 'grok-4.7'
+}
+
+/** Inner rings of the armillary, outer → inner, and the auto-tracking order. */
+export const ARMILLARY_RINGS: readonly { vendor: BrandVendor; radius: number }[] = [
+  { vendor: 'claude', radius: 0.86 },
+  { vendor: 'openai', radius: 0.75 },
+  { vendor: 'gemini', radius: 0.64 },
+  { vendor: 'grok', radius: 0.53 }
+]
+
+/** Width of each inner ring (same unit as ARMILLARY_RINGS radius). */
+export const ARMILLARY_RING_WIDTH = 0.044
+
+/**
+ * WebGL armillary gates. Any hit keeps the static render (and three.js is
+ * not loaded, or is stopped and disposed). See docs/spec/brand-home.md.
+ */
+export const ARMILLARY_WEBGL = {
+  /** navigator.hardwareConcurrency at or below this → static. */
+  maxLowEndCores: 4,
+  /** navigator.deviceMemory (GB) at or below this → static. */
+  maxLowEndMemoryGB: 4,
+  /** Frames sampled after the first frame to measure frame time. */
+  probeFrames: 60,
+  /** Average frame time (ms) above this over the probe → static. */
+  maxAvgFrameMs: 32,
+  /** Below this viewport width the layout stacks; WebGL stays on (see spec). */
+  stackBreakpoint: 860,
+  /** WebGL on stacked (narrow) layouts. Measured; see docs/spec/brand-home.md. */
+  enableOnNarrow: true,
+  /** After a manual bead switch, auto-rotation waits this long (ms). */
+  manualHoldMs: 12000,
+  /** Static render fade-out once the first WebGL frame is drawn (ms). */
+  fadeMs: 200
+} as const

@@ -146,6 +146,12 @@ export default defineConfig(({ mode }) => {
               return 'vendor-brand-icons'
             }
 
+            // 品牌首页浑天仪 WebGL（three.js）只在首屏组件挂载后动态 import，单独成包，
+            // 避免并入 vendor-misc 被每个页面 modulepreload。见 docs/spec/brand-home.md。
+            if (id.includes('/node_modules/three/')) {
+              return 'vendor-three'
+            }
+
             // 其他小型第三方库合并
             return 'vendor-misc'
           }

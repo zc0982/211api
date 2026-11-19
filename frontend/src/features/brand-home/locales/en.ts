@@ -34,7 +34,8 @@ export default {
     illustrative: 'Figures in the interface are illustrative',
     armillaryAlt: 'Armillary sphere: four inner rings aligned on the equator, the tracked ring in gold',
     codeCardLabel: 'Your code',
-    trackedModel: 'Tracked model'
+    trackedModel: 'Tracked model',
+    trackVendor: 'Track {vendor}'
   },
   ecosystem: {
     title: 'Works with the apps and tools you already use',
