@@ -11,7 +11,7 @@
   2. `compact_home_enabled === true` → 上游 HomeView；
   3. 构建时 `VITE_BRAND_HOME === 'off'` → 上游 HomeView（构建级应急回退）；
   4. 其他（包括公开设置获取失败、设置未知）→ BrandHome。
-- 两个页面都用 `defineAsyncComponent` 懒加载，各自成 chunk。`publicSettingsLoaded` 为 false 时先 `await fetchPublicSettings()`，决定前不渲染任何一页。
+- 两个页面都用 `defineAsyncComponent` 懒加载，各自成 chunk。`publicSettingsLoaded` 为 false 时（后端读取设置失败时不注入 `__APP_CONFIG__`）先 `await fetchPublicSettings()`，请求最长 30s 才超时；决定前只显示中性加载占位（三个圆点，跟随当前文字色），不渲染任何一页。
 
 ### 回退方法
 

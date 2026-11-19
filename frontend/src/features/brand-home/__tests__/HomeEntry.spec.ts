@@ -32,6 +32,7 @@ describe('HomeEntry', () => {
   it('renders the brand home by default', async () => {
     const wrapper = await mountEntry()
     expect(wrapper.find('[data-testid="brand-home"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-entry-loading"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="upstream-home"]').exists()).toBe(false)
   })
 
@@ -59,11 +60,14 @@ describe('HomeEntry', () => {
     const wrapper = mount(HomeEntry)
     await flushPromises()
     expect(appStore.fetchPublicSettings).toHaveBeenCalledTimes(1)
-    expect(wrapper.html()).not.toContain('data-testid')
+    expect(wrapper.find('[data-testid="home-entry-loading"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="upstream-home"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="brand-home"]').exists()).toBe(false)
     resolve()
     await flushPromises()
     await flushPromises()
     expect(wrapper.find('[data-testid="upstream-home"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-entry-loading"]').exists()).toBe(false)
   })
 
   it('treats a failed settings fetch as unknown and shows the brand home', async () => {
