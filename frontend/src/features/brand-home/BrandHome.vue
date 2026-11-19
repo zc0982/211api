@@ -11,7 +11,7 @@
       <ModelPlazaSection :links="links" />
       <StatusSection v-if="liveStats && stats" :stats="stats" />
       <FaqSection :links="links" :base-url="baseUrl" :site-name="siteName" />
-      <CtaSection :links="links" :reduced-motion="reducedMotion" />
+      <CtaSection :links="links" />
     </main>
     <FooterSection :links="links" :site-name="siteName" @anchor="scrollToId" />
   </div>

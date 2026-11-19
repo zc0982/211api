@@ -262,11 +262,6 @@
     transform: none;
   }
 }
-@keyframes bh-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
 
 .brand-home .bh-blob {
   position: absolute;

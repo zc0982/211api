@@ -140,10 +140,10 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 ## 动效
 
 - 首屏：导航 .5s 滑入（延迟 .1s）；徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）；「海量」金色笔画 600ms 描出；云团 12–20s 漂移。
-- 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。挂载时已在屏内的区块、没有 IntersectionObserver 的浏览器不隐藏。
-- 最终 CTA 金线 900ms 自绘在区块揭示后才开始（隐藏期间 `animation-play-state: paused`），光点沿金线 2.4s 绕行。
+- 首屏以下（最终 CTA 除外）：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。挂载时已在屏内的区块、没有 IntersectionObserver 的浏览器不隐藏。
+- 最终 CTA 横幅不做动效（按产品要求去掉进场、金线自绘和光点绕行），金线与光点静态呈现 Figma 1:3661 的样子。
 - 调用明细时间线的光点 2.4s 匀速跑完整条线（发起请求 → 计费入账）后循环。
-- `prefers-reduced-motion`：关闭漂移、光点、上浮，金线直接完成，只保留 200ms 淡入。
+- `prefers-reduced-motion`：关闭漂移、光点、上浮，「海量」金线直接完成，只保留 200ms 淡入。
 
 ## 浑天仪
 
