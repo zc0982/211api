@@ -1,0 +1,338 @@
+/*
+ * Brand home styles. Everything is rooted at .brand-home so nothing leaks to
+ * the console. Values come from the design source (DESIGN.md frontmatter and
+ * Figma "Home / v2 · Light 1440"); see docs/spec/brand-home.md.
+ */
+
+@font-face {
+  font-family: 'Brand Noto Serif SC';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/noto-serif-sc-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand Noto Serif SC';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/noto-serif-sc-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand Noto Sans SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/noto-sans-sc-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand Noto Sans SC';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/noto-sans-sc-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand Geist';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/geist-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/geist-mono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/geist-mono-500.woff2') format('woff2');
+}
+
+.brand-home {
+  --bh-navy: #14306b;
+  --bh-navy-hover: #1a3a7e;
+  --bh-blue: #2f5fd0;
+  --bh-gold: #d4a84b;
+  --bh-bronze: #8a6420;
+  --bh-ink: #0c1830;
+  --bh-slate: #45536e;
+  --bh-mist: #66738c;
+  --bh-ok: #137a52;
+  --bh-line: #dce4f2;
+  --bh-surface: #ffffff;
+  --bh-canvas: #f6f9fe;
+  --bh-tint: #e8f0fc;
+  --bh-sky: #bfd6f6;
+
+  --bh-font-serif: 'Brand Noto Serif SC', 'Noto Serif SC', 'Songti SC', serif;
+  --bh-font-sans: 'Brand Noto Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --bh-font-mono: 'Brand Geist Mono', 'Geist Mono', 'SF Mono', Menlo, monospace;
+  --bh-font-wordmark: 'Brand Geist', Geist, 'Noto Sans SC', sans-serif;
+
+  --bh-shadow-primary: 0 6px 16px rgba(20, 48, 107, 0.18);
+  --bh-shadow-primary-hover: 0 10px 24px rgba(20, 48, 107, 0.24);
+  --bh-shadow-glass: 0 6px 24px rgba(20, 48, 107, 0.08);
+  --bh-shadow-glass-hover: 0 10px 28px rgba(20, 48, 107, 0.12);
+  --bh-shadow-card: 0 8px 24px -12px rgba(20, 48, 107, 0.05);
+
+  --bh-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --bh-ease-knob: cubic-bezier(0.34, 1.3, 0.5, 1);
+  --bh-container: 1200px;
+  --bh-gutter: 24px;
+  --bh-section-y: 96px;
+
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  background: var(--bh-canvas);
+  color: var(--bh-ink);
+  color-scheme: light;
+  font-family: var(--bh-font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.brand-home *,
+.brand-home *::before,
+.brand-home *::after {
+  border-color: var(--bh-line);
+}
+
+.brand-home ::selection {
+  background: rgba(47, 95, 208, 0.18);
+  color: var(--bh-ink);
+}
+
+.brand-home a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-home :focus-visible {
+  outline: 2px solid var(--bh-blue);
+  outline-offset: 3px;
+}
+
+.brand-home .bh-container {
+  width: 100%;
+  max-width: calc(var(--bh-container) + var(--bh-gutter) * 2);
+  margin: 0 auto;
+  padding: 0 var(--bh-gutter);
+}
+
+.brand-home .bh-mono {
+  font-family: var(--bh-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.brand-home .bh-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.brand-home .bh-skip {
+  position: absolute;
+  left: 16px;
+  top: -64px;
+  z-index: 60;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--bh-navy);
+  color: #fff;
+  font-weight: 500;
+  transition: top 0.16s ease-out;
+}
+.brand-home .bh-skip:focus {
+  top: 16px;
+}
+
+/* Section rhythm --------------------------------------------------------- */
+
+.brand-home .bh-section {
+  position: relative;
+  padding: var(--bh-section-y) 0;
+}
+
+/* White band used by quick-start / features / models / FAQ (Figma fill). */
+.brand-home .bh-band {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0) 0%,
+    #fff 16%,
+    #fff 84%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.brand-home .bh-section-head {
+  max-width: 800px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.brand-home .bh-section-title {
+  margin: 0;
+  font-family: var(--bh-font-serif);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--bh-ink);
+  text-wrap: balance;
+}
+
+.brand-home .bh-section-sub {
+  margin: 16px 0 0;
+  font-size: 18px;
+  line-height: 30px;
+  color: var(--bh-slate);
+  text-wrap: pretty;
+}
+
+/* Glass recipe ----------------------------------------------------------- */
+
+.brand-home .bh-glass {
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: var(--bh-shadow-glass);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+/* Cloud drift ------------------------------------------------------------ */
+
+@keyframes bh-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-36px, 22px, 0) scale(1.04);
+  }
+}
+@keyframes bh-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(32px, -18px, 0) scale(0.96);
+  }
+}
+@keyframes bh-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bh-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes bh-nav-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.brand-home .bh-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+.brand-home .bh-blob--a {
+  animation: bh-drift-a 16s ease-in-out infinite alternate;
+}
+.brand-home .bh-blob--b {
+  animation: bh-drift-b 19s ease-in-out infinite alternate;
+}
+.brand-home .bh-blob--c {
+  animation: bh-drift-a 13s ease-in-out infinite alternate-reverse;
+}
+
+/* Entrance: elements with .bh-rise animate in once, staggered by --bh-i. */
+.brand-home .bh-rise {
+  animation: bh-rise 400ms var(--bh-ease) both;
+  animation-delay: calc(var(--bh-i, 0) * 60ms + 80ms);
+}
+
+/* Scroll reveal (composables/vReveal.ts): only sections below the fold at mount get .bh-reveal. */
+.brand-home .bh-reveal [data-reveal] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.brand-home .bh-reveal.is-revealed [data-reveal] {
+  animation: bh-rise 400ms var(--bh-ease) both;
+  animation-delay: calc(var(--bh-i, 0) * 60ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-home .bh-reveal [data-reveal] {
+    transform: none;
+  }
+  .brand-home .bh-reveal.is-revealed [data-reveal] {
+    animation: bh-fade 200ms linear both;
+  }
+  .brand-home .bh-blob,
+  .brand-home .bh-motion {
+    animation: none !important;
+  }
+  .brand-home .bh-rise {
+    animation: bh-fade 200ms linear both;
+    animation-delay: 0ms;
+  }
+  .brand-home *,
+  .brand-home *::before,
+  .brand-home *::after {
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .brand-home {
+    --bh-gutter: 16px;
+    --bh-section-y: 64px;
+  }
+  .brand-home .bh-section-head {
+    margin-bottom: 32px;
+  }
+  .brand-home .bh-section-title {
+    font-size: 30px;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .brand-home .bh-section-sub {
+    font-size: 16px;
+    line-height: 26px;
+  }
+}

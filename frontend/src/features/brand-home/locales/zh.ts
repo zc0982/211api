@@ -1,0 +1,168 @@
+/**
+ * brandHome 命名空间（中文）。所有键在源码中以静态字面量引用。
+ * 文案与代码能力的核对见 docs/spec/brand-home.md「文案核对」。
+ */
+export default {
+  meta: {
+    title: '统一大模型 API 网关'
+  },
+  a11y: {
+    skipToContent: '跳到主要内容',
+    primaryNav: '主导航',
+    accountNav: '账户',
+    footerNav: '页脚导航',
+    language: '语言'
+  },
+  nav: {
+    home: '首页',
+    models: '模型',
+    docs: '文档',
+    login: '登录',
+    console: '控制台',
+    getKey: '获取 API Key'
+  },
+  hero: {
+    badge: '一个接口 · 四家模型',
+    titleLine1: '统一 API 网关，服务于',
+    titleLine2: '{emphasis} AI 模型',
+    titleEmphasis: '海量',
+    lead: '通过统一、标准的接口协议接入海量模型。承载 AI 应用，高效管理数字资产，连接未来。',
+    ctaDocs: '查看文档',
+    providersLabel: '主流供应商',
+    providersValue: '4 家',
+    credit: '灵感源自东汉张衡所制浑天仪（约公元 117 年）',
+    illustrative: '界面数值为示意',
+    armillaryAlt: '浑天仪：四个内环落在赤道面上，被追踪的一环呈金色',
+    codeCardLabel: '你的代码',
+    trackedModel: '当前追踪的模型'
+  },
+  ecosystem: {
+    title: '全面兼容主流应用与生态工具',
+    captionCli: 'CLI 编码助手',
+    captionEditor: 'AI 编辑器',
+    captionDeepseek: 'DeepSeek 编码助手',
+    captionHermes: '开源通用智能体',
+    captionOpenCode: '开源编码助手',
+    captionOpenClaw: '个人 AI 助理'
+  },
+  quickstart: {
+    title: '开发者友好',
+    subtitle: '兼容 OpenAI 与 Anthropic 协议，现有代码、SDK 与工具无需重写。',
+    step1Title: '注册并创建 API Key',
+    step1Desc: '为每个项目创建独立密钥，可单独设置额度与有效期。',
+    step2Title: '把 base_url 换成 {site}',
+    step2Desc: '兼容 OpenAI 与 Anthropic 协议，其余代码不变。',
+    step3Title: '开始调用，查看每一次去向',
+    step3Desc: '逐笔查看模型、首字延迟、tokens 与费用。',
+    languageTabs: '示例代码语言',
+    copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败',
+    codeComment: '只改这一行',
+    sampleGreeting: '你好，{site}',
+    firstToken: '首字',
+    viewLogs: '查看调用明细'
+  },
+  trace: {
+    title: '每一次调用，都有据可查',
+    subtitle: '模型、延迟、tokens 与费用逐笔记录，账单可以对到每一次请求。',
+    point1Title: '耗时逐笔记录',
+    point1Desc: '每次请求的总耗时与首字延迟都有记录。',
+    point2Title: '用量透明',
+    point2Desc: '输入、输出与缓存 tokens 逐笔可查。',
+    point3Title: '账单逐笔可对',
+    point3Desc: '费用折算到每一次请求，可导出 CSV 对账。',
+    panelTitle: '调用明细',
+    panelLabel: '调用明细界面示例，数据为示例',
+    sampleData: '示例数据',
+    exportCsv: '导出 CSV',
+    filterTime: '时间范围',
+    filterTimeValue: '最近 1 小时',
+    filterModel: '模型',
+    filterStatus: '状态',
+    filterAll: '全部',
+    searchPlaceholder: '搜索请求 ID',
+    summaryCount: '{count} 次',
+    colRequestId: '请求 ID',
+    colTime: '时间',
+    colModel: '模型',
+    colDuration: '总耗时',
+    colFirstToken: '首字延迟',
+    colTokens: '输入 / 输出 tokens',
+    colCost: '费用',
+    colStatus: '状态',
+    timelineLabel: '请求时间线',
+    timelineFirstToken: '首字 {ms}',
+    stageSent: '发起请求',
+    stageFirstToken: '首字返回',
+    stageDone: '响应完成',
+    stageBilled: '计费入账',
+    waitingFirstToken: '等待上游首字',
+    detailKey: 'API Key',
+    detailTokens: '计费 tokens',
+    detailTokensValue: '输入 {input} · 输出 {output}',
+    detailCost: '本次费用',
+    detailCostValue: '{cost} · 已入账',
+    openInConsole: '在控制台中打开',
+    footer: '显示 {shown} / {total} 条 · 可导出 CSV 对账',
+    viewAll: '查看全部调用'
+  },
+  features: {
+    title: '把复杂留给网关，把简单留给你',
+    subtitle: '统一接口、自动切换与逐笔记录，模型之间的差异由网关替你消化。',
+    unifiedTitle: '统一接口',
+    unifiedDesc: '一个 Key、一个地址对接多家模型，兼容 OpenAI 与 Anthropic 协议。',
+    routingTitle: '自动切换',
+    routingDesc: '多账号调度，上游异常时自动切换重试。',
+    tracingTitle: '逐笔记录',
+    tracingDesc: '模型、tokens、耗时与费用逐笔记录，每次调用的去向清晰可见。',
+    billingTitle: '按量计费',
+    billingDesc: '按每次请求的实际用量计费，用多少付多少。',
+    budgetTitle: '用量与预算控制',
+    budgetDesc: '为每个密钥设置额度、有效期与周期用量上限，额度用尽自动停用。',
+    accessTitle: '访问控制',
+    accessDesc: '密钥支持 IP 白名单与黑名单，可随时停用或设置过期。'
+  },
+  plaza: {
+    title: '4 大主流供应商 · 一站式接入',
+    subtitle: '同一个 Key 调用多家模型，价格公开可查。',
+    subtitleNoPricing: '同一个 Key 调用多家模型。',
+    filterLabel: '按供应商筛选',
+    all: '全部',
+    inputPerMillion: '输入 / 1M tokens',
+    outputPerMillion: '输出 / 1M tokens',
+    priceFrom: '{price} 起',
+    footnote: '每家展示一款旗舰模型 · 实付价起 · 单位：美元 / 每 1M tokens',
+    viewAll: '查看全部模型'
+  },
+  status: {
+    allOperational: '所有系统运行正常',
+    label: '服务状态',
+    availability: '可用率',
+    avgFirstToken: '平均首字延迟',
+    providers: '主流供应商',
+    totalCalls: '累计调用',
+    viewLive: '查看实时状态'
+  },
+  faq: {
+    title: '接入前你可能想知道',
+    subtitleBoth: '找不到答案？查看文档，或直接联系我们。',
+    subtitleDocs: '找不到答案？可以查看文档。',
+    subtitleContact: '找不到答案？可以直接联系我们。',
+    docs: '查看文档',
+    contact: '联系我们',
+    contactLabel: '联系方式：',
+    migrateQuestion: '如何从官方 API 迁移到 {site}？',
+    migrateAnswer:
+      '在控制台创建 API Key，把 SDK 或工具中的 base_url 改为 {baseUrl} 并替换 api_key 即可。模型名称与官方一致，请求和响应格式兼容官方协议，原有代码无需改动；Claude Code、Codex 等工具通过环境变量完成切换。'
+  },
+  footer: {
+    home: '首页',
+    register: '注册',
+    pricing: '模型价格',
+    keys: '密钥',
+    console: '控制台',
+    login: '登录',
+    copyright: '© {year} {site}'
+  }
+}

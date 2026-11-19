@@ -46,6 +46,22 @@ export default {
           800: '#1e293b',
           900: '#0f172a',
           950: '#020617'
+        },
+        // 品牌首页（features/brand-home）专用，取自设计源 DESIGN.md
+        brand: {
+          navy: '#14306b',
+          blue: '#2f5fd0',
+          gold: '#d4a84b',
+          bronze: '#8a6420',
+          ink: '#0c1830',
+          slate: '#45536e',
+          mist: '#66738c',
+          ok: '#137a52',
+          line: '#dce4f2',
+          surface: '#ffffff',
+          canvas: '#f6f9fe',
+          tint: '#e8f0fc',
+          sky: '#bfd6f6'
         }
       },
       fontFamily: {
@@ -62,7 +78,11 @@ export default {
           'Microsoft YaHei',
           'sans-serif'
         ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        'brand-serif': ['"Brand Noto Serif SC"', '"Noto Serif SC"', '"Songti SC"', 'serif'],
+        'brand-sans': ['"Brand Noto Sans SC"', '"Noto Sans SC"', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+        'brand-mono': ['"Brand Geist Mono"', '"Geist Mono"', '"SF Mono"', 'Menlo', 'monospace'],
+        'brand-wordmark': ['"Brand Geist"', 'Geist', '"Noto Sans SC"', 'sans-serif']
       },
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
@@ -71,7 +91,12 @@ export default {
         'glow-lg': '0 0 40px rgba(20, 184, 166, 0.35)',
         card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
         'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        'brand-primary': '0 6px 16px rgba(20,48,107,.18)',
+        'brand-primary-hover': '0 10px 24px rgba(20,48,107,.24)',
+        'brand-glass': '0 6px 24px rgba(20,48,107,.08)',
+        'brand-glass-hover': '0 10px 28px rgba(20,48,107,.12)',
+        'brand-card': '0 8px 24px -12px rgba(20,48,107,.05)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -126,7 +151,11 @@ export default {
         xs: '2px'
       },
       borderRadius: {
-        '4xl': '2rem'
+        '4xl': '2rem',
+        'brand-tile': '8px',
+        'brand-card': '16px',
+        'brand-panel': '20px',
+        'brand-pill': '999px'
       }
     }
   },

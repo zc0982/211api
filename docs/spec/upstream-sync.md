@@ -14,6 +14,7 @@
 - scanner buffer 由实际扫描分支归还一次，不能在外层与扫描 goroutine 中重复归还。
 - 队列预算不得拒绝合法的单个大图帧；超限的无分隔事件不得输出成功 terminal。
 - 日期计算测试优先传入显式时区。必须验证全局时区配置的测试在独立进程中初始化时区，避免与同进程后台 worker 读取 `time.Local` 发生竞争。
+- 保留 `frontend/src/features/brand-home` 与 `/home` 入口覆盖（`HomeEntry.vue`）。同步后核对上游 HomeView、`home_content`、`compact_home_enabled` 的行为有没有变化，并检查 i18n index 的 `brandHome` 接入行、`tailwind.config.js` 的 `brand` 追加项和 `vite.config.ts` 的 `vendor-brand-icons` 分支；步骤见 `docs/spec/brand-home.md`。
 
 ## 验证与交付
 
