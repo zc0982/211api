@@ -30,7 +30,7 @@
         :key="trace.tool"
         :d="trace.d"
         :class="{ 'is-tracked': trace.tracked }"
-        :stroke-opacity="trace.tracked ? 1 : trace.opacity"
+        :stroke-opacity="trace.tracked ? 1 : trace.opacity * (lit.has(trace.tool) ? TRACE_LIT.lit : TRACE_LIT.dim)"
       />
     </svg>
 
@@ -55,6 +55,16 @@
         <b class="bh-mono">429</b><span>{{ switchLabel }}</span>
       </span>
     </span>
+
+    <!-- Moonlight pulses on the other traces, cascading; only while animating. -->
+    <template v-if="animated">
+      <span
+        v-for="pulse in pulses"
+        :key="pulse.tool"
+        class="bh-hs__pulse"
+        :style="{ transform: `translate(${pulse.x - 61}px, ${pulse.y - 4}px) rotate(${pulse.angle}deg)`, opacity: pulse.opacity }"
+      />
+    </template>
 
     <span class="bh-hs__dot" :style="{ transform: `translate(${dot.x - 12}px, ${dot.y - 12}px)`, opacity: dot.opacity }" />
 
@@ -106,9 +116,20 @@ import ToolIcon from './ToolIcon.vue'
 import SpriteActor from './SpriteActor.vue'
 import starsUrl from '../assets/scene/hero-stars.svg?url'
 import skylineUrl from '../assets/scene/hero-skyline.svg?url'
-import { GOLD_DOT, HERO_CHARACTERS, HERO_FEET_Y, HERO_STATIONS, MOON, SPRITE_SCALE, SWITCH_MARKER_TOOL, type HeroCharacter } from '../config'
+import {
+  GOLD_DOT,
+  HERO_CHARACTERS,
+  HERO_FEET_Y,
+  HERO_STATIONS,
+  MOON,
+  SPRITE_SCALE,
+  SWITCH_MARKER_TOOL,
+  TRACE_LIT,
+  TRACE_PULSE,
+  type HeroCharacter
+} from '../config'
 import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
-import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations } from '../composables/motion'
+import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations, pulseStateAt } from '../composables/motion'
 import { useSceneClock } from '../composables/useSceneClock'
 import { useSpriteSheets } from '../composables/useSpriteSheets'
 
@@ -169,6 +190,16 @@ const states = computed(() =>
   })
 )
 const lit = computed(() => litStations(states.value))
+/** Untracked traces in station order: their slot in the moonlight cascade. */
+const pulseTraces = HERO_STATIONS.filter((s) => !s.tracked).map((s, slot) => ({ tool: s.tool, slot, table: arcTable(traceFor(chipAnchor(s))) }))
+const pulses = computed(() =>
+  pulseTraces.map(({ tool, slot, table }) => {
+    // Same clock as the gold dot: slot 0 leaves the moon together with it.
+    const p = pulseStateAt(table, time.value + goldPhase, slot)
+    return { tool, x: p.x, y: p.y, angle: p.angle, opacity: p.opacity * (lit.value.has(tool) ? 1 : TRACE_PULSE.dim) }
+  })
+)
+
 const dot = computed(() => (animated.value ? dotStateAt(goldTrace, time.value, goldPhase) : { ...GOLD_DOT, opacity: 1 }))
 
 /** Head-side badge, fixed to the character's work-frame head whichever way it faces. */
@@ -359,6 +390,36 @@ const badgeStyle = (c: HeroCharacter, x: number) => ({
   font-weight: 500;
 }
 
+/* Moonlight comet: 60px tail fading back along the trace, head (8px) at the pulse point (61, 4). */
+.bh-hs__pulse {
+  left: 0;
+  top: 0;
+  width: 65px;
+  height: 8px;
+  transform-origin: 61px 4px;
+  will-change: transform, opacity;
+}
+.bh-hs__pulse::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 61px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(to right, rgba(122, 162, 255, 0), rgba(219, 230, 251, 0.95));
+}
+.bh-hs__pulse::after {
+  content: '';
+  position: absolute;
+  left: 57px;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2f5fb;
+  box-shadow: 0 0 10px 1px rgba(122, 162, 255, 0.95);
+}
 .bh-hs__dot {
   left: 0;
   top: 0;

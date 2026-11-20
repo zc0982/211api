@@ -97,6 +97,10 @@ const { t } = useI18n()
   letter-spacing: 0.03em;
   text-wrap: balance;
 }
+/* Two lines: 「一个账户，」/「接入顶级编程模型。」 */
+.bh-hero__title > span {
+  display: block;
+}
 .bh-hero__emphasis {
   color: var(--bh-night-blue);
   font-style: normal;

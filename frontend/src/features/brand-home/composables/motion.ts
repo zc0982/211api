@@ -9,6 +9,7 @@ import {
   SITE_CHIP_TIMES,
   SITE_FRAME,
   SITE_HOOK,
+  TRACE_PULSE,
   type EcosystemTool,
   type HeroCharacter,
   type SiteChipKind,
@@ -202,6 +203,28 @@ export function dotStateAt(table: ArcTable, t: number, phase: number): DotState 
   const p = pointAtFraction(table, tb / GOLD_DOT_TRIP)
   const opacity = Math.min(1, tb / GOLD_DOT_FADE, (GOLD_DOT_TRIP - tb) / GOLD_DOT_FADE)
   return { ...p, opacity }
+}
+
+export interface PulseState extends DotState {
+  /** Direction of travel in degrees (for the comet tail). */
+  angle: number
+}
+
+/**
+ * Moonlight pulse on an untracked trace: `slot` is its place in the cascade
+ * (0, 1, 2 …). Hidden (opacity 0) between trips.
+ */
+export function pulseStateAt(table: ArcTable, t: number, slot: number): PulseState {
+  const tb = mod(t - slot * TRACE_PULSE.stagger, TRACE_PULSE.period)
+  if (tb >= TRACE_PULSE.trip) return { ...pointAtFraction(table, 1), opacity: 0, angle: 0 }
+  const f = tb / TRACE_PULSE.trip
+  const p = pointAtFraction(table, f)
+  // Heading: from a point just behind to the head, so the comet tail trails along the curve.
+  const back = pointAtFraction(table, Math.max(0, f - 0.01))
+  const ahead = f < 0.01 ? pointAtFraction(table, 0.01) : p
+  const angle = (Math.atan2(ahead.y - back.y, ahead.x - back.x) * 180) / Math.PI
+  const opacity = Math.min(1, tb / GOLD_DOT_FADE, (TRACE_PULSE.trip - tb) / GOLD_DOT_FADE)
+  return { ...p, opacity, angle }
 }
 
 export function dotPhase(table: ArcTable): number {

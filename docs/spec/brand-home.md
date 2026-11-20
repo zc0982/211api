@@ -105,7 +105,7 @@
 |---|---|---|
 | 一个接口 · 四家模型；主流供应商 4 家 | 保留 | `docs/brand/PRODUCT.md`「模型供应商」 |
 | 首屏徽章：稳定 · 透明 · 高效 | 不用，保留「一个接口 · 四家模型」 | 「稳定」「高效」没有可用率 / 延迟的公开数据（`config.liveStats = false`） |
-| 首屏标题：一个账户，接入顶级编程模型。 | 保留 | 营销定位，不含可核对的数字或承诺 |
+| 首屏标题：一个账户，接入顶级编程模型。 | 保留，固定两行：「一个账户，」/「接入顶级编程模型。」（`titleLine1`、`titleLine2` 各占一行） | 营销定位，不含可核对的数字或承诺 |
 | 首屏副文：一个 Key 调通 Claude、GPT、Gemini、Grok；每次调用的路由与费用逐笔可查 | 改为「一个地址接入 Claude、GPT、Gemini、Grok；每次调用的用量与费用逐笔可查」 | 一个 Key 跨四家取决于 Composite 分组配置（同下「全部模型」一行）；用户侧没有路由信息（同下「路由节点」一行）；用量与费用见 `UsageLog` |
 | 兼容 OpenAI 与 Anthropic 协议 | 保留 | `backend/internal/server/routes/gateway.go`（`/v1/messages`、`/v1/chat/completions`） |
 | 一个 Key、一个地址对接全部模型 | 改为「多家模型」 | Composite 分组可跨平台路由（`backend/internal/service/admin_group.go` `PlatformComposite`），取决于管理员配置；「全部」无法保证 |
@@ -195,7 +195,7 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 规格来源：handoff v3 提示词 2，`export/sprites/README.md`「动效参数」。不引入动画库。
 
 - **时间线是纯函数**（`composables/motion.ts`，测试 `motion.spec.ts`）：`heroStateAt` / `siteStateAt(角色, t) → { x, kind, frame, mirror, station | chip }`、`hookYAt`、`dotStateAt`、`panAt`；组件只渲染返回值。两块场景都按 9.6s 循环，`tb = (t + 相位偏移) mod 9.6`，帧序号 `floor(tb / 帧时长) mod 4`。时间按微秒取整，保证 3.8、4.2 + 0.9 这类分段边界精确落点。
-- **首屏**：6 人在 A、B 两点间「干活 → 走 → 干活 → 走回」（节奏与相位见 `HERO_CHARACTERS`）；干活帧 0.2s、走路帧 0.15s，朝左走用 `scaleX(-1)`。状态牌亮暗由谁在该工位干活推出（`litStations`，硬切 1 / 0.45），Claude Code 始终亮。金色光点按弧长沿金线从月亮走到状态牌，2.4s 一趟、两端各 0.25s 淡入淡出；相位让 t=0 正好在静止画面的 Figma 位置，开始动时不跳。
+- **首屏**：6 人在 A、B 两点间「干活 → 走 → 干活 → 走回」（节奏与相位见 `HERO_CHARACTERS`）；干活帧 0.2s、走路帧 0.15s，朝左走用 `scaleX(-1)`。状态牌亮暗由谁在该工位干活推出（`litStations`，硬切 1 / 0.45），Claude Code 始终亮。金色光点按弧长沿金线从月亮走到状态牌，2.4s 一趟、两端各 0.25s 淡入淡出；相位让 t=0 正好在静止画面的 Figma 位置，开始动时不跳。其余 7 条线跟着联动：连线亮度随工位亮暗（有人干活的线 ×1.45，没人的 ×0.65）；每条线各有一颗月白色彗星（60px 拖尾）从月亮跑到状态牌，2.4s 一趟、4.8s 一次，按工位顺序间隔 0.6s 依次出发，第一颗和金点同时离开月亮，形成一轮接一轮的级联；没人干活的线彗星降到 0.6 不透明度。彗星只用月白和蓝色，金色仍只给被追踪的调用。参数在 `TRACE_PULSE`、`TRACE_LIT`。
 - **页脚**：每人「砌砖 3.8s → 空手回砖堆 2.6s → 抱砖停 0.6s → 抱砖走回 2.6s」，同队相位 0 / 3.2 / 6.4；砌砖背向砖堆，走路朝行进方向；砌砖帧 0.2s、走路帧 0.17s。参数牌：砌砖第 1 秒首字，之后 tok/s；空手回程前 1.2s 费用，其余不显示；抱砖（含停顿）token。吊钩 0–2.4s 下降到 y=238.5（ease-in-out）、停到 4.0s、6.4s 升回；吊绳用 `scaleY` 同步，「上下文」牌随吊钩走。
 - **只用 transform / opacity**：角色是固定格尺寸的裁切框，`translate()` 定位、`scaleX(-1)` 翻面，框内精灵图 `translate()` 到当前格；状态牌和金点用 `translate()`。首屏状态牌、页脚参数牌带 `will-change: opacity`：页脚每人四种参数牌都渲染好、靠 opacity 切换，切换时不重排文字。实测 10s 内 Layout 0 次。
 - **共享时钟**（`composables/useSceneClock.ts`，测试 `sceneClock.spec.ts`）：全页一个 `requestAnimationFrame` 循环。每个订阅者（首屏角色、页脚角色、两块舞台的镜头）有自己的时间，只在「已启用 + 在视口内（IntersectionObserver）+ 标签页可见 + 不要求减少动态效果」时前进；没有订阅者在跑时循环停止。单帧步长上限 0.1s，暂停恢复不跳。

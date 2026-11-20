@@ -171,6 +171,17 @@ export const GOLD_DOT = { x: 478, y: 507 } as const
 export const GOLD_DOT_TRIP = 2.4
 export const GOLD_DOT_FADE = 0.25
 
+/**
+ * Moonlight pulses on the other seven traces: each runs moon → chip in `trip`
+ * seconds once per `period`, departing `stagger` apart in station order, so the
+ * traces fire in a cascade that starts each time the gold dot leaves the moon. A trace whose station has
+ * someone working is brighter and its pulse full strength; otherwise dimmed by
+ * `dim`. Gold stays reserved for the tracked call (One Star Rule).
+ */
+export const TRACE_PULSE = { period: 4.8, trip: 2.4, stagger: 0.6, dim: 0.6 } as const
+/** Trace stroke opacity multiplier: station lit / dim (base is the station's traceOpacity, default 0.34). */
+export const TRACE_LIT = { lit: 1.45, dim: 0.65 } as const
+
 export const HERO_GROUND_Y = 836
 /** Characters stand 2px below the ground line in Figma (feet overlap the edge). */
 export const HERO_FEET_Y = 838

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GOLD_DOT, HERO_CHARACTERS, HERO_STATIONS, MOTION_LOOP, SITE_HOOK, SITE_WORKERS, type SceneCharacter } from '../config'
+import { GOLD_DOT, HERO_CHARACTERS, HERO_STATIONS, MOTION_LOOP, SITE_HOOK, SITE_WORKERS, TRACE_PULSE, type SceneCharacter } from '../config'
 import {
   arcTable,
   dotPhase,
@@ -11,6 +11,7 @@ import {
   litStations,
   panAt,
   pointAtFraction,
+  pulseStateAt,
   siteRestState,
   siteStateAt
 } from '../composables/motion'
@@ -181,6 +182,30 @@ describe('gold dot', () => {
     expect(dotStateAt(table, 0.125, 0).opacity).toBeCloseTo(0.5)
     expect(dotStateAt(table, 1.2, 0).opacity).toBe(1)
     expect(dotStateAt(table, 2.4 - 0.125, 0).opacity).toBeCloseTo(0.5)
+  })
+})
+
+describe('moonlight pulses on the other traces', () => {
+  const codex = HERO_STATIONS.find((s) => s.tool === 'codex')!
+  const table = arcTable(traceFor(chipAnchor(codex)))
+
+  it('runs moon → chip in 2.4s, then rests until the next 4.8s period', () => {
+    expect(pulseStateAt(table, 0, 0)).toMatchObject({ x: 1060, y: 264, opacity: 0 })
+    expect(pulseStateAt(table, 1.2, 0).opacity).toBe(1)
+    expect(pulseStateAt(table, 2.4, 0).opacity).toBe(0)
+    expect(pulseStateAt(table, 4.0, 0).opacity).toBe(0)
+    expect(pulseStateAt(table, 4.8 + 1.2, 0)).toEqual(pulseStateAt(table, 1.2, 0))
+  })
+
+  it('departs one slot after another (0.6s apart), cascading across the traces', () => {
+    expect(pulseStateAt(table, 0.6 + 1.2, 1)).toEqual(pulseStateAt(table, 1.2, 0))
+    // Seven untracked traces fill 7 × 0.6 = 4.2s of the 4.8s period: at least two traces are always firing besides the gold one.
+    const untracked = HERO_STATIONS.filter((s) => !s.tracked).length
+    expect(untracked * TRACE_PULSE.stagger).toBeLessThan(TRACE_PULSE.period)
+    for (let t = 0; t < TRACE_PULSE.period; t += 0.1) {
+      const firing = Array.from({ length: untracked }, (_, slot) => pulseStateAt(table, t, slot).opacity > 0).filter(Boolean)
+      expect(firing.length).toBeGreaterThanOrEqual(2)
+    }
   })
 })
 
