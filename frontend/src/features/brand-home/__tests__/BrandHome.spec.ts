@@ -242,6 +242,21 @@ describe('BrandHome', () => {
     expect(setLocale).toHaveBeenCalledWith('en')
   })
 
+  it('offers an in-page pause for the animations in the header (WCAG 2.2.2)', async () => {
+    const { motionPaused, setMotionPaused } = await import('../composables/useSceneClock')
+    setMotionPaused(false)
+    const wrapper = mountHome()
+    const button = wrapper.get('.bh-header .bh-motion')
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(button.attributes('aria-label')).toBe('brandHome.motion.pause')
+    await button.trigger('click')
+    expect(motionPaused.value).toBe(true)
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('aria-label')).toBe('brandHome.motion.play')
+    await button.trigger('click')
+    expect(motionPaused.value).toBe(false)
+  })
+
   it('keeps the console theme choice and lets the header switch it', async () => {
     localStorage.setItem('theme', 'dark')
     const wrapper = mountHome()

@@ -6,8 +6,9 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch, type Ref } from 'vu
  *
  * Each subscriber gets its own `time` (seconds) that only advances while that
  * subscriber is enabled, on screen (IntersectionObserver) and the tab is
- * visible; under prefers-reduced-motion nothing advances. The loop stops when
- * no subscriber is running, so an idle page costs nothing.
+ * visible; under prefers-reduced-motion nothing advances, nor while the
+ * visitor has paused motion with the header's pause button (WCAG 2.2.2). The
+ * loop stops when no subscriber is running, so an idle page costs nothing.
  */
 
 interface Subscriber {
@@ -24,12 +25,39 @@ let listening = false
 /** Shared prefers-reduced-motion state (live: follows the OS setting). */
 export const reducedMotion = ref(false)
 
+const PAUSE_KEY = 'bh-motion'
+
+function readPaused(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(PAUSE_KEY) === 'paused'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Visitor's in-page pause (header button). Freezes every animated part where
+ * it is; kept across scrolling and, best effort, across visits.
+ */
+export const motionPaused = ref(readPaused())
+
+export function setMotionPaused(paused: boolean) {
+  motionPaused.value = paused
+  try {
+    if (paused) localStorage.setItem(PAUSE_KEY, 'paused')
+    else localStorage.removeItem(PAUSE_KEY)
+  } catch {
+    // Storage blocked (private mode etc.): the pause still holds for this page.
+  }
+  update()
+}
+
 function running(s: Subscriber) {
   return s.intersecting && s.enabled.value
 }
 
 function canRun() {
-  if (reducedMotion.value || (typeof document !== 'undefined' && document.hidden)) return false
+  if (reducedMotion.value || motionPaused.value || (typeof document !== 'undefined' && document.hidden)) return false
   for (const s of subscribers) if (running(s)) return true
   return false
 }
@@ -111,6 +139,7 @@ export function useSceneClock(target: Ref<HTMLElement | null>, enabled: Ref<bool
 /** Test hook: drop every subscriber and stop the loop. */
 export function resetSceneClockForTests() {
   subscribers.clear()
+  motionPaused.value = false
   if (rafId && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(rafId)
   rafId = 0
   last = 0

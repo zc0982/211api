@@ -21,6 +21,10 @@ export default {
     console: 'Console',
     getKey: 'Get API Key'
   },
+  motion: {
+    pause: 'Pause animation',
+    play: 'Play animation'
+  },
   theme: {
     toDark: 'Switch to dark theme',
     toLight: 'Switch to light theme'

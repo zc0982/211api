@@ -45,8 +45,8 @@ function measure() {
 }
 
 const narrow = computed(() => stageWidth.value < SCENE_STACK_BREAKPOINT)
+/** Narrow layout with motion allowed (0.75× / fit scale); the camera itself only runs when the world overflows. */
 const panEnabled = computed(() => narrow.value && !reducedMotion.value)
-const { time } = useSceneClock(stageEl, panEnabled)
 
 const layout = computed(() =>
   stageLayout({
@@ -65,7 +65,11 @@ const stageStyle = computed(() =>
   props.fit ? { minHeight: `${layout.value.stageHeight.toFixed(2)}px` } : { height: `${layout.value.stageHeight}px` }
 )
 
-const offset = computed(() => (panEnabled.value ? panAt(time.value, props.width * scale.value - stageWidth.value) : 0))
+const overflow = computed(() => props.width * layout.value.scale - stageWidth.value)
+const panRuns = computed(() => panEnabled.value && overflow.value > 0.5)
+const { time } = useSceneClock(stageEl, panRuns)
+
+const offset = computed(() => (panRuns.value ? panAt(time.value, overflow.value) : 0))
 const worldTransform = computed(() => `translateX(${-offset.value}px) scale(${scale.value})`)
 
 let observer: ResizeObserver | null = null

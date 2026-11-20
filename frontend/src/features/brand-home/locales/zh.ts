@@ -21,6 +21,10 @@ export default {
     console: '控制台',
     getKey: '获取 API Key'
   },
+  motion: {
+    pause: '暂停动画',
+    play: '播放动画'
+  },
   theme: {
     toDark: '切换到深色主题',
     toLight: '切换到浅色主题'

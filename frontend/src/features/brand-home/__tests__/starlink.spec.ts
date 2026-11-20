@@ -72,6 +72,20 @@ describe('stage layout (hero fills the first screen)', () => {
     expect(stageLayout({ ...base, stageWidth: 360, stageHeight: 200, pan: true, fit: true }).scale).toBe(0.34)
   })
 
+  it('narrow and short (phone held sideways): the world still covers the full width', () => {
+    const side = stageLayout({ ...base, stageWidth: 844, stageHeight: 258, pan: true, fit: true })
+    expect(side.scale).toBeCloseTo(844 / 1440)
+    expect(1440 * side.scale).toBeGreaterThanOrEqual(844)
+    // Tall enough for the minimum world at that scale (stations clear of the moon).
+    expect(side.stageHeight).toBeCloseTo(640 * (844 / 1440))
+    expect(side.worldHeight).toBeGreaterThanOrEqual(640)
+    // Portrait phones keep the height-based scale (it already overflows the width).
+    for (const [w, h] of [[390, 442], [375, 267], [430, 520]]) {
+      const l = stageLayout({ ...base, stageWidth: w, stageHeight: h, pan: true, fit: true })
+      expect(1440 * l.scale).toBeGreaterThan(w)
+    }
+  })
+
   it('without fit (footer): fixed design height, the stage follows the scale', () => {
     expect(stageLayout({ ...base, designHeight: 380, stageWidth: 720, stageHeight: 0, pan: false, fit: false })).toEqual({ scale: 0.5, worldHeight: 380, stageHeight: 190 })
     expect(stageLayout({ ...base, designHeight: 380, stageWidth: 390, stageHeight: 0, pan: true, fit: false }).scale).toBe(0.75)

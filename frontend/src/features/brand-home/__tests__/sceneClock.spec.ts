@@ -138,6 +138,36 @@ describe('shared scene clock', () => {
     expect(frames.size).toBe(0)
   })
 
+  it('in-page pause freezes every subscriber where it is, and play resumes from there', async () => {
+    const { time } = await mountClock()
+    const { setMotionPaused, motionPaused } = await import('../composables/useSceneClock')
+    intersect(true)
+    step()
+    for (let i = 0; i < 30; i++) step()
+    const at = time()
+    setMotionPaused(true)
+    expect(motionPaused.value).toBe(true)
+    expect(frames.size).toBe(0)
+    step(5000)
+    expect(time()).toBe(at)
+    expect(localStorage.getItem('bh-motion')).toBe('paused')
+    setMotionPaused(false)
+    expect(localStorage.getItem('bh-motion')).toBeNull()
+    step()
+    step()
+    expect(time()).toBeGreaterThan(at)
+    expect(time() - at).toBeLessThan(0.05)
+  })
+
+  it('remembers a pause from an earlier visit', async () => {
+    localStorage.setItem('bh-motion', 'paused')
+    const { time } = await mountClock()
+    intersect(true)
+    expect(frames.size).toBe(0)
+    expect(time()).toBe(0)
+    localStorage.removeItem('bh-motion')
+  })
+
   it('stops the loop when the last subscriber unmounts', async () => {
     const { wrapper } = await mountClock()
     intersect(true)

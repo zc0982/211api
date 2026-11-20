@@ -77,7 +77,10 @@ export interface StageLayout {
  * How a 1440-wide world sits in its stage (PixelStage).
  * - Not panning (≥ 860px, or reduced motion): scale to the stage width.
  * - Panning (< 860px): 0.75×, or in `fit` mode smaller (down to
- *   HERO_FIT.narrowMinScale) so about HERO_FIT.narrowHeight world px fit.
+ *   HERO_FIT.narrowMinScale) so about HERO_FIT.narrowHeight world px fit —
+ *   but never below the width scale, so the world always covers the stage
+ *   (narrow and short, e.g. a phone held sideways, must not leave a blank
+ *   strip on the right). The camera only moves when the world overflows.
  * - `fit`: the world is as tall as the stage at that scale, never below
  *   HERO_FIT.minHeight; otherwise it is `designHeight` and the stage follows.
  */
@@ -90,9 +93,14 @@ export function stageLayout(opts: {
   fit: boolean
 }): StageLayout {
   const { stageWidth, stageHeight, worldWidth, designHeight, pan, fit } = opts
-  let scale = Math.max(0.1, stageWidth / worldWidth)
-  if (pan) scale = fit ? Math.min(NARROW_SCENE_SCALE, Math.max(HERO_FIT.narrowMinScale, stageHeight / HERO_FIT.narrowHeight)) : NARROW_SCENE_SCALE
+  const widthScale = Math.max(0.1, stageWidth / worldWidth)
+  let scale = widthScale
+  if (pan) {
+    const wanted = fit ? Math.min(NARROW_SCENE_SCALE, Math.max(HERO_FIT.narrowMinScale, stageHeight / HERO_FIT.narrowHeight)) : NARROW_SCENE_SCALE
+    scale = Math.max(widthScale, wanted)
+  }
   if (!fit) return { scale, worldHeight: designHeight, stageHeight: designHeight * scale }
-  const minStage = pan ? HERO_FIT.narrowHeight * HERO_FIT.narrowMinScale : HERO_FIT.minHeight * scale
+  // At least the minimum world at this scale; when panning, also the smallest narrow stage.
+  const minStage = pan ? Math.max(HERO_FIT.narrowHeight * HERO_FIT.narrowMinScale, HERO_FIT.minHeight * scale) : HERO_FIT.minHeight * scale
   return { scale, worldHeight: Math.max(HERO_FIT.minHeight, Math.max(stageHeight, minStage) / scale), stageHeight: minStage }
 }
