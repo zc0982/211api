@@ -1,7 +1,7 @@
 <template>
   <div class="brand-home">
     <a href="#bh-main" class="bh-skip" @click.prevent="scrollToId('bh-main', true)">{{ t('brandHome.a11y.skipToContent') }}</a>
-    <SiteHeader :links="links" :site-name="siteName" @anchor="scrollToId" />
+    <SiteHeader :links="links" :site-name="siteName" :site-logo="siteLogo" @anchor="scrollToId" />
     <main id="bh-main" tabindex="-1">
       <HeroSection :links="links" :base-url="baseUrl" :model="HERO_DEFAULT_MODEL" :reduced-motion="reducedMotion" />
       <EcosystemSection />
@@ -20,6 +20,7 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore } from '@/stores'
+import { sanitizeUrl } from '@/utils/url'
 import './styles/brand-home.css'
 import serifTitleFont from './assets/fonts/noto-serif-sc-600.woff2?url'
 import sansBodyFont from './assets/fonts/noto-sans-sc-400.woff2?url'
@@ -48,6 +49,10 @@ const authStore = useAuthStore()
 
 const settings = computed(() => appStore.cachedPublicSettings)
 const siteName = computed(() => (settings.value?.site_name || '').trim() || DEFAULT_SITE_NAME)
+/** 后台「站点 Logo」为准（与控制台、登录页同一来源）；未上传时用内置学士帽。 */
+const siteLogo = computed(() =>
+  sanitizeUrl(settings.value?.site_logo || '', { allowRelative: true, allowDataUrl: true })
+)
 const links = computed(() =>
   resolveHomeLinks(settings.value, { isAuthenticated: authStore.isAuthenticated, isAdmin: authStore.isAdmin })
 )

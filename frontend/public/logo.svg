@@ -1,32 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">Sub2API</title>
-  <desc id="desc">An interlocking S symbol representing subscription routing into APIs.</desc>
-  <defs>
-    <linearGradient id="s2a-bg" x1="72" y1="44" x2="442" y2="478" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#142B56"/>
-      <stop offset=".52" stop-color="#0A1A39"/>
-      <stop offset="1" stop-color="#061127"/>
-    </linearGradient>
-    <radialGradient id="s2a-ambient" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(168 92) rotate(51) scale(342 382)">
-      <stop stop-color="#3E68B0" stop-opacity=".28"/>
-      <stop offset="1" stop-color="#3E68B0" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="s2a-brand" x1="4" y1="4" x2="20" y2="20" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#79F4BD"/>
-      <stop offset=".48" stop-color="#39D9E7"/>
-      <stop offset="1" stop-color="#3875F6"/>
-    </linearGradient>
-    <filter id="s2a-shadow" x="-25%" y="-25%" width="150%" height="165%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy=".55" stdDeviation=".65" flood-color="#020817" flood-opacity=".34"/>
-    </filter>
-  </defs>
-
-  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#s2a-bg)"/>
-  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#s2a-ambient)"/>
-  <rect x="16.75" y="16.75" width="478.5" height="478.5" rx="119.25" fill="none" stroke="#A5BFFF" stroke-opacity=".16" stroke-width="1.5"/>
-
-  <g transform="translate(52 52) scale(17)" fill="none" stroke="url(#s2a-brand)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.7" filter="url(#s2a-shadow)">
-    <path d="m19.25 7.65-2.55-3.2a1.33 1.33 0 0 0-1.03-.5H8.58c-.34 0-.67.13-.91.37L4.15 7.65c-.93.88-.6 1.52.65 2.3l9.55 5.97"/>
-    <path d="m4.75 16.35 2.55 3.2c.25.31.63.5 1.03.5h7.09c.34 0 .67-.13.91-.37l3.52-3.33c.93-.88.6-1.52-.65-2.3L9.65 8.08"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 15 44 33" fill="none" role="img" aria-label="211API">
+  <!-- 品牌首页学士帽标志，透明底，裁切与首页页头 BrandLogo.vue 一致（设计源 export/logo/logo-mark-light.svg） -->
+  <path d="M32 17.5L52 28L32 38.5L12 28L32 17.5Z" fill="#14306B"/>
+  <path d="M20.75 34.22L32 40.125L43.25 34.22V42.16L32 46.375L20.75 42.16V34.22Z" fill="#14306B"/>
+  <path d="M45.6543 32.7383L45.9746 32.9072V40.125H44.7754V33.6328L31.7207 26.7812L32.2793 25.7188L45.6543 32.7383Z" fill="#D4A84B"/>
+  <circle cx="32" cy="26.25" r="1.5" fill="#D4A84B"/>
+  <circle cx="45.375" cy="40.125" r="1.55" fill="#D4A84B"/>
 </svg>

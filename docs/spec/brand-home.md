@@ -31,8 +31,10 @@
 | `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons`、`/node_modules/three/ → vendor-three` | 不追加时图标、three.js 会被并入所有页面都 modulepreload 的 `vendor-misc`。图标分支经用户确认后加入；three 分支由 PR 2 交接提示词指定 |
 | 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 8 个测试 | CI 只跑这份清单 |
 | `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue`、`three`、`@types/three`（dev）精确版本 | 厂商 / 工具图标（Vue 3 包）；首屏浑天仪 WebGL |
+| `frontend/public/logo.svg` | 换成品牌首页学士帽标志（透明底，藏青帽 + 金穗） | 未上传站点 Logo 时，控制台侧栏、登录页、公开页和 favicon 的回退图与首页一致，见「标志」 |
+| `AppSidebar.vue`、`AuthLayout.vue`、`PlazaNavBar.vue`、`LegalDocumentView.vue`、`KeyUsageView.vue`、`HomeView.vue` | 标志容器/图片追加 `dark:bg-white dark:p-*`（`PlazaNavBar.vue`、`LegalDocumentView.vue` 原有的 `dark:bg-dark-800` 换成 `dark:bg-white`） | 透明底藏青标志在深色模式下需浅色底，见「标志」 |
 
-不改后端、其他页面和全局样式（`style.css`、`main.ts`）。
+除上表外，不改后端、其他页面和全局样式（`style.css`、`main.ts`）。
 
 ## 固定浅色
 
@@ -129,6 +131,13 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 - 子集化脚本 `features/brand-home/scripts/subset-fonts.py`（fontTools，不进 package.json），字符清单 `scripts/charset-*.txt`。宋体只含标题用字，黑体含全部 zh / en 文案用字。**改动 brandHome 文案后必须重跑脚本**，否则新字会走回退字体。
 - `@font-face` 的族名加 `Brand` 前缀，与系统已装的完整字体区分；`font-display: swap`；只 preload 首屏标题（宋体 600）和正文（黑体 400）；保留 DESIGN.md 的系统回退栈；不用外链字体。
 - 字标按 DESIGN.md 用 Geist 600；Figma 字标实际是 Plus Jakarta Sans ExtraBold，未引入该字体。
+
+## 标志
+
+- 以后台「站点设置 → 站点 Logo」（`site_logo`）为准，全站同一来源：首页页头（`BrandHome.vue` 经 `sanitizeUrl` 传给 `components/BrandLogo.vue` 的 `src`）、控制台侧栏、登录页、公开页、后端注入的 favicon。换标志只需在后台重新上传。
+- 未上传、地址不安全或图片加载失败时回退：首页页头用 `BrandLogo.vue` 内联的学士帽，其余页面用 `frontend/public/logo.svg`（同一学士帽，透明底，裁切 `viewBox="10 15 44 33"` 与页头一致）。两处回退图形来自设计源 `export/logo/logo-mark-light.svg`，改回退图时一起改。后台上传的标志也用透明底、同一裁切（PNG 176×132），首页页头按高 28px 显示时与内置标志尺寸相同。
+- 页头里上传的图片按高 28px 等比显示（最宽 112px）。
+- 标志是透明底藏青色，深色模式下看不清。控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`）。新增显示 `site_logo` 的位置也要加。品牌首页固定浅色，不加。
 
 ## 图标
 
