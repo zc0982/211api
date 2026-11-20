@@ -84,7 +84,7 @@
       :style="{ left: `${chip.x}px`, top: '350px' }"
     >
       <i class="bh-ss__icon bh-ss__icon--cache" /><span class="bh-ss__label">{{ labels.cache }}</span>
-      <span class="bh-mono"><RollingNumber :value="cacheHits[index]" :digits="String(chip.to).length" />%</span>
+      <span class="bh-mono"><RollingNumber :value="cacheHits[index]" :digits="2" />%</span>
     </span>
   </div>
 </template>
@@ -109,7 +109,7 @@ import {
   type SiteChipKind,
   type SiteWorker
 } from '../config'
-import { cacheHitAt, hookYAt, siteRestState, siteSpeedAt, siteStateAt, type ActorKind } from '../composables/motion'
+import { cacheHitAt, cachePeak, hookYAt, siteRestState, siteSpeedAt, siteStateAt, type ActorKind } from '../composables/motion'
 import { useSceneClock } from '../composables/useSceneClock'
 import { useSpriteSheets } from '../composables/useSpriteSheets'
 
@@ -151,7 +151,8 @@ const states = computed(() =>
 const speeds = computed(() =>
   SITE_WORKERS.map((w) => (animated.value ? siteSpeedAt(w, SITE_PARAMS[w.id].speed, time.value) : SITE_PARAMS[w.id].speed))
 )
-const cacheHits = computed(() => SITE_CACHE_CHIPS.map((c) => (animated.value ? cacheHitAt(c, time.value) : c.to)))
+// Still frame: the first loop's peak.
+const cacheHits = computed(() => SITE_CACHE_CHIPS.map((c) => (animated.value ? cacheHitAt(c, time.value) : cachePeak(c, 0))))
 
 const hookY = computed(() => (animated.value ? hookYAt(time.value) : SITE_HOOK.y))
 

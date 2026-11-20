@@ -283,18 +283,21 @@ export const SITE_PARAMS: Readonly<Record<SceneCharacter, { firstToken: string; 
 }
 
 /**
- * Ground chips under the brick piles: cache hit climbs from `from` to `to`
- * (percent) once per loop, starting at `offset` seconds, then holds.
+ * Ground chips under the brick piles. Each 9.6s loop the cache hit climbs to a
+ * new peak, picked at random in SITE_CACHE_PEAK (seeded by loop and chip, so
+ * every frame of a loop agrees), starting `drop` points below it. The right
+ * chip runs half a loop later.
  */
-export const SITE_CACHE_CHIPS: readonly { x: number; from: number; to: number; offset: number }[] = [
-  { x: 147, from: 38, to: 64, offset: 0 },
-  { x: 1032, from: 45, to: 71, offset: 4.8 }
+export const SITE_CACHE_CHIPS: readonly { x: number; offset: number; seed: number }[] = [
+  { x: 147, offset: 0, seed: 1 },
+  { x: 1032, offset: 4.8, seed: 2 }
 ]
+export const SITE_CACHE_PEAK = { min: 70, max: 95, drop: 24 } as const
 
 /**
  * The only illustrative numbers on the page that count up (product decision,
  * 2026-11-20): the footer site's cache hit and tok/s. Integer steps, ease-out.
- * - cache hit: from → to over `cacheRise` seconds of each 9.6s loop, then holds;
+ * - cache hit: (peak − drop) → peak over `cacheRise` seconds of each 9.6s loop, then holds;
  * - tok/s: from `speedFrom` × target to target over `speedRise` seconds after
  *   the chip appears (1s into laying bricks), then holds.
  */

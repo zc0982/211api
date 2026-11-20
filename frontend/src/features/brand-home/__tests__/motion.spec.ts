@@ -13,6 +13,7 @@ import {
 import {
   arcTable,
   cacheHitAt,
+  cachePeak,
   countUp,
   siteSpeedAt,
   dotPhase,
@@ -182,17 +183,37 @@ describe('footer counters (cache hit, tok/s)', () => {
     for (let p = 0; p < 1; p += 0.05) expect(countUp(38, 64, p + 0.05)).toBeGreaterThanOrEqual(countUp(38, 64, p))
   })
 
-  it('cache hit climbs once per loop, from its start offset, then holds', () => {
+  it('cache hit climbs to a random peak in 70–95% each loop, from 24 below it, then holds', () => {
     const [left, right] = SITE_CACHE_CHIPS
-    expect(cacheHitAt(left, 0)).toBe(left.from)
-    expect(cacheHitAt(left, 3.2)).toBeGreaterThan(left.from)
-    expect(cacheHitAt(left, 3.2)).toBeLessThan(left.to)
-    expect(cacheHitAt(left, 6.4)).toBe(left.to)
-    expect(cacheHitAt(left, 9.5)).toBe(left.to)
-    expect(cacheHitAt(left, MOTION_LOOP)).toBe(left.from)
+    const peak0 = cachePeak(left, 0)
+    expect(cacheHitAt(left, 0)).toBe(peak0 - 24)
+    expect(cacheHitAt(left, 3.2)).toBeGreaterThan(peak0 - 24)
+    expect(cacheHitAt(left, 3.2)).toBeLessThan(peak0)
+    expect(cacheHitAt(left, 6.4)).toBe(peak0)
+    expect(cacheHitAt(left, 9.5)).toBe(peak0)
+    // Next loop starts again below its own peak.
+    expect(cacheHitAt(left, MOTION_LOOP)).toBe(cachePeak(left, 1) - 24)
+    expect(cacheHitAt(left, MOTION_LOOP + 7)).toBe(cachePeak(left, 1))
     // The right pile runs half a loop later.
-    expect(cacheHitAt(right, 4.8)).toBe(right.from)
-    expect(cacheHitAt(right, 0)).toBe(right.to)
+    expect(cacheHitAt(right, 4.8)).toBe(cachePeak(right, 0) - 24)
+  })
+
+  it('peaks stay within 70–95, are the same on every frame of a loop, and vary across loops', () => {
+    const peaks = new Set<number>()
+    for (const chip of SITE_CACHE_CHIPS) {
+      for (let loop = 0; loop < 200; loop++) {
+        const p = cachePeak(chip, loop)
+        expect(Number.isInteger(p)).toBe(true)
+        expect(p).toBeGreaterThanOrEqual(70)
+        expect(p).toBeLessThanOrEqual(95)
+        expect(cachePeak(chip, loop)).toBe(p)
+        peaks.add(p)
+      }
+    }
+    expect(peaks.has(70)).toBe(true)
+    expect(peaks.has(95)).toBe(true)
+    expect(peaks.size).toBeGreaterThan(20)
+    expect(cachePeak(SITE_CACHE_CHIPS[0], 0)).not.toBe(cachePeak(SITE_CACHE_CHIPS[0], 1))
   })
 
   it('tok/s starts at 30% when the chip appears (1s into laying) and reaches the target in 1.2s', () => {

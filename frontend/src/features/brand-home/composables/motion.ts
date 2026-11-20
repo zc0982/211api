@@ -6,6 +6,7 @@ import {
   MOTION_LOOP,
   PAN_PERIOD,
   SITE_BEATS,
+  SITE_CACHE_PEAK,
   SITE_CHIP_TIMES,
   SITE_COUNT_UP,
   SITE_FRAME,
@@ -142,10 +143,29 @@ export function siteSpeedAt(w: SiteWorker, target: number, t: number): number {
   return countUp(Math.round(target * SITE_COUNT_UP.speedFrom), target, shown / SITE_COUNT_UP.speedRise)
 }
 
-/** Cache-hit percentage under a brick pile: climbs once per loop, then holds. */
-export function cacheHitAt(chip: { from: number; to: number; offset: number }, t: number): number {
-  const tb = mod(t - chip.offset, MOTION_LOOP)
-  return countUp(chip.from, chip.to, tb / SITE_COUNT_UP.cacheRise)
+/** Deterministic hash → [0, 1) (integer avalanche), so a "random" value is the same on every frame. */
+export function hash01(n: number): number {
+  let x = (n ^ 0x9e3779b9) >>> 0
+  x = Math.imul(x ^ (x >>> 16), 0x85ebca6b)
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35)
+  x ^= x >>> 16
+  return (x >>> 0) / 4294967296
+}
+
+type CacheChip = { offset: number; seed: number }
+
+/** Peak cache hit of a chip in a given loop: integer in [min, max]. */
+export function cachePeak(chip: CacheChip, loop: number): number {
+  const { min, max } = SITE_CACHE_PEAK
+  return min + Math.floor(hash01(loop * 97 + chip.seed) * (max - min + 1))
+}
+
+/** Cache-hit percentage under a brick pile: climbs to this loop's random peak, then holds. */
+export function cacheHitAt(chip: CacheChip, t: number): number {
+  const local = q(t - chip.offset)
+  const loop = Math.floor(local / MOTION_LOOP + 1e-9)
+  const peak = cachePeak(chip, loop)
+  return countUp(peak - SITE_CACHE_PEAK.drop, peak, mod(local, MOTION_LOOP) / SITE_COUNT_UP.cacheRise)
 }
 
 /** Crane hook top y. */
