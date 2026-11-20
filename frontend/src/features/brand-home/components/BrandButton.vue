@@ -22,7 +22,7 @@ import { computed } from 'vue'
  */
 const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'glass' | 'outline' | 'inverse' | 'ghost-inverse'
+    variant?: 'primary' | 'glass' | 'outline' | 'night' | 'night-outline'
     size?: 'md' | 'sm'
     to?: string | null
     href?: string | null
@@ -70,7 +70,7 @@ const classes = computed(() => ['bh-btn', `bh-btn--${props.variant}`, `bh-btn--$
 .bh-btn--primary {
   background: var(--bh-navy);
   border-color: var(--bh-navy);
-  color: #fff;
+  color: var(--bh-on-navy);
   box-shadow: var(--bh-shadow-primary);
 }
 .bh-btn--primary.bh-btn--md:hover {
@@ -82,15 +82,15 @@ const classes = computed(() => ['bh-btn', `bh-btn--${props.variant}`, `bh-btn--$
 }
 
 .bh-btn--glass {
-  border-color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.6);
+  border-color: var(--bh-glass-edge);
+  background: rgb(var(--brand-surface) / 0.6);
   color: var(--bh-navy);
   box-shadow: var(--bh-shadow-glass);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
 }
 .bh-btn--glass:hover {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgb(var(--brand-surface) / 0.85);
   transform: translateY(-2px);
   box-shadow: var(--bh-shadow-glass-hover);
 }
@@ -98,38 +98,41 @@ const classes = computed(() => ['bh-btn', `bh-btn--${props.variant}`, `bh-btn--$
 /* White button with a hairline border (FAQ / "view all models"). */
 .bh-btn--outline {
   border-color: var(--bh-line);
-  background: #fff;
+  background: var(--bh-surface);
   color: var(--bh-navy);
-  box-shadow: 0 4px 12px -6px rgba(20, 48, 107, 0.06);
+  box-shadow: 0 4px 12px -6px rgb(var(--bh-shadow-navy) / min(calc(0.06 * var(--bh-shadow-k)), 0.5));
 }
 .bh-btn--outline:hover {
   transform: translateY(-2px);
   box-shadow: var(--bh-shadow-glass-hover);
 }
 
-/* On the navy CTA band. */
-.bh-btn--inverse {
-  background: #fff;
-  color: var(--bh-navy);
-  box-shadow: 0 8px 20px -6px rgba(5, 15, 41, 0.3);
+/* On the night sky (hero, header): fixed colours, same in both themes. */
+.bh-btn--night {
+  background: var(--bh-night-moon);
+  border-color: var(--bh-night-moon);
+  color: var(--bh-night-inner);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
-.bh-btn--inverse:hover {
+.bh-btn--night:hover {
+  background: #eef3fd;
+}
+.bh-btn--night.bh-btn--md:hover {
   transform: translateY(-2px);
 }
-.bh-btn--ghost-inverse {
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+.bh-btn--night-outline {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: var(--bh-night-ink);
 }
-.bh-btn--ghost-inverse:hover {
-  background: rgba(255, 255, 255, 0.12);
+.bh-btn--night-outline:hover {
+  border-color: rgba(255, 255, 255, 0.45);
   transform: translateY(-2px);
 }
-.bh-btn--inverse:focus-visible,
-.bh-btn--ghost-inverse:focus-visible {
-  outline-color: #fff;
+.bh-btn--night:focus-visible,
+.bh-btn--night-outline:focus-visible {
+  outline-color: var(--bh-night-blue);
 }
-
 .bh-btn--sm {
   height: 36px;
   padding: 0 16px;

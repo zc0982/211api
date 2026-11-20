@@ -1,5 +1,5 @@
 <template>
-  <section ref="root" v-reveal class="bh-section bh-band bh-plaza" aria-labelledby="bh-plaza-title">
+  <section ref="root" v-reveal class="bh-section bh-on-band bh-plaza" aria-labelledby="bh-plaza-title">
     <div class="bh-container">
       <header class="bh-section-head" data-reveal style="--bh-i: 0">
         <h2 id="bh-plaza-title" class="bh-section-title">{{ t('brandHome.plaza.title') }}</h2>
@@ -78,6 +78,14 @@ const showCards = computed(() => enabled.value && state.value !== 'failed')
 </script>
 
 <style scoped>
+.bh-plaza {
+  --bh-section-y: 96px;
+}
+@media (max-width: 860px) {
+  .bh-plaza {
+    --bh-section-y: 72px;
+  }
+}
 .bh-plaza__toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -97,8 +105,8 @@ const showCards = computed(() => enabled.value && state.value !== 'failed')
   padding: 20px;
   border: 1px solid var(--bh-line);
   border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 6px 20px -10px rgba(20, 48, 107, 0.05);
+  background: var(--bh-surface);
+  box-shadow: 0 6px 20px -10px rgb(var(--bh-shadow-navy) / min(calc(0.05 * var(--bh-shadow-k)), 0.5));
 }
 .bh-plaza__top {
   display: flex;
@@ -115,7 +123,7 @@ const showCards = computed(() => enabled.value && state.value !== 'failed')
   height: 36px;
   border: 1px solid var(--bh-sky);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bh-surface);
 }
 .bh-plaza__id {
   min-width: 0;

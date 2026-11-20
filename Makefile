@@ -126,9 +126,9 @@ FRONTEND_CRITICAL_VITEST := \
 	src/features/brand-home/__tests__/HomeEntry.spec.ts \
 	src/features/brand-home/__tests__/BrandHome.spec.ts \
 	src/features/brand-home/__tests__/vReveal.spec.ts \
-	src/features/brand-home/__tests__/armillaryTimeline.spec.ts \
-	src/features/brand-home/__tests__/armillaryCapability.spec.ts \
-	src/features/brand-home/__tests__/ArmillaryHero.spec.ts
+	src/features/brand-home/__tests__/useBrandTheme.spec.ts \
+	src/features/brand-home/__tests__/ThemeToggle.spec.ts \
+	src/features/brand-home/__tests__/starlink.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

@@ -1,26 +1,36 @@
 <template>
-  <header class="bh-header bh-motion" :class="{ 'is-scrolled': scrolled }">
+  <header class="bh-header" :class="{ 'is-scrolled': scrolled }">
     <div class="bh-container bh-header__inner">
       <a href="#bh-top" class="bh-header__brand" :aria-label="siteName" @click.prevent="emit('anchor', 'bh-top')">
         <BrandLogo :name="siteName" :src="siteLogo" />
       </a>
-      <NavDock
-        v-if="dockItems.length > 1"
-        class="bh-header__dock"
-        :items="dockItems"
-        current="home"
-        :label="t('brandHome.a11y.primaryNav')"
-        @anchor="(id) => emit('anchor', id)"
-      />
-      <nav class="bh-header__actions" :aria-label="t('brandHome.a11y.accountNav')">
-        <RouterLink v-if="links.console" :to="links.console" class="bh-header__text-link">
-          {{ t('brandHome.nav.console') }}
-        </RouterLink>
-        <RouterLink v-else :to="links.login" class="bh-header__text-link">
-          {{ t('brandHome.nav.login') }}
-        </RouterLink>
-        <BrandButton :to="links.getKey" size="sm" arrow>{{ t('brandHome.nav.getKey') }}</BrandButton>
+      <nav v-if="navItems.length > 1" class="bh-header__nav" :aria-label="t('brandHome.a11y.primaryNav')">
+        <template v-for="item in navItems" :key="item.key">
+          <RouterLink v-if="item.to" :to="item.to" class="bh-header__link">{{ item.label }}</RouterLink>
+          <a
+            v-else
+            :href="item.href"
+            class="bh-header__link"
+            :class="{ 'is-current': item.key === 'home' }"
+            :aria-current="item.key === 'home' ? 'page' : undefined"
+            :target="item.external ? '_blank' : undefined"
+            :rel="item.external ? 'noopener' : undefined"
+            @click="onClick(item, $event)"
+          >
+            {{ item.label }}
+          </a>
+        </template>
       </nav>
+      <div class="bh-header__actions">
+        <ThemeToggle :is-dark="isDark" @select="(value) => emit('theme', value)" />
+        <nav class="bh-header__account" :aria-label="t('brandHome.a11y.accountNav')">
+          <RouterLink v-if="links.console" :to="links.console" class="bh-header__ghost">
+            {{ t('brandHome.nav.console') }}
+          </RouterLink>
+          <RouterLink v-else :to="links.login" class="bh-header__ghost">{{ t('brandHome.nav.login') }}</RouterLink>
+          <BrandButton :to="links.getKey" variant="night" size="sm">{{ t('brandHome.nav.getKey') }}</BrandButton>
+        </nav>
+      </div>
     </div>
   </header>
 </template>
@@ -30,14 +40,28 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BrandLogo from '../components/BrandLogo.vue'
 import BrandButton from '../components/BrandButton.vue'
-import NavDock, { type DockItem } from '../components/NavDock.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
 import type { HomeLinks } from '../composables/homeLinks'
+import type { ThemePreference } from '../composables/useBrandTheme'
 
-const props = defineProps<{ links: HomeLinks; siteName: string; siteLogo?: string }>()
-const emit = defineEmits<{ (e: 'anchor', id: string): void }>()
+/**
+ * v3 导航（Figma 46:3445）：直接压在夜空上，没有玻璃胶囊；当前项文字纯白，
+ * 下方 6px 一条与文字等宽的 3px 月白横条带蓝色外发光。滚动离开首屏后加夜空色
+ * 玻璃底，避免内容区里看不清。浅色、深色两版导航完全一样。
+ */
+interface NavItem {
+  key: string
+  label: string
+  to?: string
+  href?: string
+  external?: boolean
+  anchor?: string
+}
+
+const props = defineProps<{ links: HomeLinks; siteName: string; siteLogo?: string; isDark: boolean }>()
+const emit = defineEmits<{ (e: 'anchor', id: string): void; (e: 'theme', value: ThemePreference): void }>()
 const { t } = useI18n()
 
-/** Once the page scrolls, the bar gets a glass backdrop so content does not run under the wordmark. */
 const scrolled = ref(false)
 const onScroll = () => {
   scrolled.value = window.scrollY > 8
@@ -49,12 +73,18 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
 /** 「状态」没有公开页面，不渲染；「模型」「文档」按可见性显示。 */
-const dockItems = computed<DockItem[]>(() => {
-  const items: DockItem[] = [{ key: 'home', label: t('brandHome.nav.home'), href: '#bh-top', anchor: 'bh-top' }]
+const navItems = computed<NavItem[]>(() => {
+  const items: NavItem[] = [{ key: 'home', label: t('brandHome.nav.home'), href: '#bh-top', anchor: 'bh-top' }]
   if (props.links.modelPlaza) items.push({ key: 'models', label: t('brandHome.nav.models'), to: props.links.modelPlaza })
   if (props.links.docs) items.push({ key: 'docs', label: t('brandHome.nav.docs'), href: props.links.docs, external: true })
   return items
 })
+
+function onClick(item: NavItem, event: MouseEvent) {
+  if (!item.anchor) return
+  event.preventDefault()
+  emit('anchor', item.anchor)
+}
 </script>
 
 <style scoped>
@@ -63,16 +93,15 @@ const dockItems = computed<DockItem[]>(() => {
   inset: 0 0 auto;
   z-index: 40;
   height: 72px;
-  animation: bh-nav-in 0.5s var(--bh-ease) 0.1s both;
 }
 .bh-header::before {
   content: '';
   position: absolute;
   inset: 0;
-  border-bottom: 1px solid rgba(220, 228, 242, 0.7);
-  background: rgba(246, 249, 254, 0.72);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(5, 11, 24, 0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
   opacity: 0;
   transition: opacity 0.2s ease-out;
   pointer-events: none;
@@ -84,62 +113,86 @@ const dockItems = computed<DockItem[]>(() => {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   height: 100%;
 }
 .bh-header__brand {
   display: inline-flex;
   border-radius: 8px;
+  color: #fff;
 }
-.bh-header__dock {
-  position: absolute;
-  left: 50%;
-  top: 13px;
-  transform: translateX(-50%);
+/* The wordmark always sits on the night sky. */
+.bh-header__brand :deep(.bh-logo) {
+  color: #fff;
 }
-.bh-header__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 3px 3px 6px;
-  border: 1px solid rgba(12, 24, 48, 0.08);
-  border-radius: 999px;
-  background:
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.14), transparent 45%),
-    rgba(255, 255, 255, 0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 8px 24px -8px rgba(12, 24, 48, 0.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
+.bh-header__nav {
+  display: flex;
+  gap: 32px;
+  margin-left: 72px;
 }
-.bh-header__text-link {
-  padding: 8px 14px;
-  border-radius: 999px;
-  color: var(--bh-slate);
-  font-size: 14px;
+.bh-header__link {
+  position: relative;
+  padding: 4px 0;
+  color: var(--bh-night-slate);
+  font-size: 15px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 18px;
   transition: color 0.2s;
 }
-.bh-header__text-link:hover {
-  color: var(--bh-ink);
+.bh-header__link:hover {
+  color: #fff;
 }
-.bh-header__text-link:focus-visible {
-  outline: 2px solid var(--bh-blue);
-  outline-offset: 2px;
+.bh-header__link.is-current {
+  color: #fff;
+}
+.bh-header__link.is-current::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 3px;
+  background: var(--bh-night-moon);
+  box-shadow: 0 0 8px rgba(122, 162, 255, 0.85);
+}
+.bh-header__link:focus-visible,
+.bh-header__ghost:focus-visible {
+  outline: 2px solid var(--bh-night-blue);
+  outline-offset: 3px;
+}
+.bh-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.bh-header__account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bh-header__ghost {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 17px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: var(--bh-night-ink);
+  font-size: 14px;
+  font-weight: 500;
+  transition: border-color 160ms ease-out;
+}
+.bh-header__ghost:hover {
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 @media (max-width: 860px) {
   .bh-header {
     height: 64px;
   }
-  .bh-header__dock,
-  .bh-header__text-link {
+  .bh-header__nav,
+  .bh-header__ghost {
     display: none;
-  }
-  .bh-header__actions {
-    padding: 3px;
   }
 }
 </style>

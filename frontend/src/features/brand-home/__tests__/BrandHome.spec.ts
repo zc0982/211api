@@ -151,14 +151,14 @@ describe('BrandHome', () => {
     const wrapper = mountHome()
     expect(routeTargets(wrapper, '.bh-hero__ctas')).toEqual(['/register'])
     expect(routeTargets(wrapper, '.bh-header__actions')).toEqual(['/login', '/register'])
-    expect(routeTargets(wrapper, '.bh-footer__links')).toEqual(['/register', '/model-plaza', '/keys', '/login'])
+    expect(routeTargets(wrapper, '.bh-footer__cols')).toEqual(['/model-plaza', '/keys', '/register', '/login'])
     wrapper.unmount()
   })
 
   it('registration closed: CTAs go to /login and the footer hides sign-up', () => {
     const wrapper = mountHome({ registration_enabled: false })
     expect(routeTargets(wrapper, '.bh-hero__ctas')).toEqual(['/login'])
-    expect(routeTargets(wrapper, '.bh-footer__links')).toEqual(['/model-plaza', '/keys', '/login'])
+    expect(routeTargets(wrapper, '.bh-footer__cols')).toEqual(['/model-plaza', '/keys', '/login'])
     wrapper.unmount()
   })
 
@@ -175,7 +175,27 @@ describe('BrandHome', () => {
     authStore.isAdmin = true
     const wrapper = mountHome()
     expect(routeTargets(wrapper, '.bh-header__actions')).toEqual(['/admin/dashboard', '/keys'])
-    expect(routeTargets(wrapper, '.bh-footer__links')).toContain('/admin/dashboard')
+    expect(routeTargets(wrapper, '.bh-footer__cols')).toContain('/admin/dashboard')
+    wrapper.unmount()
+  })
+
+  it('renders the v3 night scenes as decorative stages with readable text alongside', () => {
+    const wrapper = mountHome()
+    const stages = wrapper.findAll('.bh-stage')
+    expect(stages.length).toBe(2)
+    stages.forEach((stage) => expect(stage.attributes('aria-hidden')).toBe('true'))
+    expect(wrapper.findAll('.bh-hs__chip').length).toBe(9) // 8 stations + the 429 marker
+    expect(wrapper.findAll('.bh-hs__traces path').length).toBe(8)
+    expect(wrapper.findAll('.bh-hs__traces path.is-tracked').length).toBe(1)
+    expect(wrapper.find('.bh-hero .bh-sr-only').findAll('li').length).toBe(8)
+    expect(wrapper.text()).not.toContain('实时')
+    wrapper.unmount()
+  })
+
+  it('does not render the v2 armillary or ecosystem strip any more', () => {
+    const wrapper = mountHome()
+    expect(wrapper.find('[data-armillary-mount]').exists()).toBe(false)
+    expect(wrapper.find('.bh-eco').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -189,8 +209,8 @@ describe('BrandHome', () => {
 
   it('uses the normalised runtime base_url in code samples and the FAQ', () => {
     const wrapper = mountHome()
-    expect(wrapper.find('.bh-qs__url').text()).toBe('https://api.example.com/v1')
-    expect(wrapper.find('.bh-code-card').text()).toContain('"https://api.example.com/v1"')
+    expect(wrapper.find('.bh-qs__code').text()).toContain('"https://api.example.com/v1"')
+    expect(wrapper.find('.bh-faq__a').text()).toBe('brandHome.faq.migrateAnswer')
     wrapper.unmount()
   })
 
@@ -210,12 +230,21 @@ describe('BrandHome', () => {
     wrapper.unmount()
   })
 
-  it('never toggles the html.dark class', () => {
-    document.documentElement.classList.add('dark')
+  it('keeps the console theme choice and lets the header switch it', async () => {
+    localStorage.setItem('theme', 'dark')
     const wrapper = mountHome()
     expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    await wrapper.get('.bh-theme').trigger('click')
+    expect(localStorage.getItem('theme')).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+
+    await wrapper.get('.bh-theme').trigger('click')
+    expect(localStorage.getItem('theme')).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+
     wrapper.unmount()
-    document.documentElement.classList.remove('dark')
+    localStorage.removeItem('theme')
   })
 })
 

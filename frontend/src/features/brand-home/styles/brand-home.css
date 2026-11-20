@@ -1,7 +1,7 @@
 /*
  * Brand home styles. Everything is rooted at .brand-home so nothing leaks to
  * the console. Values come from the design source (DESIGN.md frontmatter and
- * Figma "Home / v2 · Light 1440"); see docs/spec/brand-home.md.
+ * Figma "Home / v3 · 星链 1440" (46:2719) and its dark board (94:47709)); see docs/spec/brand-home.md.
  */
 
 @font-face {
@@ -54,38 +54,104 @@
   src: url('../assets/fonts/geist-mono-500.woff2') format('woff2');
 }
 
+/*
+ * Colour tokens. --brand-* hold "R G B" triplets so both these styles and the
+ * Tailwind brand.* colours (tailwind.config.js) can add alpha:
+ * rgb(var(--brand-navy) / 0.5). Light values sit on .brand-home; .dark
+ * .brand-home swaps in the DESIGN.md "Dark Theme" table. Recipes that are not
+ * plain tokens get their own variables here so components never branch on
+ * the theme. The night scenes (hero, footer), the code panel and the key
+ * budget card use the fixed --bh-night-* values and look the same in both.
+ */
 .brand-home {
-  --bh-navy: #14306b;
+  --brand-navy: 20 48 107;
+  --brand-blue: 47 95 208;
+  --brand-gold: 212 168 75;
+  --brand-bronze: 138 100 32;
+  --brand-ink: 12 24 48;
+  --brand-slate: 69 83 110;
+  --brand-mist: 102 115 140;
+  --brand-ok: 19 122 82;
+  --brand-line: 227 220 205;
+  --brand-surface: 255 255 255;
+  --brand-canvas: 247 245 240;
+  --brand-band: 239 234 225;
+  --brand-tint: 232 240 252;
+  --brand-sky: 191 214 246;
+
+  --bh-navy: rgb(var(--brand-navy));
   --bh-navy-hover: #1a3a7e;
-  --bh-blue: #2f5fd0;
-  --bh-gold: #d4a84b;
-  --bh-bronze: #8a6420;
-  --bh-ink: #0c1830;
-  --bh-slate: #45536e;
-  --bh-mist: #66738c;
-  --bh-ok: #137a52;
-  --bh-line: #dce4f2;
-  --bh-surface: #ffffff;
-  --bh-canvas: #f6f9fe;
-  --bh-tint: #e8f0fc;
-  --bh-sky: #bfd6f6;
+  --bh-blue: rgb(var(--brand-blue));
+  --bh-gold: rgb(var(--brand-gold));
+  --bh-bronze: rgb(var(--brand-bronze));
+  --bh-ink: rgb(var(--brand-ink));
+  --bh-slate: rgb(var(--brand-slate));
+  --bh-mist: rgb(var(--brand-mist));
+  --bh-ok: rgb(var(--brand-ok));
+  --bh-line: rgb(var(--brand-line));
+  --bh-surface: rgb(var(--brand-surface));
+  --bh-canvas: rgb(var(--brand-canvas));
+  --bh-band: rgb(var(--brand-band));
+  --bh-tint: rgb(var(--brand-tint));
+  --bh-sky: rgb(var(--brand-sky));
+  /* Text and icons on a navy fill (primary button, selected chip). */
+  --bh-on-navy: #ffffff;
+
+  /* Warm-paper details that are not tokens (DESIGN.md "Dark Theme" lists the dark values). */
+  --bh-row-line: #f0ebe0;
+  --bh-head-line: #ece6d9;
+  --bh-head-bg: #faf8f3;
+  --bh-tag-bg: #f1ece2;
+  --bh-btn-line: #d9d1c1;
+  --bh-faq-bg: rgb(var(--brand-canvas) / 0.9);
+  --bh-panel-bg: rgb(255 255 255 / 0.7);
+  --bh-panel-edge: rgb(255 255 255 / 0.9);
+  /* Fixed dark cards (code panel, key budget) get a hairline only in dark. */
+  --bh-dark-card-edge: transparent;
+
+  /* Shadows: navy-tinted in light; black at 3x opacity (max 50%) in dark. */
+  --bh-shadow-navy: 20 48 107;
+  --bh-shadow-k: 1;
+
+  /* Gold highlight behind the "only change this line" code row. */
+  --bh-gold-code: rgba(212, 168, 75, 0.1);
+
+  /* Night palette: hero, footer, code panel, key card. Same in both themes. */
+  --bh-night-sky: linear-gradient(to bottom, #050b18 0%, #091430 50%, #13244b 92%, #13244b 100%);
+  --bh-night-sky-footer: linear-gradient(to bottom, #050b18 0%, #0c1838 70%, #13244b 100%);
+  --bh-night-card: #0b1427;
+  --bh-night-inner: #0e1830;
+  --bh-night-line: #1f2d48;
+  --bh-night-chip-line: #2b4170;
+  --bh-night-ink: #e9eef8;
+  --bh-night-text: #dbe3f2;
+  --bh-night-slate: #aab6cb;
+  --bh-night-mist: #7f8ca5;
+  --bh-night-dim: #4b5a78;
+  --bh-night-moon: #dbe6fb;
+  --bh-night-blue: #7aa2ff;
+  --bh-night-gold: #e3b95e;
+  --bh-night-bronze: #ecc978;
+  --bh-night-ok: #3dd68c;
+  --bh-night-footer: #0a1222;
 
   --bh-font-serif: 'Brand Noto Serif SC', 'Noto Serif SC', 'Songti SC', serif;
   --bh-font-sans: 'Brand Noto Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --bh-font-mono: 'Brand Geist Mono', 'Geist Mono', 'SF Mono', Menlo, monospace;
   --bh-font-wordmark: 'Brand Geist', Geist, 'Noto Sans SC', sans-serif;
 
-  --bh-shadow-primary: 0 6px 16px rgba(20, 48, 107, 0.18);
-  --bh-shadow-primary-hover: 0 10px 24px rgba(20, 48, 107, 0.24);
-  --bh-shadow-glass: 0 6px 24px rgba(20, 48, 107, 0.08);
-  --bh-shadow-glass-hover: 0 10px 28px rgba(20, 48, 107, 0.12);
-  --bh-shadow-card: 0 8px 24px -12px rgba(20, 48, 107, 0.05);
+  --bh-shadow-primary: 0 6px 16px rgb(var(--bh-shadow-navy) / min(calc(0.18 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-primary-hover: 0 10px 24px rgb(var(--bh-shadow-navy) / min(calc(0.24 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-glass: 0 6px 24px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-glass-hover: 0 10px 28px rgb(var(--bh-shadow-navy) / min(calc(0.12 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-card: 0 8px 24px -12px rgb(var(--bh-shadow-navy) / min(calc(0.05 * var(--bh-shadow-k)), 0.5));
+  /* Fixed dark cards: Figma 24/48/-12 navy 16–18%. */
+  --bh-shadow-dark-card: 0 24px 48px -12px rgb(var(--bh-shadow-navy) / min(calc(0.17 * var(--bh-shadow-k)), 0.5));
 
   --bh-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --bh-ease-knob: cubic-bezier(0.34, 1.3, 0.5, 1);
   --bh-container: 1200px;
   --bh-gutter: 24px;
-  --bh-section-y: 96px;
+  --bh-section-y: 120px;
 
   position: relative;
   min-height: 100vh;
@@ -102,6 +168,71 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Dark theme ("学院夜空", DESIGN.md; Figma 94:47709) ------------------------ */
+
+.dark .brand-home {
+  --brand-navy: 219 230 251;
+  --brand-blue: 122 162 255;
+  --brand-gold: 227 185 94;
+  --brand-bronze: 236 201 120;
+  --brand-ink: 233 238 248;
+  --brand-slate: 170 182 203;
+  --brand-mist: 127 140 165;
+  --brand-ok: 61 214 140;
+  --brand-line: 31 45 72;
+  --brand-surface: 14 24 48;
+  --brand-canvas: 7 14 29;
+  --brand-band: 11 20 39;
+  --brand-tint: 21 34 63;
+  --brand-sky: 43 65 112;
+
+  --bh-navy-hover: #eef3fd;
+  --bh-on-navy: rgb(var(--brand-surface));
+
+  --bh-row-line: #18243f;
+  --bh-head-line: #18243f;
+  --bh-head-bg: #121d38;
+  --bh-tag-bg: rgb(var(--brand-tint));
+  --bh-btn-line: #2b3a58;
+  --bh-faq-bg: rgb(var(--brand-surface) / 0.9);
+  --bh-panel-bg: rgb(var(--brand-surface) / 0.7);
+  --bh-panel-edge: rgb(255 255 255 / 0.08);
+  --bh-dark-card-edge: #1f2d48;
+
+  --bh-shadow-navy: 0 0 0;
+  --bh-shadow-k: 3;
+
+  color-scheme: dark;
+}
+
+/*
+ * The uploaded site logo is usually a navy mark on a transparent background;
+ * it always sits on the night sky here, so it gets a white tile (same as the
+ * console sidebar in dark mode). Kept in this global sheet: a scoped
+ * `:global(.dark) x` compiles to a bare `.dark {}` rule.
+ */
+.brand-home .bh-logo__img {
+  padding: 3px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+/*
+ * Theme switch: composables/useBrandTheme.ts adds .bh-theming for ~250ms so
+ * colours cross-fade without making every hover transition slower.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .brand-home.bh-theming,
+  .brand-home.bh-theming *,
+  .brand-home.bh-theming *::before,
+  .brand-home.bh-theming *::after {
+    transition:
+      background-color 200ms ease-out,
+      color 200ms ease-out,
+      border-color 200ms ease-out !important;
+  }
+}
+
 .brand-home *,
 .brand-home *::before,
 .brand-home *::after {
@@ -109,7 +240,7 @@
 }
 
 .brand-home ::selection {
-  background: rgba(47, 95, 208, 0.18);
+  background: rgb(var(--brand-blue) / 0.18);
   color: var(--bh-ink);
 }
 
@@ -155,13 +286,31 @@
   z-index: 60;
   padding: 10px 16px;
   border-radius: 999px;
-  background: var(--bh-navy);
-  color: #fff;
+  background: var(--bh-night-moon);
+  color: var(--bh-night-inner);
   font-weight: 500;
   transition: top 0.16s ease-out;
 }
 .brand-home .bh-skip:focus {
   top: 16px;
+}
+
+/* Pixel art: integer-looking edges at any scale. */
+.brand-home .bh-pixel {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 8px pixel square used as a list / label marker (DESIGN.md v3). */
+.brand-home .bh-pixel-mark {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--bh-navy);
 }
 
 /* Section rhythm --------------------------------------------------------- */
@@ -170,22 +319,17 @@
   position: relative;
   padding: var(--bh-section-y) 0;
 }
-
-/* White band used by quick-start / features / models / FAQ (Figma fill). */
-.brand-home .bh-band {
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    #fff 16%,
-    #fff 84%,
-    rgba(255, 255, 255, 0) 100%
-  );
+.brand-home .bh-on-canvas {
+  background: var(--bh-canvas);
+}
+.brand-home .bh-on-band {
+  background: var(--bh-band);
 }
 
+/* Left-aligned title group: title → sub 16px, sub → link 18px, link → content 40px (Figma 46:3457). */
 .brand-home .bh-section-head {
-  max-width: 800px;
-  margin: 0 auto 48px;
-  text-align: center;
+  max-width: 760px;
+  margin: 0 0 40px;
 }
 
 .brand-home .bh-section-title {
@@ -193,7 +337,7 @@
   font-family: var(--bh-font-serif);
   font-size: 40px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 52px;
   color: var(--bh-ink);
   text-wrap: balance;
 }
@@ -206,34 +350,41 @@
   text-wrap: pretty;
 }
 
-/* Glass recipe ----------------------------------------------------------- */
-
-.brand-home .bh-glass {
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow: var(--bh-shadow-glass);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
+/* 「查看 xx →」text link with a 2px underline 35% blue, 6px below the text. */
+.brand-home .bh-section-link {
+  display: inline-block;
+  margin-top: 18px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid rgb(var(--brand-blue) / 0.35);
+  color: var(--bh-blue);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 18px;
+  transition: border-color 160ms ease-out;
+}
+.brand-home .bh-section-link:hover {
+  border-bottom-color: var(--bh-blue);
 }
 
-/* Cloud drift ------------------------------------------------------------ */
+/* Small caption under demo panels: 「…示意」. */
+.brand-home .bh-caption {
+  margin: 16px 0 0;
+  color: var(--bh-mist);
+  font-size: 13px;
+  line-height: 16px;
+  text-align: center;
+}
 
-@keyframes bh-drift-a {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(-36px, 22px, 0) scale(1.04);
-  }
+/* Fixed dark data card (code panel, key budget). */
+.brand-home .bh-dark-card {
+  border: 1px solid var(--bh-dark-card-edge);
+  background: var(--bh-night-card);
+  color: var(--bh-night-ink);
+  box-shadow: var(--bh-shadow-dark-card);
 }
-@keyframes bh-drift-b {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(32px, -18px, 0) scale(0.96);
-  }
-}
+
+/* Motion ------------------------------------------------------------------ */
+
 @keyframes bh-rise {
   from {
     opacity: 0;
@@ -251,32 +402,6 @@
   to {
     opacity: 1;
   }
-}
-@keyframes bh-nav-in {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.brand-home .bh-blob {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  will-change: transform;
-}
-.brand-home .bh-blob--a {
-  animation: bh-drift-a 16s ease-in-out infinite alternate;
-}
-.brand-home .bh-blob--b {
-  animation: bh-drift-b 19s ease-in-out infinite alternate;
-}
-.brand-home .bh-blob--c {
-  animation: bh-drift-a 13s ease-in-out infinite alternate-reverse;
 }
 
 /* Entrance: elements with .bh-rise animate in once, staggered by --bh-i. */
@@ -302,10 +427,6 @@
   .brand-home .bh-reveal.is-revealed [data-reveal] {
     animation: bh-fade 200ms linear both;
   }
-  .brand-home .bh-blob,
-  .brand-home .bh-motion {
-    animation: none !important;
-  }
   .brand-home .bh-rise {
     animation: bh-fade 200ms linear both;
     animation-delay: 0ms;
@@ -321,13 +442,14 @@
 @media (max-width: 860px) {
   .brand-home {
     --bh-gutter: 16px;
-    --bh-section-y: 64px;
+    --bh-section-y: 72px;
   }
   .brand-home .bh-section-head {
     margin-bottom: 32px;
   }
   .brand-home .bh-section-title {
     font-size: 30px;
+    line-height: 40px;
     word-break: keep-all;
     overflow-wrap: anywhere;
   }

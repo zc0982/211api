@@ -24,7 +24,7 @@ withDefaults(defineProps<{ placeholder: string; interactive?: boolean }>(), { in
   padding: 0 14px;
   border: 1px solid var(--bh-line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgb(var(--brand-surface) / 0.9);
   color: var(--bh-mist);
   font-size: 13px;
   transition:
@@ -45,6 +45,6 @@ withDefaults(defineProps<{ placeholder: string; interactive?: boolean }>(), { in
 }
 .bh-search:focus-within {
   border-color: var(--bh-blue);
-  box-shadow: 0 0 0 3px rgba(47, 95, 208, 0.12);
+  box-shadow: 0 0 0 3px rgb(var(--brand-blue) / 0.12);
 }
 </style>

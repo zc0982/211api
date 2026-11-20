@@ -47,21 +47,23 @@ export default {
           900: '#0f172a',
           950: '#020617'
         },
-        // 品牌首页（features/brand-home）专用，取自设计源 DESIGN.md
+        // 品牌首页（features/brand-home）专用。值由 .brand-home 上的 CSS 变量承载（浅色），
+        // .dark .brand-home 覆盖为深色；取值见 features/brand-home/styles/brand-home.css
         brand: {
-          navy: '#14306b',
-          blue: '#2f5fd0',
-          gold: '#d4a84b',
-          bronze: '#8a6420',
-          ink: '#0c1830',
-          slate: '#45536e',
-          mist: '#66738c',
-          ok: '#137a52',
-          line: '#dce4f2',
-          surface: '#ffffff',
-          canvas: '#f6f9fe',
-          tint: '#e8f0fc',
-          sky: '#bfd6f6'
+          navy: 'rgb(var(--brand-navy) / <alpha-value>)',
+          blue: 'rgb(var(--brand-blue) / <alpha-value>)',
+          gold: 'rgb(var(--brand-gold) / <alpha-value>)',
+          bronze: 'rgb(var(--brand-bronze) / <alpha-value>)',
+          ink: 'rgb(var(--brand-ink) / <alpha-value>)',
+          slate: 'rgb(var(--brand-slate) / <alpha-value>)',
+          mist: 'rgb(var(--brand-mist) / <alpha-value>)',
+          ok: 'rgb(var(--brand-ok) / <alpha-value>)',
+          line: 'rgb(var(--brand-line) / <alpha-value>)',
+          surface: 'rgb(var(--brand-surface) / <alpha-value>)',
+          canvas: 'rgb(var(--brand-canvas) / <alpha-value>)',
+          band: 'rgb(var(--brand-band) / <alpha-value>)',
+          tint: 'rgb(var(--brand-tint) / <alpha-value>)',
+          sky: 'rgb(var(--brand-sky) / <alpha-value>)'
         }
       },
       fontFamily: {
@@ -92,11 +94,12 @@ export default {
         card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
         'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
         'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-        'brand-primary': '0 6px 16px rgba(20,48,107,.18)',
-        'brand-primary-hover': '0 10px 24px rgba(20,48,107,.24)',
-        'brand-glass': '0 6px 24px rgba(20,48,107,.08)',
-        'brand-glass-hover': '0 10px 28px rgba(20,48,107,.12)',
-        'brand-card': '0 8px 24px -12px rgba(20,48,107,.05)'
+        // 品牌首页阴影随主题切换（深色为黑色、3 倍不透明度），由 brand-home.css 的变量承载
+        'brand-primary': 'var(--bh-shadow-primary)',
+        'brand-primary-hover': 'var(--bh-shadow-primary-hover)',
+        'brand-glass': 'var(--bh-shadow-glass)',
+        'brand-glass-hover': 'var(--bh-shadow-glass-hover)',
+        'brand-card': 'var(--bh-shadow-card)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
