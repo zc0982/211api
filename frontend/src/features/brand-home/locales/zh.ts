@@ -26,7 +26,7 @@ export default {
     toLight: '切换到浅色主题'
   },
   hero: {
-    badge: '一个接口 · 四家模型',
+    badge: '稳定 · 透明 · 高效',
     titleLine1: '一个账户，',
     titleLine2: '接入顶级{emphasis}',
     titleEmphasis: '编程模型。',

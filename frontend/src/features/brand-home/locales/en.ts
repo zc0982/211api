@@ -26,7 +26,7 @@ export default {
     toLight: 'Switch to light theme'
   },
   hero: {
-    badge: 'One API · Four providers',
+    badge: 'Stable · Transparent · Efficient',
     titleLine1: 'One account for ',
     titleLine2: 'the top {emphasis}',
     titleEmphasis: 'coding models.',

@@ -86,7 +86,7 @@
 
 可用率、首字延迟、今日 / 累计调用、「所有系统运行正常」没有公开接口：
 
-- 首屏徽章用「一个接口 · 四家模型」（PRODUCT.md）；
+- 首屏徽章用「稳定 · 透明 · 高效」（Figma 原文，2026-11-20 产品决定恢复）；
 - 「服务状态」区块（`sections/StatusSection.vue`）不渲染，由 `config.ts` 的 `liveStats = false` 控制。开关是代码级的，不接后台设置或环境变量；接入时数值只能来自真实接口。
 
 ### 示例数据标注
@@ -104,7 +104,7 @@
 | Figma 原文 | 处理 | 证据 / 理由 |
 |---|---|---|
 | 一个接口 · 四家模型；主流供应商 4 家 | 保留 | `docs/brand/PRODUCT.md`「模型供应商」 |
-| 首屏徽章：稳定 · 透明 · 高效 | 不用，保留「一个接口 · 四家模型」 | 「稳定」「高效」没有可用率 / 延迟的公开数据（`config.liveStats = false`） |
+| 首屏徽章：稳定 · 透明 · 高效 | 使用（2026-11-20 产品决定，替换此前的「一个接口 · 四家模型」） | 定性描述，不带数字；可用率、延迟等数字仍按 `config.liveStats = false` 不展示 |
 | 首屏标题：一个账户，接入顶级编程模型。 | 保留，固定两行：「一个账户，」/「接入顶级编程模型。」（`titleLine1`、`titleLine2` 各占一行） | 营销定位，不含可核对的数字或承诺 |
 | 首屏副文：一个 Key 调通 Claude、GPT、Gemini、Grok；每次调用的路由与费用逐笔可查 | 改为「一个地址接入 Claude、GPT、Gemini、Grok；每次调用的用量与费用逐笔可查」 | 一个 Key 跨四家取决于 Composite 分组配置（同下「全部模型」一行）；用户侧没有路由信息（同下「路由节点」一行）；用量与费用见 `UsageLog` |
 | 兼容 OpenAI 与 Anthropic 协议 | 保留 | `backend/internal/server/routes/gateway.go`（`/v1/messages`、`/v1/chat/completions`） |
