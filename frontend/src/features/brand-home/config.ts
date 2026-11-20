@@ -23,8 +23,12 @@ export const DEFAULT_SITE_NAME = '211API'
 /** Model used in the quick-start samples (same model the hero traces). */
 export const SAMPLE_MODEL = 'claude-fable-5-2'
 
-/** Codex sample model (same default as the console's Codex config in UseKeyModal.vue). */
-export const CODEX_SAMPLE_MODEL = 'gpt-6.1-sol'
+/**
+ * Codex sample model on the home page (product decision 2026-11-20: show the
+ * newer gpt-6.2-sol; the console's Codex config in UseKeyModal.vue still
+ * defaults to gpt-6.1-sol). Both are in the console model list.
+ */
+export const CODEX_SAMPLE_MODEL = 'gpt-6.2-sol'
 
 /** Placeholder key used in every code sample. Never a real credential. */
 export const API_KEY_PLACEHOLDER = 'sk-YOUR_API_KEY'
@@ -134,8 +138,8 @@ export const HERO_STATIONS: readonly HeroStation[] = [
   { tool: 'claudeCode', name: 'Claude Code', prop: 'claude-code', propX: 116, propW: 33, propH: 36, chipX: 57, chipY: 696, chipW: 168, chipModel: 'claude-fable-5-2', chipMeta: '1.24s', tracked: true },
   { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 200, chipY: 728, chipW: 179, chipModel: 'claude-fable-5-2', chipMeta: '412ms' },
   { tool: 'openCode', name: 'OpenCode', prop: 'opencode', propX: 416, propW: 29, propH: 37, chipX: 392, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '344ms' },
-  { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '640ms', traceOpacity: 0.55 },
-  { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 671, chipY: 696, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '286ms' },
+  { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.2-sol', chipMeta: '640ms', traceOpacity: 0.55 },
+  { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 651, chipY: 696, chipW: 186, chipModel: 'deepseek-v4-flash', chipMeta: '286ms' },
   { tool: 'hermes', name: 'Hermes', prop: 'hermes', propX: 868, propW: 28, propH: 41, chipX: 803, chipY: 728, chipW: 172, chipModel: 'gemini-4-carbon', chipMeta: '530ms' },
   { tool: 'deepseekHarness', name: 'DeepSeek Harness', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms' },
   { tool: 'openClaw', name: 'OpenClaw', prop: 'openclaw', propX: 1372, propW: 28, propH: 42, chipX: 1298, chipY: 728, chipW: 126, chipModel: 'grok-4.7', chipMeta: '276ms' }
@@ -325,7 +329,7 @@ export interface CallLogRow {
 /** Call-log rows (Figma 46:3567). The first row is the tracked, expanded one. */
 export const CALL_LOG_ROWS: readonly CallLogRow[] = [
   { time: '14:21:08', id: 'req_7f3a9c', vendor: 'claude', model: 'claude-fable-5-2', duration: '1.24s', firstToken: '312ms', tokens: '1,284 / 356', cost: '$0.0042' },
-  { time: '14:20:51', id: 'req_7f3a9b', vendor: 'openai', model: 'gpt-6.1-sol', duration: '2.06s', firstToken: '486ms', tokens: '2,048 / 512', cost: '$0.0118' },
+  { time: '14:20:51', id: 'req_7f3a9b', vendor: 'openai', model: 'gpt-6.2-sol', duration: '2.06s', firstToken: '486ms', tokens: '2,048 / 512', cost: '$0.0118' },
   { time: '14:20:37', id: 'req_7f3a9a', vendor: 'gemini', model: 'gemini-4-carbon', duration: '1.87s', firstToken: '401ms', tokens: '1,640 / 288', cost: '$0.0096' },
   { time: '14:20:12', id: 'req_7f3a99', vendor: 'claude', model: 'claude-fable-5-2', duration: '0.98s', firstToken: '640ms', tokens: '980 / 120', cost: '$0.0031' },
   { time: '14:19:58', id: 'req_7f3a98', vendor: 'grok', model: 'grok-4.7', duration: '1.42s', firstToken: '355ms', tokens: '760 / 96', cost: '$0.0021' }
