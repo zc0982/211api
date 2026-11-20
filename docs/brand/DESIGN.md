@@ -125,7 +125,7 @@ components:
 
 <!--
   副本，以设计源为准。
-  来源：/Users/luoee/Design/211API-UI/DESIGN.md（211API-UI 设计仓库，commit 9611fc5，v3「星链」，含 PR #4 的 FAQ 规则）
+  来源：/Users/luoee/Design/211API-UI/DESIGN.md（211API-UI 设计仓库，commit 8932111，v3「星链」，含 PR #4 的 FAQ 规则）
   复制日期：2026-11-20
   设计源更新后重新复制，不要直接修改本文件。
 -->
@@ -312,7 +312,7 @@ Figma 中浅色集合的 canvas、line 已改为 v3 暖纸色值，两个集合�
 
 ### FAQ（折叠列表）
 - 折叠项：画布 90% 底（深色 surface 90%）+ 1px 细线描边，16px 圆角。
-- 展开项：surface 底、天空蓝 90% 描边、浮层阴影，右侧切换按钮填深蓝。**不加金色竖条**：金色只留给被追踪的那次调用（One Star Rule），FAQ 不是被追踪的对象。Figma 的 FAQ 1（1:3619 / v3 94:47517）还画着左侧金色竖条，以本条为准，修改 Figma 时一并去掉。
+- 展开项：surface 底、天空蓝 90% 描边、浮层阴影，右侧切换按钮填深蓝。**不加金色竖条**：金色只留给被追踪的那次调用（One Star Rule），FAQ 不是被追踪的对象。Figma 的 FAQ 组件主件 `Page/FAQ Item / State=Expanded`（1:3461）已删掉竖条，v2、v3 各画板的实例随之更新。
 
 ### Status Badge
 - 胶囊，信号绿 10% 底 + 信号绿 Mono 字，左侧 6px 圆点，例如「● 200 OK」。重试场景用古铜描边的「429」→ 箭头 → 绿色「200」表示自动切换。
