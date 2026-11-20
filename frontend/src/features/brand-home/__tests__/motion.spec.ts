@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { GOLD_DOT, HERO_CHARACTERS, HERO_STATIONS, MOTION_LOOP, SITE_HOOK, SITE_WORKERS, TRACE_PULSE, type SceneCharacter } from '../config'
+import {
+  GOLD_DOT,
+  HERO_CHARACTERS,
+  HERO_STATIONS,
+  MOTION_LOOP,
+  SITE_CACHE_CHIPS,
+  SITE_HOOK,
+  SITE_WORKERS,
+  TRACE_PULSE,
+  type SceneCharacter
+} from '../config'
 import {
   arcTable,
+  cacheHitAt,
+  countUp,
+  siteSpeedAt,
   dotPhase,
   dotStateAt,
   frameAt,
@@ -157,6 +170,40 @@ describe('site loop', () => {
     expect(hookYAt(6.4)).toBe(SITE_HOOK.y)
     expect(hookYAt(9.5)).toBe(SITE_HOOK.y)
     expect(hookYAt(MOTION_LOOP + 1.2)).toBeCloseTo(hookYAt(1.2))
+  })
+})
+
+describe('footer counters (cache hit, tok/s)', () => {
+  it('counts in integers from low to high with an ease-out, and holds at the target', () => {
+    expect(countUp(38, 64, 0)).toBe(38)
+    expect(countUp(38, 64, 1)).toBe(64)
+    expect(countUp(38, 64, 2)).toBe(64)
+    expect(countUp(38, 64, 0.5)).toBeGreaterThan(38 + 13) // ease-out: past halfway at half time
+    for (let p = 0; p < 1; p += 0.05) expect(countUp(38, 64, p + 0.05)).toBeGreaterThanOrEqual(countUp(38, 64, p))
+  })
+
+  it('cache hit climbs once per loop, from its start offset, then holds', () => {
+    const [left, right] = SITE_CACHE_CHIPS
+    expect(cacheHitAt(left, 0)).toBe(left.from)
+    expect(cacheHitAt(left, 3.2)).toBeGreaterThan(left.from)
+    expect(cacheHitAt(left, 3.2)).toBeLessThan(left.to)
+    expect(cacheHitAt(left, 6.4)).toBe(left.to)
+    expect(cacheHitAt(left, 9.5)).toBe(left.to)
+    expect(cacheHitAt(left, MOTION_LOOP)).toBe(left.from)
+    // The right pile runs half a loop later.
+    expect(cacheHitAt(right, 4.8)).toBe(right.from)
+    expect(cacheHitAt(right, 0)).toBe(right.to)
+  })
+
+  it('tok/s starts at 30% when the chip appears (1s into laying) and reaches the target in 1.2s', () => {
+    const w = worker('gpt')
+    const at = (tb: number) => siteSpeedAt(w, 112, tb - w.offset)
+    expect(at(1.0)).toBe(34)
+    expect(at(1.6)).toBeGreaterThan(34)
+    expect(at(1.6)).toBeLessThan(112)
+    expect(at(2.2)).toBe(112)
+    expect(at(3.7)).toBe(112)
+    expect(at(0.5)).toBe(112) // chip not shown: value irrelevant, stays at the target
   })
 })
 

@@ -4,7 +4,8 @@
  * Code-level switches and illustrative values only: nothing here reads admin
  * settings or environment variables. Every number below that is not a layout
  * coordinate is sample data for the pixel scenes and demo panels; it is shown
- * next to an「示意 / 示例数据」label, never animated as a counter and never
+ * next to an「示意 / 示例数据」label, never animated as a counter (except the
+ * footer site's cache-hit and tok/s chips, SITE_COUNT_UP) and never
  * called「实时」. See docs/spec/brand-home.md.
  */
 
@@ -272,20 +273,32 @@ export const SITE_CHIP_DX = -46
 export const SITE_CHIP_H = 22
 
 /** Illustrative per-worker parameters (handoff PR 2 table; brick = token). */
-export const SITE_PARAMS: Readonly<Record<SceneCharacter, { firstToken: string; speed: string; tokens: string; cost: string }>> = {
-  claude: { firstToken: '312ms', speed: '86', tokens: '1,284', cost: '$0.0042' },
-  gpt: { firstToken: '286ms', speed: '112', tokens: '2,048', cost: '$0.0118' },
-  opencode: { firstToken: '344ms', speed: '74', tokens: '960', cost: '$0.0031' },
-  gemini: { firstToken: '198ms', speed: '128', tokens: '1,640', cost: '$0.0096' },
-  grok: { firstToken: '276ms', speed: '95', tokens: '760', cost: '$0.0021' },
-  dsh: { firstToken: '410ms', speed: '68', tokens: '3,210', cost: '$0.0019' }
+export const SITE_PARAMS: Readonly<Record<SceneCharacter, { firstToken: string; speed: number; tokens: string; cost: string }>> = {
+  claude: { firstToken: '312ms', speed: 86, tokens: '1,284', cost: '$0.0042' },
+  gpt: { firstToken: '286ms', speed: 112, tokens: '2,048', cost: '$0.0118' },
+  opencode: { firstToken: '344ms', speed: 74, tokens: '960', cost: '$0.0031' },
+  gemini: { firstToken: '198ms', speed: 128, tokens: '1,640', cost: '$0.0096' },
+  grok: { firstToken: '276ms', speed: 95, tokens: '760', cost: '$0.0021' },
+  dsh: { firstToken: '410ms', speed: 68, tokens: '3,210', cost: '$0.0019' }
 }
 
-/** Ground chips under the brick piles and the context chip on the hook. */
-export const SITE_CACHE_CHIPS: readonly { x: number; value: string }[] = [
-  { x: 147, value: '64%' },
-  { x: 1032, value: '71%' }
+/**
+ * Ground chips under the brick piles: cache hit climbs from `from` to `to`
+ * (percent) once per loop, starting at `offset` seconds, then holds.
+ */
+export const SITE_CACHE_CHIPS: readonly { x: number; from: number; to: number; offset: number }[] = [
+  { x: 147, from: 38, to: 64, offset: 0 },
+  { x: 1032, from: 45, to: 71, offset: 4.8 }
 ]
+
+/**
+ * The only illustrative numbers on the page that count up (product decision,
+ * 2026-11-20): the footer site's cache hit and tok/s. Integer steps, ease-out.
+ * - cache hit: from → to over `cacheRise` seconds of each 9.6s loop, then holds;
+ * - tok/s: from `speedFrom` × target to target over `speedRise` seconds after
+ *   the chip appears (1s into laying bricks), then holds.
+ */
+export const SITE_COUNT_UP = { cacheRise: 6.4, speedRise: 1.2, speedFrom: 0.3 } as const
 export const SITE_CONTEXT_VALUE = '200K'
 
 /* -------------------------------------------------------------------------- */

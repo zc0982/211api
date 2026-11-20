@@ -66,7 +66,7 @@
           <span class="bh-mono">{{ SITE_PARAMS[worker.id].firstToken }}</span>
         </template>
         <template v-else-if="kind === 'speed'">
-          <i class="bh-ss__icon bh-ss__icon--ok" /><span class="bh-mono">{{ SITE_PARAMS[worker.id].speed }} tok/s</span>
+          <i class="bh-ss__icon bh-ss__icon--ok" /><span class="bh-mono"><RollingNumber :value="speeds[index]" :digits="String(SITE_PARAMS[worker.id].speed).length" /> tok/s</span>
         </template>
         <template v-else-if="kind === 'tokens'">
           <i class="bh-ss__icon bh-ss__icon--brick" /><span class="bh-mono">{{ SITE_PARAMS[worker.id].tokens }} tok</span>
@@ -78,13 +78,13 @@
     <span class="bh-ss__base" />
     <span class="bh-ss__edge" />
     <span
-      v-for="chip in SITE_CACHE_CHIPS"
+      v-for="(chip, index) in SITE_CACHE_CHIPS"
       :key="chip.x"
       class="bh-ss__chip"
       :style="{ left: `${chip.x}px`, top: '350px' }"
     >
       <i class="bh-ss__icon bh-ss__icon--cache" /><span class="bh-ss__label">{{ labels.cache }}</span>
-      <span class="bh-mono">{{ chip.value }}</span>
+      <span class="bh-mono"><RollingNumber :value="cacheHits[index]" :digits="String(chip.to).length" />%</span>
     </span>
   </div>
 </template>
@@ -92,6 +92,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import SpriteActor from './SpriteActor.vue'
+import RollingNumber from './RollingNumber.vue'
 import starsUrl from '../assets/scene/footer-stars.svg?url'
 import skylineUrl from '../assets/scene/footer-skyline.svg?url'
 import {
@@ -108,7 +109,7 @@ import {
   type SiteChipKind,
   type SiteWorker
 } from '../config'
-import { hookYAt, siteRestState, siteStateAt, type ActorKind } from '../composables/motion'
+import { cacheHitAt, hookYAt, siteRestState, siteSpeedAt, siteStateAt, type ActorKind } from '../composables/motion'
 import { useSceneClock } from '../composables/useSceneClock'
 import { useSpriteSheets } from '../composables/useSpriteSheets'
 
@@ -146,6 +147,12 @@ const states = computed(() =>
     return siteStateAt(w, time.value)
   })
 )
+/** Counting numbers (cache hit, tok/s); the targets when still or under reduced motion. */
+const speeds = computed(() =>
+  SITE_WORKERS.map((w) => (animated.value ? siteSpeedAt(w, SITE_PARAMS[w.id].speed, time.value) : SITE_PARAMS[w.id].speed))
+)
+const cacheHits = computed(() => SITE_CACHE_CHIPS.map((c) => (animated.value ? cacheHitAt(c, time.value) : c.to)))
+
 const hookY = computed(() => (animated.value ? hookYAt(time.value) : SITE_HOOK.y))
 
 const ROPE_MAX = SITE_HOOK.bottom - SITE_HOOK.ropeTop

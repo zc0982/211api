@@ -7,6 +7,7 @@ import {
   PAN_PERIOD,
   SITE_BEATS,
   SITE_CHIP_TIMES,
+  SITE_COUNT_UP,
   SITE_FRAME,
   SITE_HOOK,
   TRACE_PULSE,
@@ -125,6 +126,26 @@ export function siteStateAt(w: SiteWorker, t: number): SiteActorState {
 /** Still frame (reduced motion): everyone at the wall, work frame 1, first-token chip. */
 export function siteRestState(w: SiteWorker): SiteActorState {
   return { x: w.wall, kind: 'work', frame: 0, mirror: w.pile > w.wall, chip: 'firstToken' }
+}
+
+/** Cubic ease-out: quick start, slow finish (counters settle onto the target). */
+export const easeOut = (p: number) => 1 - (1 - Math.min(1, Math.max(0, p))) ** 3
+
+/** Integer count from `from` to `to` at progress p. */
+export const countUp = (from: number, to: number, p: number) => Math.round(lerp(from, to, easeOut(p)))
+
+/** tok/s shown on a worker's chip: climbs from 30% to the target after the chip appears. */
+export function siteSpeedAt(w: SiteWorker, target: number, t: number): number {
+  const tb = mod(t + w.offset, MOTION_LOOP)
+  const shown = tb - SITE_CHIP_TIMES.firstToken
+  if (shown < 0 || tb >= SITE_BEATS.lay) return target
+  return countUp(Math.round(target * SITE_COUNT_UP.speedFrom), target, shown / SITE_COUNT_UP.speedRise)
+}
+
+/** Cache-hit percentage under a brick pile: climbs once per loop, then holds. */
+export function cacheHitAt(chip: { from: number; to: number; offset: number }, t: number): number {
+  const tb = mod(t - chip.offset, MOTION_LOOP)
+  return countUp(chip.from, chip.to, tb / SITE_COUNT_UP.cacheRise)
 }
 
 /** Crane hook top y. */
