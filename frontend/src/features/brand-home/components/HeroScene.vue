@@ -1,8 +1,7 @@
 <template>
-  <div class="bh-hs">
+  <div ref="root" class="bh-hs">
     <div class="bh-hs__sky" />
     <img class="bh-hs__layer" :src="starsUrl" alt="" width="1440" height="742" decoding="async" />
-    <div class="bh-hs__haze" />
     <div class="bh-hs__moon-glow" />
 
     <svg class="bh-hs__orbits" viewBox="0 0 1440 900" width="1440" height="900">
@@ -11,26 +10,29 @@
       <circle :cx="MOON.cx" :cy="MOON.cy" r="225" stroke-opacity="0.05" />
     </svg>
 
-    <img
-      class="bh-hs__layer bh-pixel"
-      :src="skylineUrl"
-      alt=""
-      width="1440"
-      height="318"
-      decoding="async"
-      :style="{ top: '582px' }"
-    />
+    <!-- Ground strip, back layer: anchored to the bottom of the stage (moves by dy). -->
+    <div class="bh-hs__ground" :style="groundStyle">
+      <div class="bh-hs__haze" />
+      <img
+        class="bh-hs__layer bh-pixel"
+        :src="skylineUrl"
+        alt=""
+        width="1440"
+        height="318"
+        decoding="async"
+        :style="{ top: '582px' }"
+      />
+      <!-- Gold glow on the ground under the tracked station. -->
+      <span class="bh-hs__ground-glow" />
+    </div>
 
-    <!-- Gold glow on the ground under the tracked station. -->
-    <span class="bh-hs__ground-glow" />
-
-    <svg class="bh-hs__traces" viewBox="0 0 1440 900" width="1440" height="900">
+    <svg class="bh-hs__traces" :viewBox="`0 0 1440 ${height}`" width="1440" :height="height">
       <path
         v-for="trace in traces"
         :key="trace.tool"
         :d="trace.d"
         :class="{ 'is-tracked': trace.tracked }"
-        :stroke-opacity="trace.tracked ? 1 : trace.opacity"
+        :stroke-opacity="trace.tracked ? TRACE_TRACKED_OPACITY : trace.opacity * (lit.has(trace.tool) ? TRACE_LIT.lit : TRACE_LIT.dim)"
       />
     </svg>
 
@@ -56,8 +58,20 @@
       </span>
     </span>
 
-    <span class="bh-hs__dot" :style="{ left: `${GOLD_DOT.x - 12}px`, top: `${GOLD_DOT.y - 12}px` }" />
+    <!-- Moonlight pulses on the other traces, cascading; only while animating. -->
+    <template v-if="animated">
+      <span
+        v-for="pulse in pulses"
+        :key="pulse.tool"
+        class="bh-hs__pulse"
+        :style="{ transform: `translate(${pulse.x - 61}px, ${pulse.y - 4}px) rotate(${pulse.angle}deg)`, opacity: pulse.opacity }"
+      />
+    </template>
 
+    <span class="bh-hs__dot" :style="{ transform: `translate(${dot.x - 12}px, ${dot.y - 12}px)`, opacity: dot.opacity }" />
+
+    <!-- Ground strip, front layer. -->
+    <div class="bh-hs__ground" :style="groundStyle">
     <template v-for="station in stations" :key="station.tool">
       <img
         class="bh-hs__sprite bh-pixel"
@@ -70,7 +84,7 @@
       />
       <span
         class="bh-hs__chip"
-        :class="{ 'is-tracked': station.tracked, 'is-dim': station.dim }"
+        :class="{ 'is-tracked': station.tracked, 'is-dim': !lit.has(station.tool) }"
         :style="{ left: `${station.chipX}px`, top: `${station.chipY}px`, width: `${station.chipW}px` }"
       >
         <i v-if="!station.tracked" class="bh-hs__ok" />
@@ -80,72 +94,142 @@
       <span class="bh-hs__label" :style="{ left: `${station.box.left + station.box.width / 2}px` }">{{ station.name }}</span>
     </template>
 
-    <template v-for="character in characters" :key="character.id">
-      <img
-        class="bh-hs__sprite bh-pixel"
-        :src="sprite(`${character.id}-work-f1`)"
-        alt=""
-        :width="character.box.width"
-        :height="character.box.height"
-        decoding="async"
-        :style="boxStyle(character.box)"
+    <template v-for="(character, index) in HERO_CHARACTERS" :key="character.id">
+      <SpriteActor
+        scene="hero"
+        :id="character.id"
+        :state="states[index]"
+        :feet-y="HERO_FEET_Y"
+        :still="still(character.id)"
+        :animated="animated"
       />
-      <span
-        class="bh-hs__badge"
-        :style="{ left: `${character.box.left + character.box.width - 6}px`, top: `${character.box.top + 8}px` }"
-      >
+      <span class="bh-hs__badge" :style="badgeStyle(character, states[index].x)">
         <VendorIcon v-if="'vendor' in character.badge" :vendor="character.badge.vendor" :size="12" />
         <ToolIcon v-else :tool="character.badge.tool" :size="12" />
       </span>
     </template>
 
     <span class="bh-hs__credit">{{ creditLabel }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import VendorIcon from './VendorIcon.vue'
 import ToolIcon from './ToolIcon.vue'
+import SpriteActor from './SpriteActor.vue'
 import starsUrl from '../assets/scene/hero-stars.svg?url'
 import skylineUrl from '../assets/scene/hero-skyline.svg?url'
-import { GOLD_DOT, HERO_CHARACTERS, HERO_STATIONS, MOON, SWITCH_MARKER_TOOL } from '../config'
-import { characterBox, chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
+import {
+  HERO_CHARACTERS,
+  HERO_FEET_Y,
+  HERO_SCENE_HEIGHT,
+  HERO_STATIONS,
+  MOON,
+  SPRITE_SCALE,
+  SWITCH_MARKER_TOOL,
+  TRACE_LIT,
+  TRACE_PULSE,
+  TRACE_TRACKED_OPACITY,
+  type HeroCharacter,
+  type HeroStation
+} from '../config'
+import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
+import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations, pulseStateAt } from '../composables/motion'
+import { useSceneClock } from '../composables/useSceneClock'
+import { useSpriteSheets } from '../composables/useSpriteSheets'
 
 /**
- * 首屏「星链」夜空场景（Figma 46:2720）的第 0 秒静态画面，画在 1440×900 的
- * 设计坐标里，由 PixelStage 等比缩放。月亮到每个工位状态牌一条连线，只有
- * 被追踪的 Claude Code 是金线。场景整体 aria-hidden，工位与数值的可读文本在
- * HeroStarlink 的读屏列表里。两种主题下都不变。
+ * 首屏「星链」夜空场景（Figma 46:2720），画在 1440×900 的设计坐标里，由
+ * PixelStage 等比缩放。月亮到每个工位状态牌一条连线，只有被追踪的 Claude Code
+ * 是金线，金色光点沿它从月亮走到状态牌。角色按 9.6s 时间线在两个点之间干活、
+ * 走动，谁在哪个工位干活那个状态牌就亮。首屏先画静止的第 1 帧，空闲时加载角色
+ * 精灵表后才开始动；减少动态效果时停在每人 A 点的第 1 帧。场景整体 aria-hidden，
+ * 可读文本在 HeroStarlink 的读屏列表里。两种主题下都不变。
  */
-defineProps<{ switchLabel: string; creditLabel: string }>()
+const props = withDefaults(defineProps<{ switchLabel: string; creditLabel: string; height?: number }>(), { height: HERO_SCENE_HEIGHT })
 
-const SPRITES = import.meta.glob('../assets/sprites/hero/*.png', { eager: true, import: 'default', query: '?url' }) as Record<
+/** World height beyond the 900 design: the ground strip moves down (or up) by this much. */
+const dy = computed(() => props.height - HERO_SCENE_HEIGHT)
+const groundStyle = computed(() => ({ transform: `translateY(${dy.value}px)` }))
+/** Trace for a station with its chip where the ground strip puts it. */
+const stationTrace = (s: HeroStation, shift: number) => {
+  const a = chipAnchor(s)
+  return traceFor({ x: a.x, y: a.y + shift })
+}
+
+const PROPS = import.meta.glob('../assets/sprites/hero/prop-*.png', { eager: true, import: 'default', query: '?url' }) as Record<
   string,
   string
 >
-const sprite = (name: string) => SPRITES[`../assets/sprites/hero/${name}.png`]
+const STILLS = import.meta.glob('../assets/sprites/hero/*-work-f1.png', { eager: true, import: 'default', query: '?url' }) as Record<
+  string,
+  string
+>
+const sprite = (name: string) => PROPS[`../assets/sprites/hero/${name}.png`]
+const still = (id: string) => STILLS[`../assets/sprites/hero/${id}-work-f1.png`]
 
 type Box = { left: number; top: number; width: number; height: number }
 const boxStyle = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px` })
 
 const stations = HERO_STATIONS.map((s) => ({ ...s, box: propBox(s) }))
-const characters = HERO_CHARACTERS.map((c) => ({ ...c, box: characterBox(c) }))
 
 const traces = computed(() =>
-  // Tracked trace last so it draws on top.
-  [...HERO_STATIONS]
+  HERO_STATIONS.slice()
+    // Tracked trace last so it draws on top.
     .sort((a, b) => Number(!!a.tracked) - Number(!!b.tracked))
     .map((s) => ({
       tool: s.tool,
       tracked: !!s.tracked,
       opacity: s.traceOpacity ?? 0.34,
-      d: tracePath(traceFor(chipAnchor(s)))
+      d: tracePath(stationTrace(s, dy.value))
     }))
 )
 
 const switchStation = HERO_STATIONS.find((s) => s.tool === SWITCH_MARKER_TOOL)!
-const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
+const marker = computed(() => pointOnTrace(stationTrace(switchStation, dy.value), 0.5))
+
+const trackedStation = HERO_STATIONS.find((s) => s.tracked)!
+// The dot's phase comes from the 900-tall design (Figma position); on other heights it sits at the same arc fraction.
+const goldPhase = dotPhase(arcTable(stationTrace(trackedStation, 0)))
+const goldTrace = computed(() => arcTable(stationTrace(trackedStation, dy.value)))
+
+const root = ref<HTMLElement | null>(null)
+const { ready } = useSpriteSheets('hero', root)
+const { time, reducedMotion } = useSceneClock(root, ready)
+const animated = computed(() => ready.value && !reducedMotion.value)
+
+const states = computed(() =>
+  HERO_CHARACTERS.map((c) => {
+    if (reducedMotion.value) return heroRestState(c)
+    // Before the atlas loads: t = 0 positions with the frame-1 still (everyone works at t = 0).
+    if (!ready.value) return { ...heroStateAt(c, 0), frame: 0 }
+    return heroStateAt(c, time.value)
+  })
+)
+const lit = computed(() => litStations(states.value))
+/** Untracked traces in station order: their slot in the moonlight cascade. */
+const pulseTraces = computed(() =>
+  HERO_STATIONS.filter((s) => !s.tracked).map((s, slot) => ({ tool: s.tool, slot, table: arcTable(stationTrace(s, dy.value)) }))
+)
+const pulses = computed(() =>
+  pulseTraces.value.map(({ tool, slot, table }) => {
+    // Same clock as the gold dot: slot 0 leaves the moon together with it.
+    const p = pulseStateAt(table, time.value + goldPhase, slot)
+    return { tool, x: p.x, y: p.y, angle: p.angle, opacity: p.opacity * (lit.value.has(tool) ? 1 : TRACE_PULSE.dim) }
+  })
+)
+
+const dot = computed(() => {
+  const d = dotStateAt(goldTrace.value, animated.value ? time.value : 0, goldPhase)
+  return animated.value ? d : { x: d.x, y: d.y, opacity: 1 }
+})
+
+/** Head-side badge, fixed to the character's work-frame head whichever way it faces. */
+const badgeStyle = (c: HeroCharacter, x: number) => ({
+  transform: `translate(${x + (c.w * SPRITE_SCALE) / 2 - 6}px, ${HERO_FEET_Y - c.h * SPRITE_SCALE + 8}px)`
+})
 </script>
 
 <style scoped>
@@ -166,6 +250,16 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
   left: 0;
   top: 0;
   max-width: none;
+}
+/* Bottom-anchored ground strip: same 1440×900 coordinates, shifted by dy. */
+.bh-hs__ground {
+  left: 0;
+  top: 0;
+  width: 1440px;
+  height: 900px;
+}
+.bh-hs__ground > * {
+  position: absolute;
 }
 .bh-hs__haze {
   left: 0;
@@ -200,8 +294,8 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
 }
 .bh-hs__traces path.is-tracked {
   stroke: var(--bh-night-gold);
-  stroke-width: 1.75;
-  filter: drop-shadow(0 0 4px rgba(227, 185, 94, 0.9));
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 3px rgba(227, 185, 94, 0.4));
 }
 .bh-hs__ground-glow {
   left: 86px;
@@ -252,8 +346,12 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
 .bh-hs__chip.is-tracked {
   border-color: var(--bh-night-gold);
 }
+/* Lit / dim switches with whoever works at the station: opacity only, on its own layer. */
 .bh-hs__chip.is-dim {
   opacity: 0.45;
+}
+.bh-hs__chip:not(.bh-hs__chip--switch) {
+  will-change: opacity;
 }
 .bh-hs__ok {
   width: 6px;
@@ -287,6 +385,8 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
 }
 
 .bh-hs__badge {
+  left: 0;
+  top: 0;
   display: grid;
   place-items: center;
   box-sizing: border-box;
@@ -324,7 +424,39 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
   font-weight: 500;
 }
 
+/* Moonlight comet: 60px tail fading back along the trace, head (8px) at the pulse point (61, 4). */
+.bh-hs__pulse {
+  left: 0;
+  top: 0;
+  width: 65px;
+  height: 8px;
+  transform-origin: 61px 4px;
+  will-change: transform, opacity;
+}
+.bh-hs__pulse::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 61px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(to right, rgba(122, 162, 255, 0), rgba(219, 230, 251, 0.95));
+}
+.bh-hs__pulse::after {
+  content: '';
+  position: absolute;
+  left: 57px;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2f5fb;
+  box-shadow: 0 0 10px 1px rgba(122, 162, 255, 0.95);
+}
 .bh-hs__dot {
+  left: 0;
+  top: 0;
   width: 24px;
   height: 24px;
   border-radius: 50%;

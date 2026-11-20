@@ -4,7 +4,8 @@
  * Code-level switches and illustrative values only: nothing here reads admin
  * settings or environment variables. Every number below that is not a layout
  * coordinate is sample data for the pixel scenes and demo panels; it is shown
- * next to an「示意 / 示例数据」label, never animated as a counter and never
+ * next to an「示意 / 示例数据」label, never animated as a counter (except the
+ * footer site's cache-hit and tok/s chips, SITE_COUNT_UP) and never
  * called「实时」. See docs/spec/brand-home.md.
  */
 
@@ -22,8 +23,12 @@ export const DEFAULT_SITE_NAME = '211API'
 /** Model used in the quick-start samples (same model the hero traces). */
 export const SAMPLE_MODEL = 'claude-fable-5-2'
 
-/** Codex sample model (same default as the console's Codex config in UseKeyModal.vue). */
-export const CODEX_SAMPLE_MODEL = 'gpt-6.1-sol'
+/**
+ * Codex sample model on the home page (product decision 2026-11-20: show the
+ * newer gpt-6.2-sol; the console's Codex config in UseKeyModal.vue still
+ * defaults to gpt-6.1-sol). Both are in the console model list.
+ */
+export const CODEX_SAMPLE_MODEL = 'gpt-6.2-sol'
 
 /** Placeholder key used in every code sample. Never a real credential. */
 export const API_KEY_PLACEHOLDER = 'sk-YOUR_API_KEY'
@@ -76,8 +81,27 @@ export const HERO_SCENE_HEIGHT = 900
 export const FOOTER_SCENE_HEIGHT = 340
 /** Footer stage: the scene plus the ground edge and the cache chips that sit on the base below it. */
 export const FOOTER_STAGE_HEIGHT = 380
-/** Below this width the page stacks and the scenes are scaled to fit (PR 2 adds the 0.75× pan). */
+/** Below this width the page stacks; the scenes show at NARROW_SCENE_SCALE and the camera pans. */
 export const SCENE_STACK_BREAKPOINT = 860
+/** Narrow screens: world shown at 0.75× (1080px wide), the camera pans across it. */
+export const NARROW_SCENE_SCALE = 0.75
+/**
+ * The hero fills the first screen (100svh) like the reference site: the
+ * ground strip (skyline, stations, characters, labels) is anchored to the
+ * bottom, the moon to the top, and the sky between them stretches; the traces
+ * are recomputed for the actual height. World height = stage height / scale,
+ * never below `minHeight` (shorter windows scroll a little rather than letting
+ * the chips run into the copy). On narrow screens the scale shrinks from 0.75
+ * down to `narrowMinScale` so about `narrowHeight` world pixels fit the space
+ * left under the copy.
+ */
+export const HERO_FIT = { minHeight: 640, narrowHeight: 760, narrowMinScale: 0.34 } as const
+
+/** One round trip of the narrow-screen camera, seconds (ease-in-out each way). */
+export const PAN_PERIOD = 30
+
+/** Both pixel scenes loop on the same 9.6s timeline (Figma Motion). */
+export const MOTION_LOOP = 9.6
 
 /** Moon centre and the point every trace starts from (bottom of the moon). */
 export const MOON = { cx: 1060, cy: 220, r: 42 } as const
@@ -105,8 +129,6 @@ export interface HeroStation {
   chipMeta: string
   /** The tracked call: gold trace, gold chip outline. */
   tracked?: boolean
-  /** Chip is dimmed (no one working there at t = 0). */
-  dim?: boolean
   /** Trace stroke opacity override (Codex carries the 429 marker). */
   traceOpacity?: number
 }
@@ -114,13 +136,13 @@ export interface HeroStation {
 /** Order and coordinates from the v3 handoff table and Figma 46:2720. */
 export const HERO_STATIONS: readonly HeroStation[] = [
   { tool: 'claudeCode', name: 'Claude Code', prop: 'claude-code', propX: 116, propW: 33, propH: 36, chipX: 57, chipY: 696, chipW: 168, chipModel: 'claude-fable-5-2', chipMeta: '1.24s', tracked: true },
-  { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 200, chipY: 728, chipW: 179, chipModel: 'claude-fable-5-2', chipMeta: '412ms', dim: true },
+  { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 210, chipY: 728, chipW: 159, chipModel: 'gpt-6.2-astra', chipMeta: '412ms' },
   { tool: 'openCode', name: 'OpenCode', prop: 'opencode', propX: 416, propW: 29, propH: 37, chipX: 392, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '344ms' },
-  { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '640ms', traceOpacity: 0.55 },
-  { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 671, chipY: 696, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '286ms', dim: true },
+  { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.2-sol', chipMeta: '640ms', traceOpacity: 0.55 },
+  { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 651, chipY: 696, chipW: 186, chipModel: 'deepseek-v4-flash', chipMeta: '286ms' },
   { tool: 'hermes', name: 'Hermes', prop: 'hermes', propX: 868, propW: 28, propH: 41, chipX: 803, chipY: 728, chipW: 172, chipModel: 'gemini-4-carbon', chipMeta: '530ms' },
-  { tool: 'deepseekHarness', name: 'DeepSeek Harness', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms', dim: true },
-  { tool: 'openClaw', name: 'OpenClaw', prop: 'openclaw', propX: 1372, propW: 28, propH: 42, chipX: 1298, chipY: 728, chipW: 126, chipModel: 'grok-4.7', chipMeta: '276ms', dim: true }
+  { tool: 'deepseekHarness', name: 'DeepSeek Harness', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms' },
+  { tool: 'openClaw', name: 'OpenClaw', prop: 'openclaw', propX: 1372, propW: 28, propH: 42, chipX: 1298, chipY: 728, chipW: 126, chipModel: 'grok-4.7', chipMeta: '276ms' }
 ]
 
 /** Station whose trace carries the「429 → 已切换」marker (at t = 0.5 of the curve). */
@@ -130,26 +152,54 @@ export type SceneCharacter = 'claude' | 'gpt' | 'gemini' | 'grok' | 'opencode' |
 
 export interface HeroCharacter {
   id: SceneCharacter
-  /** Centre x at point A (static frame, PR 2 adds the B point and timing). */
+  /** Centre x at point A (its own station) and point B. */
   x: number
-  /** 1x size of the work frame 1 sprite. */
+  b: number
+  /** Station at A / B; B may be open ground (the observatory, a short stroll). */
+  stationA: EcosystemTool
+  stationB?: EcosystemTool
+  /** Seconds: [work at A, walk A→B, work at B, walk B→A]; sums to MOTION_LOOP. */
+  beats: readonly [number, number, number, number]
+  /** Phase offset: tb = (t + offset) mod MOTION_LOOP. */
+  offset: number
+  /** 1x size of the work frame (badge position). */
   w: number
   h: number
   /** Head-side badge: model vendor icon, or a tool icon for OpenCode / DSH. */
   badge: { vendor: BrandVendor } | { tool: EcosystemTool }
 }
 
+/** Walk table from the v3 handoff (PR 2 §2). */
 export const HERO_CHARACTERS: readonly HeroCharacter[] = [
-  { id: 'claude', x: 90, w: 36, h: 50, badge: { vendor: 'claude' } },
-  { id: 'gpt', x: 540, w: 34, h: 50, badge: { vendor: 'openai' } },
-  { id: 'gemini', x: 842, w: 45, h: 50, badge: { vendor: 'gemini' } },
-  { id: 'grok', x: 1346, w: 37, h: 55, badge: { vendor: 'grok' } },
-  { id: 'opencode', x: 390, w: 33, h: 52, badge: { tool: 'openCode' } },
-  { id: 'dsh', x: 1206, w: 38, h: 50, badge: { tool: 'deepseekHarness' } }
+  { id: 'claude', x: 90, b: 242, stationA: 'claudeCode', stationB: 'cursor', beats: [2.8, 2.0, 2.8, 2.0], offset: 2.4, w: 36, h: 50, badge: { vendor: 'claude' } },
+  { id: 'gpt', x: 540, b: 692, stationA: 'codex', stationB: 'pi', beats: [2.8, 2.0, 2.8, 2.0], offset: 1.2, w: 34, h: 50, badge: { vendor: 'openai' } },
+  { id: 'gemini', x: 842, b: 1028, stationA: 'hermes', beats: [2.6, 2.2, 2.6, 2.2], offset: 0, w: 45, h: 50, badge: { vendor: 'gemini' } },
+  { id: 'grok', x: 1346, b: 1102, stationA: 'openClaw', beats: [2.0, 2.8, 2.0, 2.8], offset: 4.8, w: 37, h: 55, badge: { vendor: 'grok' } },
+  { id: 'opencode', x: 390, b: 326, stationA: 'openCode', beats: [4.2, 0.9, 3.6, 0.9], offset: 3.0, w: 33, h: 52, badge: { tool: 'openCode' } },
+  { id: 'dsh', x: 1206, b: 1270, stationA: 'deepseekHarness', beats: [4.2, 0.9, 3.6, 0.9], offset: 6.0, w: 38, h: 50, badge: { tool: 'deepseekHarness' } }
 ]
 
-/** Gold dot on the tracked trace at t = 0 (Figma 52:13385 centre). PR 2 moves it along the curve. */
+/** Seconds per frame on the hero: working and walking. */
+export const HERO_FRAME = { work: 0.2, walk: 0.15 } as const
+
+/** Gold dot on the tracked trace in the still frame (Figma 52:13385 centre). */
 export const GOLD_DOT = { x: 478, y: 507 } as const
+/** The dot runs moon → chip in 2.4s, fading in and out over 0.25s at each end. */
+export const GOLD_DOT_TRIP = 2.4
+export const GOLD_DOT_FADE = 0.25
+
+/**
+ * Moonlight pulses on the other seven traces: each runs moon → chip in `trip`
+ * seconds once per `period`, departing `stagger` apart in station order, so the
+ * traces fire in a cascade that starts each time the gold dot leaves the moon. A trace whose station has
+ * someone working is brighter and its pulse full strength; otherwise dimmed by
+ * `dim`. Gold stays reserved for the tracked call (One Star Rule).
+ */
+export const TRACE_PULSE = { period: 4.8, trip: 2.4, stagger: 0.6, dim: 0.6 } as const
+/** Trace stroke opacity multiplier: station lit / dim (base is the station's traceOpacity, default 0.34). */
+export const TRACE_LIT = { lit: 1.45, dim: 0.65 } as const
+/** The tracked (gold) trace: still the one gold line, but toned down so it does not shout. */
+export const TRACE_TRACKED_OPACITY = 0.62
 
 export const HERO_GROUND_Y = 836
 /** Characters stand 2px below the ground line in Figma (feet overlap the edge). */
@@ -183,57 +233,81 @@ export const SITE_PROPS: readonly SiteProp[] = [
   { file: 'cones', x: 1300, y: 312, w: 65, h: 30 }
 ]
 
-/** Crane hook carrying a pallet of bricks, and its rope (static: hook at the top). */
-export const SITE_HOOK = { x: 1055, y: 120, w: 57, h: 81, ropeX: 1082, ropeTop: 71 } as const
+/**
+ * Crane hook carrying a pallet of bricks, and its rope. The hook drops from
+ * y = 120 to `bottom` over 0–2.4s (ease-in-out), waits until 4.0s, rises back
+ * by 6.4s and rests until the loop ends.
+ */
+export const SITE_HOOK = { x: 1055, y: 120, bottom: 238.5, w: 57, h: 81, ropeX: 1082, ropeTop: 71, times: [2.4, 4.0, 6.4] } as const
+
+/** Footer workers' feet line (sprites overlap the ground edge by ~2.5px, as in Figma 59:22798). */
+export const SITE_FEET_Y = 342.5
 
 export type SiteChipKind = 'firstToken' | 'speed' | 'tokens' | 'cost'
 
 export interface SiteWorker {
   id: SceneCharacter
-  /** Sprite file under assets/sprites/footer at t = 0. */
-  sprite: string
-  /** Sprite box left/top in scene pixels and 1x sprite size. */
-  x: number
-  y: number
-  w: number
+  /** Centre x where this worker lays bricks, and where they pick bricks up. */
+  wall: number
+  pile: number
+  /** Phase offset in the team (0 / 3.2 / 6.4). */
+  offset: number
+  /** Gap between the head and the parameter chip, staggered in the team. */
+  chipGap: number
+  /** 1x height of the work frame (chip height above the feet). */
   h: number
-  /** Face left (scaleX(-1)). */
-  mirror?: boolean
-  /** Parameter chip shown at t = 0 and its left/top in scene pixels. */
-  chip: SiteChipKind
-  chipX: number
-  chipY: number
+}
+
+/** Handoff PR 2 §3: left team Claude / GPT / OpenCode, right team Gemini / Grok / DSH. */
+export const SITE_WORKERS: readonly SiteWorker[] = [
+  { id: 'claude', wall: 405, pile: 236, offset: 0, chipGap: 8, h: 52 },
+  { id: 'gpt', wall: 435, pile: 250, offset: 3.2, chipGap: 30, h: 53 },
+  { id: 'opencode', wall: 465, pile: 222, offset: 6.4, chipGap: 19, h: 52 },
+  { id: 'gemini', wall: 880, pile: 1045, offset: 0, chipGap: 8, h: 53 },
+  { id: 'grok', wall: 908, pile: 1031, offset: 3.2, chipGap: 30, h: 54 },
+  { id: 'dsh', wall: 936, pile: 1059, offset: 6.4, chipGap: 19, h: 49 }
+]
+
+/** Each worker's loop, seconds: lay bricks → walk back empty → pick up → carry back. */
+export const SITE_BEATS = { lay: 3.8, back: 2.6, pickup: 0.6, carry: 2.6 } as const
+/** Seconds per frame on the site: laying and walking. */
+export const SITE_FRAME = { work: 0.2, walk: 0.17 } as const
+/** Chip timing: first-token latency for the first 1s of laying, cost for the first 1.2s back. */
+export const SITE_CHIP_TIMES = { firstToken: 1.0, cost: 1.2 } as const
+/** Parameter chip: left edge relative to the worker's centre, height. */
+export const SITE_CHIP_DX = -46
+export const SITE_CHIP_H = 22
+
+/** Illustrative per-worker parameters (handoff PR 2 table; brick = token). */
+export const SITE_PARAMS: Readonly<Record<SceneCharacter, { firstToken: string; speed: number; tokens: string; cost: string }>> = {
+  claude: { firstToken: '312ms', speed: 86, tokens: '1,284', cost: '$0.0042' },
+  gpt: { firstToken: '286ms', speed: 112, tokens: '2,048', cost: '$0.0118' },
+  opencode: { firstToken: '344ms', speed: 74, tokens: '960', cost: '$0.0031' },
+  gemini: { firstToken: '198ms', speed: 128, tokens: '1,640', cost: '$0.0096' },
+  grok: { firstToken: '276ms', speed: 95, tokens: '760', cost: '$0.0021' },
+  dsh: { firstToken: '410ms', speed: 68, tokens: '3,210', cost: '$0.0019' }
 }
 
 /**
- * t = 0 of the 9.6s site loop (handoff PR 2 §3 with phase offsets 0 / 3.2 / 6.4):
- * the first two of each team lay bricks, the third carries a load at the pile.
- * Positions match Figma 59:22798.
+ * Ground chips under the brick piles. Each 9.6s loop the cache hit climbs to a
+ * new peak, picked at random in SITE_CACHE_PEAK (seeded by loop and chip, so
+ * every frame of a loop agrees), starting `drop` points below it. The right
+ * chip runs half a loop later.
  */
-export const SITE_WORKERS: readonly SiteWorker[] = [
-  { id: 'claude', sprite: 'claude-work-f1', x: 376, y: 265, w: 39, h: 52, chip: 'firstToken', chipX: 359, chipY: 233 },
-  { id: 'gpt', sprite: 'gpt-work-f1', x: 408, y: 263, w: 36, h: 53, chip: 'speed', chipX: 389, chipY: 211 },
-  { id: 'opencode', sprite: 'opencode-walk-f1', x: 200, y: 267, w: 30, h: 50, chip: 'tokens', chipX: 183, chipY: 223 },
-  { id: 'gemini', sprite: 'gemini-work-f1', x: 845, y: 263, w: 47, h: 53, mirror: true, chip: 'firstToken', chipX: 834, chipY: 233 },
-  { id: 'grok', sprite: 'grok-work-f1', x: 881, y: 261, w: 36, h: 54, mirror: true, chip: 'speed', chipX: 865, chipY: 209 },
-  { id: 'dsh', sprite: 'dsh-walk-f1', x: 1033, y: 266, w: 35, h: 51, mirror: true, chip: 'tokens', chipX: 1013, chipY: 225 }
+export const SITE_CACHE_CHIPS: readonly { x: number; offset: number; seed: number }[] = [
+  { x: 147, offset: 0, seed: 1 },
+  { x: 1032, offset: 4.8, seed: 2 }
 ]
+export const SITE_CACHE_PEAK = { min: 70, max: 95, drop: 24 } as const
 
-/** Illustrative per-worker parameters (handoff PR 2 table; brick = token). */
-export const SITE_PARAMS: Readonly<Record<SceneCharacter, { firstToken: string; speed: string; tokens: string; cost: string }>> = {
-  claude: { firstToken: '312ms', speed: '86', tokens: '1,284', cost: '$0.0042' },
-  gpt: { firstToken: '286ms', speed: '112', tokens: '2,048', cost: '$0.0118' },
-  opencode: { firstToken: '344ms', speed: '74', tokens: '960', cost: '$0.0031' },
-  gemini: { firstToken: '198ms', speed: '128', tokens: '1,640', cost: '$0.0096' },
-  grok: { firstToken: '276ms', speed: '95', tokens: '760', cost: '$0.0021' },
-  dsh: { firstToken: '410ms', speed: '68', tokens: '3,210', cost: '$0.0019' }
-}
-
-/** Ground chips under the brick piles and the context chip on the hook. */
-export const SITE_CACHE_CHIPS: readonly { x: number; value: string }[] = [
-  { x: 147, value: '64%' },
-  { x: 1032, value: '71%' }
-]
+/**
+ * The only illustrative numbers on the page that count up (product decision,
+ * 2026-11-20): the footer site's cache hit and tok/s. Integer steps, ease-out.
+ * - cache hit: (peak − drop) → peak over `cacheRise` seconds of each 9.6s loop, then holds;
+ * - tok/s: from `speedFrom` × target to target over `speedRise` seconds after
+ *   the chip appears (1s into laying bricks), then holds.
+ */
+export const SITE_COUNT_UP = { cacheRise: 6.4, speedRise: 1.2, speedFrom: 0.3 } as const
 export const SITE_CONTEXT_VALUE = '200K'
 
 /* -------------------------------------------------------------------------- */
@@ -257,7 +331,7 @@ export interface CallLogRow {
 /** Call-log rows (Figma 46:3567). The first row is the tracked, expanded one. */
 export const CALL_LOG_ROWS: readonly CallLogRow[] = [
   { time: '14:21:08', id: 'req_7f3a9c', vendor: 'claude', model: 'claude-fable-5-2', duration: '1.24s', firstToken: '312ms', tokens: '1,284 / 356', cost: '$0.0042' },
-  { time: '14:20:51', id: 'req_7f3a9b', vendor: 'openai', model: 'gpt-6.1-sol', duration: '2.06s', firstToken: '486ms', tokens: '2,048 / 512', cost: '$0.0118' },
+  { time: '14:20:51', id: 'req_7f3a9b', vendor: 'openai', model: 'gpt-6.2-sol', duration: '2.06s', firstToken: '486ms', tokens: '2,048 / 512', cost: '$0.0118' },
   { time: '14:20:37', id: 'req_7f3a9a', vendor: 'gemini', model: 'gemini-4-carbon', duration: '1.87s', firstToken: '401ms', tokens: '1,640 / 288', cost: '$0.0096' },
   { time: '14:20:12', id: 'req_7f3a99', vendor: 'claude', model: 'claude-fable-5-2', duration: '0.98s', firstToken: '640ms', tokens: '980 / 120', cost: '$0.0031' },
   { time: '14:19:58', id: 'req_7f3a98', vendor: 'grok', model: 'grok-4.7', duration: '1.42s', firstToken: '355ms', tokens: '760 / 96', cost: '$0.0021' }

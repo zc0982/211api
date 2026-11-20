@@ -22,6 +22,8 @@
         </template>
       </nav>
       <div class="bh-header__actions">
+        <LocaleToggle class="bh-header__locale" :label="t('brandHome.a11y.language')" />
+        <MotionToggle />
         <ThemeToggle :is-dark="isDark" @select="(value) => emit('theme', value)" />
         <nav class="bh-header__account" :aria-label="t('brandHome.a11y.accountNav')">
           <RouterLink v-if="links.console" :to="links.console" class="bh-header__ghost">
@@ -41,6 +43,8 @@ import { useI18n } from 'vue-i18n'
 import BrandLogo from '../components/BrandLogo.vue'
 import BrandButton from '../components/BrandButton.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
+import LocaleToggle from '../components/LocaleToggle.vue'
+import MotionToggle from '../components/MotionToggle.vue'
 import type { HomeLinks } from '../composables/homeLinks'
 import type { ThemePreference } from '../composables/useBrandTheme'
 
@@ -165,6 +169,9 @@ function onClick(item: NavItem, event: MouseEvent) {
   gap: 12px;
   margin-left: auto;
 }
+.bh-header__locale {
+  margin-right: 8px;
+}
 .bh-header__account {
   display: flex;
   align-items: center;
@@ -192,6 +199,18 @@ function onClick(item: NavItem, event: MouseEvent) {
   }
   .bh-header__nav,
   .bh-header__ghost {
+    display: none;
+  }
+  .bh-header__actions {
+    gap: 10px;
+  }
+  .bh-header__locale {
+    margin-right: 2px;
+  }
+}
+/* Small phones: the hero's own「获取 API Key」sits right below, so the header keeps brand, 中 / EN and theme. */
+@media (max-width: 420px) {
+  .bh-header__account {
     display: none;
   }
 }

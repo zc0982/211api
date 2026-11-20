@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { HERO_CHARACTERS, HERO_STATIONS, SPRITE_SCALE, TRACE_ORIGIN } from '../config'
-import { characterBox, chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
+import { HERO_STATIONS, TRACE_ORIGIN } from '../config'
+import { chipAnchor, pointOnTrace, propBox, stageLayout, traceFor, tracePath } from '../composables/starlink'
 import { buildSamples, rootOf, sampleToText } from '../composables/codeSamples'
 
 describe('hero「星链」geometry', () => {
@@ -33,19 +33,62 @@ describe('hero「星链」geometry', () => {
     expect(pointOnTrace(t, 1)).toEqual({ x: 500, y: 700 })
   })
 
-  it('sits props and characters on the ground at 1.5× pixel scale', () => {
+  it('sits props on the ground at 1.5× pixel scale', () => {
     const prop = propBox({ propX: 116, propW: 33, propH: 36 })
     expect(prop).toEqual({ left: 116, top: 838 - 54, width: 49.5, height: 54 })
-    for (const c of HERO_CHARACTERS) {
-      const box = characterBox(c)
-      expect(box.width).toBe(c.w * SPRITE_SCALE)
-      expect(box.top + box.height).toBe(838)
-      expect(box.left + box.width / 2).toBe(c.x)
-    }
   })
 
   it('has exactly one tracked station (One Star Rule)', () => {
     expect(HERO_STATIONS.filter((s) => s.tracked).map((s) => s.tool)).toEqual(['claudeCode'])
+  })
+})
+
+describe('stage layout (hero fills the first screen)', () => {
+  const base = { worldWidth: 1440, designHeight: 900 }
+
+  it('1440×900: the design as drawn', () => {
+    expect(stageLayout({ ...base, stageWidth: 1440, stageHeight: 900, pan: false, fit: true })).toEqual({ scale: 1, worldHeight: 900, stageHeight: 640 })
+  })
+
+  it('wide and short / wide and tall: width sets the scale, the world height follows the screen', () => {
+    const fhd = stageLayout({ ...base, stageWidth: 1920, stageHeight: 1080, pan: false, fit: true })
+    expect(fhd.scale).toBeCloseTo(4 / 3)
+    expect(fhd.worldHeight).toBeCloseTo(810)
+    const laptop = stageLayout({ ...base, stageWidth: 1440, stageHeight: 780, pan: false, fit: true })
+    expect(laptop.worldHeight).toBe(780)
+  })
+
+  it('never below the minimum world height; the stage asks for that much', () => {
+    const short = stageLayout({ ...base, stageWidth: 1440, stageHeight: 500, pan: false, fit: true })
+    expect(short.worldHeight).toBe(640)
+    expect(short.stageHeight).toBe(640)
+  })
+
+  it('narrow: 0.75× when there is room, smaller (down to 0.34) when the space under the copy is short', () => {
+    expect(stageLayout({ ...base, stageWidth: 768, stageHeight: 640, pan: true, fit: true }).scale).toBe(0.75)
+    const phone = stageLayout({ ...base, stageWidth: 390, stageHeight: 442, pan: true, fit: true })
+    expect(phone.scale).toBeCloseTo(442 / 760)
+    expect(phone.worldHeight).toBeCloseTo(760)
+    expect(stageLayout({ ...base, stageWidth: 360, stageHeight: 200, pan: true, fit: true }).scale).toBe(0.34)
+  })
+
+  it('narrow and short (phone held sideways): the world still covers the full width', () => {
+    const side = stageLayout({ ...base, stageWidth: 844, stageHeight: 258, pan: true, fit: true })
+    expect(side.scale).toBeCloseTo(844 / 1440)
+    expect(1440 * side.scale).toBeGreaterThanOrEqual(844)
+    // Tall enough for the minimum world at that scale (stations clear of the moon).
+    expect(side.stageHeight).toBeCloseTo(640 * (844 / 1440))
+    expect(side.worldHeight).toBeGreaterThanOrEqual(640)
+    // Portrait phones keep the height-based scale (it already overflows the width).
+    for (const [w, h] of [[390, 442], [375, 267], [430, 520]]) {
+      const l = stageLayout({ ...base, stageWidth: w, stageHeight: h, pan: true, fit: true })
+      expect(1440 * l.scale).toBeGreaterThan(w)
+    }
+  })
+
+  it('without fit (footer): fixed design height, the stage follows the scale', () => {
+    expect(stageLayout({ ...base, designHeight: 380, stageWidth: 720, stageHeight: 0, pan: false, fit: false })).toEqual({ scale: 0.5, worldHeight: 380, stageHeight: 190 })
+    expect(stageLayout({ ...base, designHeight: 380, stageWidth: 390, stageHeight: 0, pan: true, fit: false }).scale).toBe(0.75)
   })
 })
 

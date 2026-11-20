@@ -1,4 +1,5 @@
 import { getCurrentScope, onScopeDispose, readonly, ref, type Ref } from 'vue'
+import { onMediaChange } from './mediaQuery'
 
 /**
  * 品牌首页主题：跟随系统 / 浅色 / 深色。
@@ -114,12 +115,12 @@ export function useBrandTheme(root?: Ref<HTMLElement | null | undefined>): Brand
   // The class is already set by upstream main.ts before mount; re-applying keeps
   // it right if the system theme changed while the user was in the console.
   apply(false)
-  darkQuery?.addEventListener?.('change', onSystemChange)
+  const stopSystem = darkQuery ? onMediaChange(darkQuery, onSystemChange) : null
   window.addEventListener('storage', onStorage)
 
   if (getCurrentScope()) {
     onScopeDispose(() => {
-      darkQuery?.removeEventListener?.('change', onSystemChange)
+      stopSystem?.()
       window.removeEventListener('storage', onStorage)
       if (transitionTimer) clearTimeout(transitionTimer)
       root?.value?.classList.remove(THEME_TRANSITION_CLASS)

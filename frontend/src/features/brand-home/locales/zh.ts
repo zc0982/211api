@@ -21,12 +21,16 @@ export default {
     console: '控制台',
     getKey: '获取 API Key'
   },
+  motion: {
+    pause: '暂停动画',
+    play: '播放动画'
+  },
   theme: {
     toDark: '切换到深色主题',
     toLight: '切换到浅色主题'
   },
   hero: {
-    badge: '一个接口 · 四家模型',
+    badge: '稳定 · 透明 · 高效',
     titleLine1: '一个账户，',
     titleLine2: '接入顶级{emphasis}',
     titleEmphasis: '编程模型。',

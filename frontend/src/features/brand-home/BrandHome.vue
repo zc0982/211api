@@ -24,13 +24,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore } from '@/stores'
 import { sanitizeUrl } from '@/utils/url'
 import './styles/brand-home.css'
-import serifTitleFont from './assets/fonts/noto-serif-sc-600.woff2?url'
-import sansBodyFont from './assets/fonts/noto-sans-sc-400.woff2?url'
 import { DEFAULT_SITE_NAME, liveStats } from './config'
 import { resolveHomeLinks } from './composables/homeLinks'
 import { normalizeApiBaseUrl } from './composables/baseUrl'
@@ -80,26 +78,8 @@ function scrollToId(id: string, focus = false) {
   if (focus) el.focus({ preventScroll: true })
 }
 
-// Preload only the two first-screen faces (headline serif, body sans).
-const preloads: HTMLLinkElement[] = []
-for (const href of [serifTitleFont, sansBodyFont]) {
-  if (document.head.querySelector(`link[rel="preload"][href="${href}"]`)) continue
-  const link = document.createElement('link')
-  link.rel = 'preload'
-  link.as = 'font'
-  link.type = 'font/woff2'
-  link.href = href
-  link.crossOrigin = 'anonymous'
-  document.head.appendChild(link)
-  preloads.push(link)
-}
-
 onMounted(() => {
   authStore.checkAuth()
-})
-
-onBeforeUnmount(() => {
-  preloads.forEach((link) => link.remove())
 })
 </script>
 

@@ -4,41 +4,7 @@
  * Figma "Home / v3 · 星链 1440" (46:2719) and its dark board (94:47709)); see docs/spec/brand-home.md.
  */
 
-@font-face {
-  font-family: 'Brand Noto Serif SC';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('../assets/fonts/noto-serif-sc-500.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Brand Noto Serif SC';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('../assets/fonts/noto-serif-sc-600.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Brand Noto Sans SC';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('../assets/fonts/noto-sans-sc-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Brand Noto Sans SC';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('../assets/fonts/noto-sans-sc-500.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Brand Geist';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('../assets/fonts/geist-600.woff2') format('woff2');
-}
+/* Text uses the system stack (like astrlink.com); only Geist Mono is self-hosted, for code and figures. */
 @font-face {
   font-family: 'Brand Geist Mono';
   font-style: normal;
@@ -135,10 +101,9 @@
   --bh-night-ok: #3dd68c;
   --bh-night-footer: #0a1222;
 
-  --bh-font-serif: 'Brand Noto Serif SC', 'Noto Serif SC', 'Songti SC', serif;
-  --bh-font-sans: 'Brand Noto Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* Same stack as astrlink.com: Inter if installed, then the platform CJK sans. */
+  --bh-font-sans: Inter, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, system-ui, 'Segoe UI', sans-serif;
   --bh-font-mono: 'Brand Geist Mono', 'Geist Mono', 'SF Mono', Menlo, monospace;
-  --bh-font-wordmark: 'Brand Geist', Geist, 'Noto Sans SC', sans-serif;
 
   --bh-shadow-primary: 0 6px 16px rgb(var(--bh-shadow-navy) / min(calc(0.18 * var(--bh-shadow-k)), 0.5));
   --bh-shadow-primary-hover: 0 10px 24px rgb(var(--bh-shadow-navy) / min(calc(0.24 * var(--bh-shadow-k)), 0.5));
@@ -334,9 +299,10 @@
 
 .brand-home .bh-section-title {
   margin: 0;
-  font-family: var(--bh-font-serif);
+  font-family: var(--bh-font-sans);
   font-size: 40px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   line-height: 52px;
   color: var(--bh-ink);
   text-wrap: balance;

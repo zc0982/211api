@@ -1,4 +1,4 @@
-import { HERO_FEET_Y, SPRITE_SCALE, TRACE_ORIGIN, type HeroCharacter, type HeroStation } from '../config'
+import { HERO_FEET_Y, HERO_FIT, NARROW_SCENE_SCALE, SPRITE_SCALE, TRACE_ORIGIN, type HeroStation } from '../config'
 
 /**
  * Geometry of the hero「星链」scene (pure functions, tested in starlink.spec.ts).
@@ -63,9 +63,44 @@ export function propBox(station: Pick<HeroStation, 'propX' | 'propW' | 'propH'>)
   return { left: station.propX, top: HERO_FEET_Y - h, width: w, height: h }
 }
 
-/** Character sprite box: centred on x, feet on the ground. */
-export function characterBox(c: Pick<HeroCharacter, 'x' | 'w' | 'h'>) {
-  const w = c.w * SPRITE_SCALE
-  const h = c.h * SPRITE_SCALE
-  return { left: c.x - w / 2, top: HERO_FEET_Y - h, width: w, height: h }
+
+export interface StageLayout {
+  /** World → screen scale. */
+  scale: number
+  /** World height shown (design units). */
+  worldHeight: number
+  /** Smallest stage height in screen px (fit mode), or the fixed stage height. */
+  stageHeight: number
+}
+
+/**
+ * How a 1440-wide world sits in its stage (PixelStage).
+ * - Not panning (≥ 860px, or reduced motion): scale to the stage width.
+ * - Panning (< 860px): 0.75×, or in `fit` mode smaller (down to
+ *   HERO_FIT.narrowMinScale) so about HERO_FIT.narrowHeight world px fit —
+ *   but never below the width scale, so the world always covers the stage
+ *   (narrow and short, e.g. a phone held sideways, must not leave a blank
+ *   strip on the right). The camera only moves when the world overflows.
+ * - `fit`: the world is as tall as the stage at that scale, never below
+ *   HERO_FIT.minHeight; otherwise it is `designHeight` and the stage follows.
+ */
+export function stageLayout(opts: {
+  stageWidth: number
+  stageHeight: number
+  worldWidth: number
+  designHeight: number
+  pan: boolean
+  fit: boolean
+}): StageLayout {
+  const { stageWidth, stageHeight, worldWidth, designHeight, pan, fit } = opts
+  const widthScale = Math.max(0.1, stageWidth / worldWidth)
+  let scale = widthScale
+  if (pan) {
+    const wanted = fit ? Math.min(NARROW_SCENE_SCALE, Math.max(HERO_FIT.narrowMinScale, stageHeight / HERO_FIT.narrowHeight)) : NARROW_SCENE_SCALE
+    scale = Math.max(widthScale, wanted)
+  }
+  if (!fit) return { scale, worldHeight: designHeight, stageHeight: designHeight * scale }
+  // At least the minimum world at this scale; when panning, also the smallest narrow stage.
+  const minStage = pan ? Math.max(HERO_FIT.narrowHeight * HERO_FIT.narrowMinScale, HERO_FIT.minHeight * scale) : HERO_FIT.minHeight * scale
+  return { scale, worldHeight: Math.max(HERO_FIT.minHeight, Math.max(stageHeight, minStage) / scale), stageHeight: minStage }
 }
