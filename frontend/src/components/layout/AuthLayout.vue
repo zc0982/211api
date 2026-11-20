@@ -31,7 +31,7 @@
         <!-- Custom Logo or Default Logo -->
         <template v-if="settingsLoaded">
           <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30"
+            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30 dark:bg-white dark:p-1.5"
           >
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>

@@ -2,7 +2,7 @@
   <header class="bh-header bh-motion" :class="{ 'is-scrolled': scrolled }">
     <div class="bh-container bh-header__inner">
       <a href="#bh-top" class="bh-header__brand" :aria-label="siteName" @click.prevent="emit('anchor', 'bh-top')">
-        <BrandLogo :name="siteName" />
+        <BrandLogo :name="siteName" :src="siteLogo" />
       </a>
       <NavDock
         v-if="dockItems.length > 1"
@@ -33,7 +33,7 @@ import BrandButton from '../components/BrandButton.vue'
 import NavDock, { type DockItem } from '../components/NavDock.vue'
 import type { HomeLinks } from '../composables/homeLinks'
 
-const props = defineProps<{ links: HomeLinks; siteName: string }>()
+const props = defineProps<{ links: HomeLinks; siteName: string; siteLogo?: string }>()
 const emit = defineEmits<{ (e: 'anchor', id: string): void }>()
 const { t } = useI18n()
 

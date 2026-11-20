@@ -24,7 +24,7 @@
           <img
             :src="siteLogo || '/logo.svg'"
             alt="Logo"
-            class="h-9 w-9 shrink-0 rounded-lg object-contain"
+            class="h-9 w-9 shrink-0 rounded-lg object-contain dark:bg-white dark:p-1"
           />
           <span class="min-w-0 truncate text-base font-semibold">{{ siteName }}</span>
         </div>
@@ -72,7 +72,7 @@
         <img
           :src="siteLogo || '/logo.svg'"
           alt="Logo"
-          class="mx-auto mb-6 h-20 w-20 rounded-2xl object-contain"
+          class="mx-auto mb-6 h-20 w-20 rounded-2xl object-contain dark:bg-white dark:p-2"
         />
         <h1 class="[overflow-wrap:anywhere] text-3xl font-bold md:text-4xl">{{ siteName }}</h1>
         <p class="mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] text-base text-gray-600 dark:text-dark-300">{{ siteSubtitle }}</p>
@@ -119,7 +119,7 @@
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
         <!-- Logo -->
         <div class="flex items-center">
-          <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
+          <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md dark:bg-white dark:p-1">
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>
         </div>

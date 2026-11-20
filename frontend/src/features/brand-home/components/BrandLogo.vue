@@ -1,6 +1,7 @@
 <template>
   <span class="bh-logo" :class="{ 'is-inverse': inverse }">
-    <svg class="bh-logo__mark" viewBox="10 15 44 33" aria-hidden="true" focusable="false">
+    <img v-if="src && !failed" class="bh-logo__img" :src="src" alt="" @error="failed = true" />
+    <svg v-else class="bh-logo__mark" viewBox="10 15 44 33" aria-hidden="true" focusable="false">
       <path d="M32 17.5L52 28L32 38.5L12 28L32 17.5Z" :fill="ink" />
       <path d="M20.75 34.22L32 40.125L43.25 34.22V42.16L32 46.375L20.75 42.16V34.22Z" :fill="ink" />
       <path
@@ -15,11 +16,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
-/** 学士帽标志（设计源 export/logo/logo-mark-*.svg）+ 站点名字标。 */
-const props = withDefaults(defineProps<{ name?: string; inverse?: boolean }>(), { name: '', inverse: false })
+/**
+ * 站点标志 + 站点名字标。
+ * `src` 为后台「站点 Logo」（调用方已做 sanitizeUrl），有值时以它为准；
+ * 未上传或加载失败时回退到内置学士帽（设计源 export/logo/logo-mark-*.svg）。
+ */
+const props = withDefaults(defineProps<{ name?: string; src?: string; inverse?: boolean }>(), {
+  name: '',
+  src: '',
+  inverse: false
+})
 const ink = computed(() => (props.inverse ? '#FFFFFF' : '#14306B'))
+const failed = ref(false)
+watch(
+  () => props.src,
+  () => {
+    failed.value = false
+  }
+)
 </script>
 
 <style scoped>
@@ -33,6 +49,14 @@ const ink = computed(() => (props.inverse ? '#FFFFFF' : '#14306B'))
   width: 37px;
   height: 28px;
   flex: none;
+}
+.bh-logo__img {
+  display: block;
+  width: auto;
+  height: 28px;
+  max-width: 112px;
+  flex: none;
+  object-fit: contain;
 }
 .bh-logo__word {
   font-family: var(--bh-font-wordmark);

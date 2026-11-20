@@ -121,6 +121,32 @@ describe('BrandHome', () => {
     } as unknown as MediaQueryList)
   })
 
+  it('header logo follows the admin-uploaded site_logo', () => {
+    const wrapper = mountHome({ site_logo: 'data:image/png;base64,AAAA' })
+    const img = wrapper.find('.bh-header__brand img.bh-logo__img')
+    expect(img.exists()).toBe(true)
+    expect(img.attributes('src')).toBe('data:image/png;base64,AAAA')
+    expect(wrapper.find('.bh-header__brand svg.bh-logo__mark').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('header logo falls back to the built-in mark when site_logo is empty or unsafe', () => {
+    for (const site_logo of ['', 'javascript:alert(1)']) {
+      const wrapper = mountHome({ site_logo })
+      expect(wrapper.find('.bh-header__brand img').exists()).toBe(false)
+      expect(wrapper.find('.bh-header__brand svg.bh-logo__mark').exists()).toBe(true)
+      wrapper.unmount()
+    }
+  })
+
+  it('header logo falls back to the built-in mark when the uploaded image fails to load', async () => {
+    const wrapper = mountHome({ site_logo: '/broken.png' })
+    await wrapper.find('.bh-header__brand img').trigger('error')
+    expect(wrapper.find('.bh-header__brand img').exists()).toBe(false)
+    expect(wrapper.find('.bh-header__brand svg.bh-logo__mark').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('anonymous visitor: CTAs go to /register and the header offers log in', () => {
     const wrapper = mountHome()
     expect(routeTargets(wrapper, '.bh-hero__ctas')).toEqual(['/register'])
