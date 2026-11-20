@@ -76,8 +76,15 @@ export const HERO_SCENE_HEIGHT = 900
 export const FOOTER_SCENE_HEIGHT = 340
 /** Footer stage: the scene plus the ground edge and the cache chips that sit on the base below it. */
 export const FOOTER_STAGE_HEIGHT = 380
-/** Below this width the page stacks and the scenes are scaled to fit (PR 2 adds the 0.75× pan). */
+/** Below this width the page stacks; the scenes show at NARROW_SCENE_SCALE and the camera pans. */
 export const SCENE_STACK_BREAKPOINT = 860
+/** Narrow screens: world shown at 0.75× (1080px wide), the camera pans across it. */
+export const NARROW_SCENE_SCALE = 0.75
+/** One round trip of the narrow-screen camera, seconds (ease-in-out each way). */
+export const PAN_PERIOD = 30
+
+/** Both pixel scenes loop on the same 9.6s timeline (Figma Motion). */
+export const MOTION_LOOP = 9.6
 
 /** Moon centre and the point every trace starts from (bottom of the moon). */
 export const MOON = { cx: 1060, cy: 220, r: 42 } as const
@@ -105,8 +112,6 @@ export interface HeroStation {
   chipMeta: string
   /** The tracked call: gold trace, gold chip outline. */
   tracked?: boolean
-  /** Chip is dimmed (no one working there at t = 0). */
-  dim?: boolean
   /** Trace stroke opacity override (Codex carries the 429 marker). */
   traceOpacity?: number
 }
@@ -114,13 +119,13 @@ export interface HeroStation {
 /** Order and coordinates from the v3 handoff table and Figma 46:2720. */
 export const HERO_STATIONS: readonly HeroStation[] = [
   { tool: 'claudeCode', name: 'Claude Code', prop: 'claude-code', propX: 116, propW: 33, propH: 36, chipX: 57, chipY: 696, chipW: 168, chipModel: 'claude-fable-5-2', chipMeta: '1.24s', tracked: true },
-  { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 200, chipY: 728, chipW: 179, chipModel: 'claude-fable-5-2', chipMeta: '412ms', dim: true },
+  { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 200, chipY: 728, chipW: 179, chipModel: 'claude-fable-5-2', chipMeta: '412ms' },
   { tool: 'openCode', name: 'OpenCode', prop: 'opencode', propX: 416, propW: 29, propH: 37, chipX: 392, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '344ms' },
   { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '640ms', traceOpacity: 0.55 },
-  { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 671, chipY: 696, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '286ms', dim: true },
+  { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 671, chipY: 696, chipW: 146, chipModel: 'gpt-6.1-sol', chipMeta: '286ms' },
   { tool: 'hermes', name: 'Hermes', prop: 'hermes', propX: 868, propW: 28, propH: 41, chipX: 803, chipY: 728, chipW: 172, chipModel: 'gemini-4-carbon', chipMeta: '530ms' },
-  { tool: 'deepseekHarness', name: 'DeepSeek Harness', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms', dim: true },
-  { tool: 'openClaw', name: 'OpenClaw', prop: 'openclaw', propX: 1372, propW: 28, propH: 42, chipX: 1298, chipY: 728, chipW: 126, chipModel: 'grok-4.7', chipMeta: '276ms', dim: true }
+  { tool: 'deepseekHarness', name: 'DeepSeek Harness', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms' },
+  { tool: 'openClaw', name: 'OpenClaw', prop: 'openclaw', propX: 1372, propW: 28, propH: 42, chipX: 1298, chipY: 728, chipW: 126, chipModel: 'grok-4.7', chipMeta: '276ms' }
 ]
 
 /** Station whose trace carries the「429 → 已切换」marker (at t = 0.5 of the curve). */
@@ -130,26 +135,41 @@ export type SceneCharacter = 'claude' | 'gpt' | 'gemini' | 'grok' | 'opencode' |
 
 export interface HeroCharacter {
   id: SceneCharacter
-  /** Centre x at point A (static frame, PR 2 adds the B point and timing). */
+  /** Centre x at point A (its own station) and point B. */
   x: number
-  /** 1x size of the work frame 1 sprite. */
+  b: number
+  /** Station at A / B; B may be open ground (the observatory, a short stroll). */
+  stationA: EcosystemTool
+  stationB?: EcosystemTool
+  /** Seconds: [work at A, walk A→B, work at B, walk B→A]; sums to MOTION_LOOP. */
+  beats: readonly [number, number, number, number]
+  /** Phase offset: tb = (t + offset) mod MOTION_LOOP. */
+  offset: number
+  /** 1x size of the work frame (badge position). */
   w: number
   h: number
   /** Head-side badge: model vendor icon, or a tool icon for OpenCode / DSH. */
   badge: { vendor: BrandVendor } | { tool: EcosystemTool }
 }
 
+/** Walk table from the v3 handoff (PR 2 §2). */
 export const HERO_CHARACTERS: readonly HeroCharacter[] = [
-  { id: 'claude', x: 90, w: 36, h: 50, badge: { vendor: 'claude' } },
-  { id: 'gpt', x: 540, w: 34, h: 50, badge: { vendor: 'openai' } },
-  { id: 'gemini', x: 842, w: 45, h: 50, badge: { vendor: 'gemini' } },
-  { id: 'grok', x: 1346, w: 37, h: 55, badge: { vendor: 'grok' } },
-  { id: 'opencode', x: 390, w: 33, h: 52, badge: { tool: 'openCode' } },
-  { id: 'dsh', x: 1206, w: 38, h: 50, badge: { tool: 'deepseekHarness' } }
+  { id: 'claude', x: 90, b: 242, stationA: 'claudeCode', stationB: 'cursor', beats: [2.8, 2.0, 2.8, 2.0], offset: 2.4, w: 36, h: 50, badge: { vendor: 'claude' } },
+  { id: 'gpt', x: 540, b: 692, stationA: 'codex', stationB: 'pi', beats: [2.8, 2.0, 2.8, 2.0], offset: 1.2, w: 34, h: 50, badge: { vendor: 'openai' } },
+  { id: 'gemini', x: 842, b: 1028, stationA: 'hermes', beats: [2.6, 2.2, 2.6, 2.2], offset: 0, w: 45, h: 50, badge: { vendor: 'gemini' } },
+  { id: 'grok', x: 1346, b: 1102, stationA: 'openClaw', beats: [2.0, 2.8, 2.0, 2.8], offset: 4.8, w: 37, h: 55, badge: { vendor: 'grok' } },
+  { id: 'opencode', x: 390, b: 326, stationA: 'openCode', beats: [4.2, 0.9, 3.6, 0.9], offset: 3.0, w: 33, h: 52, badge: { tool: 'openCode' } },
+  { id: 'dsh', x: 1206, b: 1270, stationA: 'deepseekHarness', beats: [4.2, 0.9, 3.6, 0.9], offset: 6.0, w: 38, h: 50, badge: { tool: 'deepseekHarness' } }
 ]
 
-/** Gold dot on the tracked trace at t = 0 (Figma 52:13385 centre). PR 2 moves it along the curve. */
+/** Seconds per frame on the hero: working and walking. */
+export const HERO_FRAME = { work: 0.2, walk: 0.15 } as const
+
+/** Gold dot on the tracked trace in the still frame (Figma 52:13385 centre). */
 export const GOLD_DOT = { x: 478, y: 507 } as const
+/** The dot runs moon → chip in 2.4s, fading in and out over 0.25s at each end. */
+export const GOLD_DOT_TRIP = 2.4
+export const GOLD_DOT_FADE = 0.25
 
 export const HERO_GROUND_Y = 836
 /** Characters stand 2px below the ground line in Figma (feet overlap the edge). */
@@ -183,41 +203,50 @@ export const SITE_PROPS: readonly SiteProp[] = [
   { file: 'cones', x: 1300, y: 312, w: 65, h: 30 }
 ]
 
-/** Crane hook carrying a pallet of bricks, and its rope (static: hook at the top). */
-export const SITE_HOOK = { x: 1055, y: 120, w: 57, h: 81, ropeX: 1082, ropeTop: 71 } as const
+/**
+ * Crane hook carrying a pallet of bricks, and its rope. The hook drops from
+ * y = 120 to `bottom` over 0–2.4s (ease-in-out), waits until 4.0s, rises back
+ * by 6.4s and rests until the loop ends.
+ */
+export const SITE_HOOK = { x: 1055, y: 120, bottom: 238.5, w: 57, h: 81, ropeX: 1082, ropeTop: 71, times: [2.4, 4.0, 6.4] } as const
+
+/** Footer workers' feet line (sprites overlap the ground edge by ~2.5px, as in Figma 59:22798). */
+export const SITE_FEET_Y = 342.5
 
 export type SiteChipKind = 'firstToken' | 'speed' | 'tokens' | 'cost'
 
 export interface SiteWorker {
   id: SceneCharacter
-  /** Sprite file under assets/sprites/footer at t = 0. */
-  sprite: string
-  /** Sprite box left/top in scene pixels and 1x sprite size. */
-  x: number
-  y: number
-  w: number
+  /** Centre x where this worker lays bricks, and where they pick bricks up. */
+  wall: number
+  pile: number
+  /** Phase offset in the team (0 / 3.2 / 6.4). */
+  offset: number
+  /** Gap between the head and the parameter chip, staggered in the team. */
+  chipGap: number
+  /** 1x height of the work frame (chip height above the feet). */
   h: number
-  /** Face left (scaleX(-1)). */
-  mirror?: boolean
-  /** Parameter chip shown at t = 0 and its left/top in scene pixels. */
-  chip: SiteChipKind
-  chipX: number
-  chipY: number
 }
 
-/**
- * t = 0 of the 9.6s site loop (handoff PR 2 §3 with phase offsets 0 / 3.2 / 6.4):
- * the first two of each team lay bricks, the third carries a load at the pile.
- * Positions match Figma 59:22798.
- */
+/** Handoff PR 2 §3: left team Claude / GPT / OpenCode, right team Gemini / Grok / DSH. */
 export const SITE_WORKERS: readonly SiteWorker[] = [
-  { id: 'claude', sprite: 'claude-work-f1', x: 376, y: 265, w: 39, h: 52, chip: 'firstToken', chipX: 359, chipY: 233 },
-  { id: 'gpt', sprite: 'gpt-work-f1', x: 408, y: 263, w: 36, h: 53, chip: 'speed', chipX: 389, chipY: 211 },
-  { id: 'opencode', sprite: 'opencode-walk-f1', x: 200, y: 267, w: 30, h: 50, chip: 'tokens', chipX: 183, chipY: 223 },
-  { id: 'gemini', sprite: 'gemini-work-f1', x: 845, y: 263, w: 47, h: 53, mirror: true, chip: 'firstToken', chipX: 834, chipY: 233 },
-  { id: 'grok', sprite: 'grok-work-f1', x: 881, y: 261, w: 36, h: 54, mirror: true, chip: 'speed', chipX: 865, chipY: 209 },
-  { id: 'dsh', sprite: 'dsh-walk-f1', x: 1033, y: 266, w: 35, h: 51, mirror: true, chip: 'tokens', chipX: 1013, chipY: 225 }
+  { id: 'claude', wall: 405, pile: 236, offset: 0, chipGap: 8, h: 52 },
+  { id: 'gpt', wall: 435, pile: 250, offset: 3.2, chipGap: 30, h: 53 },
+  { id: 'opencode', wall: 465, pile: 222, offset: 6.4, chipGap: 19, h: 52 },
+  { id: 'gemini', wall: 880, pile: 1045, offset: 0, chipGap: 8, h: 53 },
+  { id: 'grok', wall: 908, pile: 1031, offset: 3.2, chipGap: 30, h: 54 },
+  { id: 'dsh', wall: 936, pile: 1059, offset: 6.4, chipGap: 19, h: 49 }
 ]
+
+/** Each worker's loop, seconds: lay bricks → walk back empty → pick up → carry back. */
+export const SITE_BEATS = { lay: 3.8, back: 2.6, pickup: 0.6, carry: 2.6 } as const
+/** Seconds per frame on the site: laying and walking. */
+export const SITE_FRAME = { work: 0.2, walk: 0.17 } as const
+/** Chip timing: first-token latency for the first 1s of laying, cost for the first 1.2s back. */
+export const SITE_CHIP_TIMES = { firstToken: 1.0, cost: 1.2 } as const
+/** Parameter chip: left edge relative to the worker's centre, height. */
+export const SITE_CHIP_DX = -46
+export const SITE_CHIP_H = 22
 
 /** Illustrative per-worker parameters (handoff PR 2 table; brick = token). */
 export const SITE_PARAMS: Readonly<Record<SceneCharacter, { firstToken: string; speed: string; tokens: string; cost: string }>> = {

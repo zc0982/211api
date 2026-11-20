@@ -1,5 +1,5 @@
 <template>
-  <div class="bh-hs">
+  <div ref="root" class="bh-hs">
     <div class="bh-hs__sky" />
     <img class="bh-hs__layer" :src="starsUrl" alt="" width="1440" height="742" decoding="async" />
     <div class="bh-hs__haze" />
@@ -56,7 +56,7 @@
       </span>
     </span>
 
-    <span class="bh-hs__dot" :style="{ left: `${GOLD_DOT.x - 12}px`, top: `${GOLD_DOT.y - 12}px` }" />
+    <span class="bh-hs__dot" :style="{ transform: `translate(${dot.x - 12}px, ${dot.y - 12}px)`, opacity: dot.opacity }" />
 
     <template v-for="station in stations" :key="station.tool">
       <img
@@ -70,7 +70,7 @@
       />
       <span
         class="bh-hs__chip"
-        :class="{ 'is-tracked': station.tracked, 'is-dim': station.dim }"
+        :class="{ 'is-tracked': station.tracked, 'is-dim': !lit.has(station.tool) }"
         :style="{ left: `${station.chipX}px`, top: `${station.chipY}px`, width: `${station.chipW}px` }"
       >
         <i v-if="!station.tracked" class="bh-hs__ok" />
@@ -80,20 +80,16 @@
       <span class="bh-hs__label" :style="{ left: `${station.box.left + station.box.width / 2}px` }">{{ station.name }}</span>
     </template>
 
-    <template v-for="character in characters" :key="character.id">
-      <img
-        class="bh-hs__sprite bh-pixel"
-        :src="sprite(`${character.id}-work-f1`)"
-        alt=""
-        :width="character.box.width"
-        :height="character.box.height"
-        decoding="async"
-        :style="boxStyle(character.box)"
+    <template v-for="(character, index) in HERO_CHARACTERS" :key="character.id">
+      <SpriteActor
+        scene="hero"
+        :id="character.id"
+        :state="states[index]"
+        :feet-y="HERO_FEET_Y"
+        :still="still(character.id)"
+        :animated="animated"
       />
-      <span
-        class="bh-hs__badge"
-        :style="{ left: `${character.box.left + character.box.width - 6}px`, top: `${character.box.top + 8}px` }"
-      >
+      <span class="bh-hs__badge" :style="badgeStyle(character, states[index].x)">
         <VendorIcon v-if="'vendor' in character.badge" :vendor="character.badge.vendor" :size="12" />
         <ToolIcon v-else :tool="character.badge.tool" :size="12" />
       </span>
@@ -104,48 +100,81 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import VendorIcon from './VendorIcon.vue'
 import ToolIcon from './ToolIcon.vue'
+import SpriteActor from './SpriteActor.vue'
 import starsUrl from '../assets/scene/hero-stars.svg?url'
 import skylineUrl from '../assets/scene/hero-skyline.svg?url'
-import { GOLD_DOT, HERO_CHARACTERS, HERO_STATIONS, MOON, SWITCH_MARKER_TOOL } from '../config'
-import { characterBox, chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
+import { GOLD_DOT, HERO_CHARACTERS, HERO_FEET_Y, HERO_STATIONS, MOON, SPRITE_SCALE, SWITCH_MARKER_TOOL, type HeroCharacter } from '../config'
+import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
+import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations } from '../composables/motion'
+import { useSceneClock } from '../composables/useSceneClock'
+import { useSpriteSheets } from '../composables/useSpriteSheets'
 
 /**
- * 首屏「星链」夜空场景（Figma 46:2720）的第 0 秒静态画面，画在 1440×900 的
- * 设计坐标里，由 PixelStage 等比缩放。月亮到每个工位状态牌一条连线，只有
- * 被追踪的 Claude Code 是金线。场景整体 aria-hidden，工位与数值的可读文本在
- * HeroStarlink 的读屏列表里。两种主题下都不变。
+ * 首屏「星链」夜空场景（Figma 46:2720），画在 1440×900 的设计坐标里，由
+ * PixelStage 等比缩放。月亮到每个工位状态牌一条连线，只有被追踪的 Claude Code
+ * 是金线，金色光点沿它从月亮走到状态牌。角色按 9.6s 时间线在两个点之间干活、
+ * 走动，谁在哪个工位干活那个状态牌就亮。首屏先画静止的第 1 帧，空闲时加载角色
+ * 精灵表后才开始动；减少动态效果时停在每人 A 点的第 1 帧。场景整体 aria-hidden，
+ * 可读文本在 HeroStarlink 的读屏列表里。两种主题下都不变。
  */
 defineProps<{ switchLabel: string; creditLabel: string }>()
 
-const SPRITES = import.meta.glob('../assets/sprites/hero/*.png', { eager: true, import: 'default', query: '?url' }) as Record<
+const PROPS = import.meta.glob('../assets/sprites/hero/prop-*.png', { eager: true, import: 'default', query: '?url' }) as Record<
   string,
   string
 >
-const sprite = (name: string) => SPRITES[`../assets/sprites/hero/${name}.png`]
+const STILLS = import.meta.glob('../assets/sprites/hero/*-work-f1.png', { eager: true, import: 'default', query: '?url' }) as Record<
+  string,
+  string
+>
+const sprite = (name: string) => PROPS[`../assets/sprites/hero/${name}.png`]
+const still = (id: string) => STILLS[`../assets/sprites/hero/${id}-work-f1.png`]
 
 type Box = { left: number; top: number; width: number; height: number }
 const boxStyle = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px` })
 
 const stations = HERO_STATIONS.map((s) => ({ ...s, box: propBox(s) }))
-const characters = HERO_CHARACTERS.map((c) => ({ ...c, box: characterBox(c) }))
 
-const traces = computed(() =>
+const traces = HERO_STATIONS.slice()
   // Tracked trace last so it draws on top.
-  [...HERO_STATIONS]
-    .sort((a, b) => Number(!!a.tracked) - Number(!!b.tracked))
-    .map((s) => ({
-      tool: s.tool,
-      tracked: !!s.tracked,
-      opacity: s.traceOpacity ?? 0.34,
-      d: tracePath(traceFor(chipAnchor(s)))
-    }))
-)
+  .sort((a, b) => Number(!!a.tracked) - Number(!!b.tracked))
+  .map((s) => ({
+    tool: s.tool,
+    tracked: !!s.tracked,
+    opacity: s.traceOpacity ?? 0.34,
+    d: tracePath(traceFor(chipAnchor(s)))
+  }))
 
 const switchStation = HERO_STATIONS.find((s) => s.tool === SWITCH_MARKER_TOOL)!
 const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
+
+const trackedStation = HERO_STATIONS.find((s) => s.tracked)!
+const goldTrace = arcTable(traceFor(chipAnchor(trackedStation)))
+const goldPhase = dotPhase(goldTrace)
+
+const root = ref<HTMLElement | null>(null)
+const { ready } = useSpriteSheets('hero', root)
+const { time, reducedMotion } = useSceneClock(root, ready)
+const animated = computed(() => ready.value && !reducedMotion.value)
+
+const states = computed(() =>
+  HERO_CHARACTERS.map((c) => {
+    if (reducedMotion.value) return heroRestState(c)
+    // Before the atlas loads: t = 0 positions with the frame-1 still (everyone works at t = 0).
+    if (!ready.value) return { ...heroStateAt(c, 0), frame: 0 }
+    return heroStateAt(c, time.value)
+  })
+)
+const lit = computed(() => litStations(states.value))
+const dot = computed(() => (animated.value ? dotStateAt(goldTrace, time.value, goldPhase) : { ...GOLD_DOT, opacity: 1 }))
+
+/** Head-side badge, fixed to the character's work-frame head whichever way it faces. */
+const badgeStyle = (c: HeroCharacter, x: number) => ({
+  transform: `translate(${x + (c.w * SPRITE_SCALE) / 2 - 6}px, ${HERO_FEET_Y - c.h * SPRITE_SCALE + 8}px)`
+})
 </script>
 
 <style scoped>
@@ -252,8 +281,12 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
 .bh-hs__chip.is-tracked {
   border-color: var(--bh-night-gold);
 }
+/* Lit / dim switches with whoever works at the station: opacity only, on its own layer. */
 .bh-hs__chip.is-dim {
   opacity: 0.45;
+}
+.bh-hs__chip:not(.bh-hs__chip--switch) {
+  will-change: opacity;
 }
 .bh-hs__ok {
   width: 6px;
@@ -287,6 +320,8 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
 }
 
 .bh-hs__badge {
+  left: 0;
+  top: 0;
   display: grid;
   place-items: center;
   box-sizing: border-box;
@@ -325,6 +360,8 @@ const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
 }
 
 .bh-hs__dot {
+  left: 0;
+  top: 0;
   width: 24px;
   height: 24px;
   border-radius: 50%;

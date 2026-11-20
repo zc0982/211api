@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { HERO_CHARACTERS, HERO_STATIONS, SPRITE_SCALE, TRACE_ORIGIN } from '../config'
-import { characterBox, chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
+import { HERO_STATIONS, TRACE_ORIGIN } from '../config'
+import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
 import { buildSamples, rootOf, sampleToText } from '../composables/codeSamples'
 
 describe('hero「星链」geometry', () => {
@@ -33,15 +33,9 @@ describe('hero「星链」geometry', () => {
     expect(pointOnTrace(t, 1)).toEqual({ x: 500, y: 700 })
   })
 
-  it('sits props and characters on the ground at 1.5× pixel scale', () => {
+  it('sits props on the ground at 1.5× pixel scale', () => {
     const prop = propBox({ propX: 116, propW: 33, propH: 36 })
     expect(prop).toEqual({ left: 116, top: 838 - 54, width: 49.5, height: 54 })
-    for (const c of HERO_CHARACTERS) {
-      const box = characterBox(c)
-      expect(box.width).toBe(c.w * SPRITE_SCALE)
-      expect(box.top + box.height).toBe(838)
-      expect(box.left + box.width / 2).toBe(c.x)
-    }
   })
 
   it('has exactly one tracked station (One Star Rule)', () => {

@@ -169,21 +169,40 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 
 ## 动效
 
-- 首屏：徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）。像素场景本版本只渲染第 0 秒的静态画面（角色在 A 点、work 第 1 帧，金色光点在 Figma 位置，吊钩在顶部），角色走位、金线光点、吊钩升降、窄屏镜头平移在下一个 PR（handoff v3 提示词 2）实现。
+- 首屏：徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）。像素场景的角色走位、金线光点、吊钩升降和窄屏镜头平移见下文「像素动画」。
 - 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。
-- `prefers-reduced-motion`：关闭上浮和主题切换过渡，只保留 200ms 淡入。
+- `prefers-reduced-motion`：关闭上浮和主题切换过渡，只保留 200ms 淡入；像素场景停在静止画面（见「像素动画」）。
 
 ## 像素场景（首屏「星链」与页脚工地）
 
 规格来源：handoff v3 提示词 1 第二、三、四节，Figma `46:2720`（首屏）、`46:3761` / `59:22798`（页脚），素材 `export/sprites/`。
 
-- **缩放**：`components/PixelStage.vue` 把 1440 宽的设计世界（首屏 1440×900，页脚 1440×380：340 场景 + 地面边 + 缓存牌所在的 40px 底边）用一个 `transform: scale(容器宽 / 1440)` 等比缩放，宽度由 `ResizeObserver` 测量。≥ 860px 时首屏文案是叠在场景左上方的 HTML（徽章顶 `max(96px, 100vw × 174 / 1440)`）；860px 以下文案移到场景上方，场景整幅缩放到屏宽（0.75 倍 + 30s 镜头平移在 PR 2 实现）。页面不产生横向滚动。
+- **缩放**：`components/PixelStage.vue` 把 1440 宽的设计世界（首屏 1440×900，页脚 1440×380：340 场景 + 地面边 + 缓存牌所在的 40px 底边）用一个 `transform: scale(容器宽 / 1440)` 等比缩放，宽度由 `ResizeObserver` 测量。≥ 860px 时首屏文案是叠在场景左上方的 HTML（徽章顶 `max(96px, 100vw × 174 / 1440)`）；860px 以下文案移到场景上方，场景固定以 0.75 倍显示（世界宽 1080px），舞台裁出屏宽部分，镜头 `translateX` 往返平移（见「像素动画」）；减少动态效果时改为整幅缩放到屏宽、静止。页面不产生横向滚动。
 - **背景**：夜空渐变、地平线雾、月光、月亮光晕用 CSS；星星和「远景剪影 + 学院建筑 + 松树 + 地面」是从 Figma 分组导出后合成的两张 SVG（`assets/scene/hero-stars.svg`、`hero-skyline.svg`；页脚 `footer-stars.svg`、`footer-skyline.svg`），运行时不逐块绘制。重新导出时按文件头注释的坐标合成。
 - **工位与连线**（`config.HERO_STATIONS`、`composables/starlink.ts`）：8 个工位道具 1.5 倍、底边贴地（脚线 y=838）；状态牌是 HTML 胶囊；连线是一张内联 SVG，从月亮底 (1060, 264) 到状态牌顶部中点，`c1 = s + (dx·0.22, dy·0.42)`、`c2 = e − (dx·0.18, dy·0.48)`。只有 Claude Code 是金线（One Star Rule），Codex 线在 t=0.5 挂「429 → 已自动切换」。
-- **角色**：6 人各在 A 点、work 第 1 帧，头侧 18px 圆标（Claude / GPT / Gemini / Grok 用 `@lobehub/icons-vue` 模型图标，OpenCode / DSH 用工具图标）。页脚 6 人按第 0 秒状态摆放（每队前两人砌砖、第三人在砖堆抱砖，右队镜像），参数牌按状态显示首字 / tok/s / token。
-- **图片**：一律 `<img>` + `image-rendering: pixelated`，宽高写死为 1x × 倍数，`decoding="async"`，`alt=""`；首屏不懒加载，页脚 `loading="lazy"`。PR 1 只引入第 0 秒用到的精灵图（首屏 8 个道具 + 6 个 work 第 1 帧，页脚 10 个道具 + 6 帧）。
+- **角色**：`components/SpriteActor.vue`，中心 x、脚底贴脚线，头侧 18px 圆标（Claude / GPT / Gemini / Grok 用 `@lobehub/icons-vue` 模型图标，OpenCode / DSH 用工具图标）随人移动。页脚参数牌随人移动，按状态显示首字 / tok/s / token / 费用。
+- **图片**：一律 `<img>` + `image-rendering: pixelated`，宽高写死为 1x × 倍数，`decoding="async"`，`alt=""`；首屏不懒加载，页脚 `loading="lazy"`。
+- **角色精灵图**：设计仓库 `export/sprites/{hero,footer}/characters/` 的逐帧 PNG 由 `scripts/build-sprite-sheets.py <设计仓库>/export/sprites`（需 Pillow）打包，产物入库：
+  - `assets/sprites/<场景>/actors-<n>.png`：每行一个角色，帧从左到右按 `kinds` 顺序（首屏 work、walk；页脚 work、walk、empty），每格为该场景最大帧尺寸、帧底边居中，格间 2px 透明间隔防串帧。行按「每张 ≤ 256 色」贪心分组，存为无损调色板 PNG（首屏 2 张、页脚 3 张，共约 71KB），且每张都大于 Vite 的 4KB 内联阈值，所以是独立文件、按需加载。
+  - `assets/sprites/<场景>/<角色>-<kind>-f1.png`：同格尺寸的第 1 帧静图，首屏渲染用（小于 4KB，内联进 JS）。
+  - `sprites.generated.ts`：格尺寸、帧序和每个角色所在的图与行，脚本生成，不手改。
+  - 设计仓库换帧后重跑脚本，核对 `sprites.generated.ts` 与 `motion.spec.ts`。
 - **可访问性**：两个场景容器 `aria-hidden="true"`。首屏另有视觉隐藏的工位列表（工具名、示意模型与耗时、被追踪的那一个）和「界面数值为示意」；页脚有一句场景说明。
-- 示意数值、坐标全部在 `config.ts`：`HERO_STATIONS`、`HERO_CHARACTERS`、`GOLD_DOT`、`SITE_PROPS`、`SITE_HOOK`、`SITE_WORKERS`、`SITE_PARAMS`、`SITE_CACHE_CHIPS`。
+- 示意数值、坐标、走位全部在 `config.ts`：`HERO_STATIONS`、`HERO_CHARACTERS`、`HERO_FRAME`、`GOLD_DOT*`、`SITE_PROPS`、`SITE_HOOK`、`SITE_WORKERS`、`SITE_BEATS`、`SITE_FRAME`、`SITE_CHIP_*`、`SITE_PARAMS`、`SITE_CACHE_CHIPS`、`MOTION_LOOP`、`NARROW_SCENE_SCALE`、`PAN_PERIOD`。
+
+## 像素动画
+
+规格来源：handoff v3 提示词 2，`export/sprites/README.md`「动效参数」。不引入动画库。
+
+- **时间线是纯函数**（`composables/motion.ts`，测试 `motion.spec.ts`）：`heroStateAt` / `siteStateAt(角色, t) → { x, kind, frame, mirror, station | chip }`、`hookYAt`、`dotStateAt`、`panAt`；组件只渲染返回值。两块场景都按 9.6s 循环，`tb = (t + 相位偏移) mod 9.6`，帧序号 `floor(tb / 帧时长) mod 4`。时间按微秒取整，保证 3.8、4.2 + 0.9 这类分段边界精确落点。
+- **首屏**：6 人在 A、B 两点间「干活 → 走 → 干活 → 走回」（节奏与相位见 `HERO_CHARACTERS`）；干活帧 0.2s、走路帧 0.15s，朝左走用 `scaleX(-1)`。状态牌亮暗由谁在该工位干活推出（`litStations`，硬切 1 / 0.45），Claude Code 始终亮。金色光点按弧长沿金线从月亮走到状态牌，2.4s 一趟、两端各 0.25s 淡入淡出；相位让 t=0 正好在静止画面的 Figma 位置，开始动时不跳。
+- **页脚**：每人「砌砖 3.8s → 空手回砖堆 2.6s → 抱砖停 0.6s → 抱砖走回 2.6s」，同队相位 0 / 3.2 / 6.4；砌砖背向砖堆，走路朝行进方向；砌砖帧 0.2s、走路帧 0.17s。参数牌：砌砖第 1 秒首字，之后 tok/s；空手回程前 1.2s 费用，其余不显示；抱砖（含停顿）token。吊钩 0–2.4s 下降到 y=238.5（ease-in-out）、停到 4.0s、6.4s 升回；吊绳用 `scaleY` 同步，「上下文」牌随吊钩走。
+- **只用 transform / opacity**：角色是固定格尺寸的裁切框，`translate()` 定位、`scaleX(-1)` 翻面，框内精灵图 `translate()` 到当前格；状态牌和金点用 `translate()`。首屏状态牌、页脚参数牌带 `will-change: opacity`：页脚每人四种参数牌都渲染好、靠 opacity 切换，切换时不重排文字。实测 10s 内 Layout 0 次。
+- **共享时钟**（`composables/useSceneClock.ts`，测试 `sceneClock.spec.ts`）：全页一个 `requestAnimationFrame` 循环。每个订阅者（首屏角色、页脚角色、两块舞台的镜头）有自己的时间，只在「已启用 + 在视口内（IntersectionObserver）+ 标签页可见 + 不要求减少动态效果」时前进；没有订阅者在跑时循环停止。单帧步长上限 0.1s，暂停恢复不跳。
+- **加载顺序**（`composables/useSpriteSheets.ts`）：首屏先用内联的第 1 帧静图渲染 t=0 画面（此刻 6 人都在干活），两帧之后在浏览器空闲时加载首屏 2 张精灵图，全部解码后才启动首屏时钟；页脚精灵图在场景距视口 600px 内时加载。减少动态效果时不加载精灵图。
+- **窄屏镜头**（`PixelStage`，< 860px）：0.75 倍，`translateX` 在 0 和「世界宽 − 屏宽」之间往返，30s 一趟（单程 15s，ease-in-out），和角色共用时钟。
+- **减少动态效果**：不跑时钟、不平移。首屏每人在 A 点 work 第 1 帧，A 点所在工位的状态牌亮；金点停在 Figma 位置。页脚每人在砌墙点 work 第 1 帧、显示首字参数牌，吊钩在顶部。系统设置中途改变时即时生效。
+- **体量**：首屏首次请求的场景图只有 2 张 SVG 背景（星星、天际线）和内联的道具 / 第 1 帧；空闲后再请求 2 张角色精灵图（约 28KB）。页脚 3 张角色精灵图（约 43KB）接近视口时才请求。
 
 ## SEO
 

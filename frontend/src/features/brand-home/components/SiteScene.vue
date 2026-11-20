@@ -1,5 +1,5 @@
 <template>
-  <div class="bh-ss">
+  <div ref="root" class="bh-ss">
     <div class="bh-ss__sky" />
     <img class="bh-ss__layer" :src="starsUrl" alt="" width="1440" height="198" loading="lazy" decoding="async" />
     <img
@@ -27,44 +27,48 @@
       :style="box(prop.x, prop.y, prop.w, prop.h)"
     />
 
-    <!-- Crane rope and hook carrying a pallet of bricks (PR 2 animates the drop). -->
-    <span class="bh-ss__rope" :style="{ left: `${SITE_HOOK.ropeX}px`, top: `${SITE_HOOK.ropeTop}px`, height: `${SITE_HOOK.y - SITE_HOOK.ropeTop}px` }" />
+    <!-- Crane rope and hook carrying a pallet of bricks; the context chip rides with the hook. -->
+    <span class="bh-ss__rope" :style="ropeStyle" />
     <img
-      class="bh-ss__sprite bh-pixel"
+      class="bh-ss__sprite bh-ss__moving bh-pixel"
       :src="sprite('prop-pallet-hook')"
       alt=""
       :width="SITE_HOOK.w"
       :height="SITE_HOOK.h"
       loading="lazy"
       decoding="async"
-      :style="box(SITE_HOOK.x, SITE_HOOK.y, SITE_HOOK.w, SITE_HOOK.h)"
+      :style="{ width: `${SITE_HOOK.w}px`, height: `${SITE_HOOK.h}px`, transform: `translate(${SITE_HOOK.x}px, ${hookY}px)` }"
     />
-    <span class="bh-ss__chip" :style="{ left: `${SITE_HOOK.x + 63}px`, top: `${SITE_HOOK.y + 34}px` }">
+    <span class="bh-ss__chip bh-ss__moving" :style="{ transform: `translate(${SITE_HOOK.x + 63}px, ${hookY + 34}px)` }">
       <i class="bh-ss__icon bh-ss__icon--context" /><span class="bh-ss__label">{{ labels.context }}</span>
       <span class="bh-mono">{{ SITE_CONTEXT_VALUE }}</span>
     </span>
 
-    <template v-for="worker in SITE_WORKERS" :key="worker.id">
-      <img
-        class="bh-ss__sprite bh-pixel"
-        :class="{ 'is-mirrored': worker.mirror }"
-        :src="sprite(worker.sprite)"
-        alt=""
-        :width="worker.w * SPRITE_SCALE"
-        :height="worker.h * SPRITE_SCALE"
-        loading="lazy"
-        decoding="async"
-        :style="box(worker.x, worker.y, worker.w * SPRITE_SCALE, worker.h * SPRITE_SCALE)"
+    <template v-for="(worker, index) in SITE_WORKERS" :key="worker.id">
+      <SpriteActor
+        scene="footer"
+        :id="worker.id"
+        :state="states[index]"
+        :feet-y="SITE_FEET_Y"
+        :still="still(worker.id, states[index].kind)"
+        :animated="animated"
       />
-      <span class="bh-ss__chip" :style="{ left: `${worker.chipX}px`, top: `${worker.chipY}px` }">
-        <template v-if="worker.chip === 'firstToken'">
+      <!-- All four chips exist; the current one is shown by opacity, so a switch never re-lays out text. -->
+      <span
+        v-for="kind in CHIP_KINDS"
+        :key="kind"
+        class="bh-ss__chip bh-ss__moving bh-ss__param"
+        :class="{ 'is-off': states[index].chip !== kind }"
+        :style="chipStyle(worker, states[index].x)"
+      >
+        <template v-if="kind === 'firstToken'">
           <i class="bh-ss__icon bh-ss__icon--play" /><span class="bh-ss__label">{{ labels.firstToken }}</span>
           <span class="bh-mono">{{ SITE_PARAMS[worker.id].firstToken }}</span>
         </template>
-        <template v-else-if="worker.chip === 'speed'">
+        <template v-else-if="kind === 'speed'">
           <i class="bh-ss__icon bh-ss__icon--ok" /><span class="bh-mono">{{ SITE_PARAMS[worker.id].speed }} tok/s</span>
         </template>
-        <template v-else-if="worker.chip === 'tokens'">
+        <template v-else-if="kind === 'tokens'">
           <i class="bh-ss__icon bh-ss__icon--brick" /><span class="bh-mono">{{ SITE_PARAMS[worker.id].tokens }} tok</span>
         </template>
         <span v-else class="bh-mono bh-ss__cost">{{ SITE_PARAMS[worker.id].cost }}</span>
@@ -86,32 +90,76 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import SpriteActor from './SpriteActor.vue'
 import starsUrl from '../assets/scene/footer-stars.svg?url'
 import skylineUrl from '../assets/scene/footer-skyline.svg?url'
 import {
   SITE_CACHE_CHIPS,
+  SITE_CHIP_DX,
+  SITE_CHIP_H,
   SITE_CONTEXT_VALUE,
+  SITE_FEET_Y,
   SITE_HOOK,
   SITE_PARAMS,
   SITE_PROPS,
   SITE_WORKERS,
-  SPRITE_SCALE
+  SPRITE_SCALE,
+  type SiteChipKind,
+  type SiteWorker
 } from '../config'
+import { hookYAt, siteRestState, siteStateAt, type ActorKind } from '../composables/motion'
+import { useSceneClock } from '../composables/useSceneClock'
+import { useSpriteSheets } from '../composables/useSpriteSheets'
 
 /**
- * 页脚「新教学楼工地」场景（Figma 46:3761 / 59:22798）第 0 秒的静态画面：
- * 两队学子砌墙、抱砖，塔吊吊着一托砖；参数牌把砖比作 token。全部数值为示意，
- * 页脚文字里标注「工地参数为示意」。场景 aria-hidden，可读文本在 FooterSite。
+ * 页脚「新教学楼工地」场景（Figma 46:3761 / 59:22798）：两队学子按 9.6s 时间线
+ * 砌砖、空手回砖堆、抱砖走回，塔吊吊钩一托砖下降再升起；参数牌把砖比作 token，
+ * 随人移动。全部数值为示意，页脚文字里标注「工地参数为示意」。角色精灵表在场景
+ * 接近视口时才加载；减少动态效果时停在每人砌砖的第 1 帧。场景 aria-hidden，
+ * 可读文本在 FooterSite。
  */
 defineProps<{ labels: { firstToken: string; cache: string; context: string } }>()
 
-const SPRITES = import.meta.glob('../assets/sprites/footer/*.png', { eager: true, import: 'default', query: '?url' }) as Record<
-  string,
-  string
->
+const SPRITES = import.meta.glob(['../assets/sprites/footer/prop-*.png', '../assets/sprites/footer/*-f1.png'], {
+  eager: true,
+  import: 'default',
+  query: '?url'
+}) as Record<string, string>
 const sprite = (name: string) => SPRITES[`../assets/sprites/footer/${name}.png`]
+/** Frame-1 still; only work and (for the two who hold bricks at t = 0) walk exist. */
+const still = (id: string, kind: ActorKind) => sprite(`${id}-${kind}-f1`) ?? sprite(`${id}-work-f1`)
+
+const CHIP_KINDS: readonly SiteChipKind[] = ['firstToken', 'speed', 'tokens', 'cost']
 
 const box = (x: number, y: number, w: number, h: number) => ({ left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` })
+
+const root = ref<HTMLElement | null>(null)
+const { ready } = useSpriteSheets('footer', root)
+const { time, reducedMotion } = useSceneClock(root, ready)
+const animated = computed(() => ready.value && !reducedMotion.value)
+
+const states = computed(() =>
+  SITE_WORKERS.map((w) => {
+    if (reducedMotion.value) return siteRestState(w)
+    if (!ready.value) return { ...siteStateAt(w, 0), frame: 0 }
+    return siteStateAt(w, time.value)
+  })
+)
+const hookY = computed(() => (animated.value ? hookYAt(time.value) : SITE_HOOK.y))
+
+const ROPE_MAX = SITE_HOOK.bottom - SITE_HOOK.ropeTop
+const ropeStyle = computed(() => ({
+  left: `${SITE_HOOK.ropeX}px`,
+  top: `${SITE_HOOK.ropeTop}px`,
+  height: `${ROPE_MAX}px`,
+  transform: `scaleY(${(hookY.value - SITE_HOOK.ropeTop) / ROPE_MAX})`
+}))
+
+/** Parameter chip over the head, staggered within the team. */
+const chipStyle = (w: SiteWorker, x: number) => ({
+  transform: `translate(${x + SITE_CHIP_DX}px, ${SITE_FEET_Y - w.h * SPRITE_SCALE - SITE_CHIP_H - w.chipGap}px)`
+})
 </script>
 
 <style scoped>
@@ -142,7 +190,12 @@ const box = (x: number, y: number, w: number, h: number) => ({ left: `${x}px`, t
 .bh-ss__sprite.is-mirrored {
   transform: scaleX(-1);
 }
+.bh-ss__moving {
+  left: 0;
+  top: 0;
+}
 .bh-ss__rope {
+  transform-origin: 50% 0;
   width: 2px;
   background: #c9d3e6;
 }
@@ -168,7 +221,7 @@ const box = (x: number, y: number, w: number, h: number) => ({ left: `${x}px`, t
   align-items: center;
   gap: 5px;
   box-sizing: border-box;
-  height: 22px;
+  height: 22px; /* SITE_CHIP_H */
   padding: 0 9px;
   border: 1px solid var(--bh-night-chip-line);
   border-radius: 999px;
@@ -177,6 +230,12 @@ const box = (x: number, y: number, w: number, h: number) => ({ left: `${x}px`, t
   font-size: 11px;
   line-height: 14px;
   white-space: nowrap;
+}
+.bh-ss__param {
+  will-change: opacity;
+}
+.bh-ss__param.is-off {
+  opacity: 0;
 }
 .bh-ss__label {
   color: var(--bh-night-slate);

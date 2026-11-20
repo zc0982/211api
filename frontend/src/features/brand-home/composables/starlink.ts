@@ -1,4 +1,4 @@
-import { HERO_FEET_Y, SPRITE_SCALE, TRACE_ORIGIN, type HeroCharacter, type HeroStation } from '../config'
+import { HERO_FEET_Y, SPRITE_SCALE, TRACE_ORIGIN, type HeroStation } from '../config'
 
 /**
  * Geometry of the hero「星链」scene (pure functions, tested in starlink.spec.ts).
@@ -63,9 +63,3 @@ export function propBox(station: Pick<HeroStation, 'propX' | 'propW' | 'propH'>)
   return { left: station.propX, top: HERO_FEET_Y - h, width: w, height: h }
 }
 
-/** Character sprite box: centred on x, feet on the ground. */
-export function characterBox(c: Pick<HeroCharacter, 'x' | 'w' | 'h'>) {
-  const w = c.w * SPRITE_SCALE
-  const h = c.h * SPRITE_SCALE
-  return { left: c.x - w / 2, top: HERO_FEET_Y - h, width: w, height: h }
-}
