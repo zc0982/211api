@@ -136,7 +136,7 @@ export interface HeroStation {
 /** Order and coordinates from the v3 handoff table and Figma 46:2720. */
 export const HERO_STATIONS: readonly HeroStation[] = [
   { tool: 'claudeCode', name: 'Claude Code', prop: 'claude-code', propX: 116, propW: 33, propH: 36, chipX: 57, chipY: 696, chipW: 168, chipModel: 'claude-fable-5-2', chipMeta: '1.24s', tracked: true },
-  { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 200, chipY: 728, chipW: 179, chipModel: 'claude-fable-5-2', chipMeta: '412ms' },
+  { tool: 'cursor', name: 'Cursor', prop: 'cursor', propX: 268, propW: 28, propH: 37, chipX: 210, chipY: 728, chipW: 159, chipModel: 'gpt-6.2-astra', chipMeta: '412ms' },
   { tool: 'openCode', name: 'OpenCode', prop: 'opencode', propX: 416, propW: 29, propH: 37, chipX: 392, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '344ms' },
   { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.2-sol', chipMeta: '640ms', traceOpacity: 0.55 },
   { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 651, chipY: 696, chipW: 186, chipModel: 'deepseek-v4-flash', chipMeta: '286ms' },
