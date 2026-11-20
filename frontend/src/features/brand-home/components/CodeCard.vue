@@ -2,7 +2,7 @@
   <div class="bh-code-card bh-glass">
     <div class="bh-code-card__top">
       <span class="bh-code-card__label">{{ label }}</span>
-      <StatusBadge v-if="status" :label="status" :meta="statusMeta" />
+      <StatusBadge v-if="status" class="bh-code-card__badge" :label="status" :meta="statusMeta" />
     </div>
     <pre class="bh-code-card__code bh-mono"><span class="k">base_url</span> = <span class="s">"{{ baseUrl }}"</span>
 <span class="k">model</span>    = <span class="s">"{{ model }}"</span></pre>
@@ -23,7 +23,8 @@ withDefaults(
 .bh-code-card {
   width: 340px;
   max-width: 100%;
-  padding: 14px 20px 16px;
+  /* Figma 10:970: 16px 20px inside a 1px border (Figma strokes sit inside), label 16 + 6 + two 18px code lines 6 apart = 96px tall. */
+  padding: 15px 20px 12px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.66);
   box-shadow: 0 12px 32px -8px rgba(20, 48, 107, 0.08);
@@ -35,9 +36,23 @@ withDefaults(
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 6px;
+  flex-wrap: wrap;
+  row-gap: 14px;
+  /*
+   * At default size the row is the label's 16px and the taller badge overhangs
+   * it (negative block margin below), as in Figma. The row still grows with
+   * its content: a wrapped label (narrow screen, text-only zoom) or a badge
+   * that drops to its own line pushes the code down instead of covering it.
+   */
+  min-height: 16px;
+  /* 3px + the code's 3px half-leading = the 6px gap in Figma. */
+  margin-bottom: 3px;
+}
+.bh-code-card__badge {
+  margin-block: -4px;
 }
 .bh-code-card__label {
+  min-width: 0;
   color: var(--bh-mist);
   font-size: 12px;
   line-height: 16px;

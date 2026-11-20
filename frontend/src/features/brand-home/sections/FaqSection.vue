@@ -114,6 +114,10 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
   cursor: pointer;
   border-radius: 16px;
 }
+/* Figma 1:3619: the open item gets 26px on top, collapsed items 22px. */
+.bh-faq__item[open] .bh-faq__q {
+  padding-top: 26px;
+}
 .bh-faq__q::-webkit-details-marker {
   display: none;
 }

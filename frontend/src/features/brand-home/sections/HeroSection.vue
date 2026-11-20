@@ -42,16 +42,19 @@
           :alt="t('brandHome.hero.armillaryAlt')"
           :active-vendor="activeVendor"
           :reduced-motion="reducedMotion"
+          :bead-label="(v) => t('brandHome.hero.trackVendor', { vendor: VENDOR_LABEL[v] })"
           @vendor-change="(v) => (activeVendor = v)"
         >
           <template #chip>
-            <ModelChip :model="model" meta="1.24s" :label="t('brandHome.hero.trackedModel')" />
+            <ModelChip :key="trackedModel" class="bh-hero__refresh" :model="trackedModel" meta="1.24s" :label="t('brandHome.hero.trackedModel')" />
           </template>
           <template #card>
             <CodeCard
+              :key="trackedModel"
+              class="bh-hero__refresh"
               :label="t('brandHome.hero.codeCardLabel')"
               :base-url="baseUrl"
-              :model="model"
+              :model="trackedModel"
               status="200 ·"
               status-meta="286 ms"
             />
@@ -73,20 +76,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BrandButton from '../components/BrandButton.vue'
 import ArmillaryHero from '../components/ArmillaryHero.vue'
 import ModelChip from '../components/ModelChip.vue'
 import CodeCard from '../components/CodeCard.vue'
 import type { HomeLinks } from '../composables/homeLinks'
-import type { BrandVendor } from '../config'
+import { HERO_VENDOR_MODELS, VENDOR_LABEL, type BrandVendor } from '../config'
 
-defineProps<{ links: HomeLinks; baseUrl: string; model: string; reducedMotion: boolean }>()
+const props = defineProps<{ links: HomeLinks; baseUrl: string; model: string; reducedMotion: boolean }>()
 const { t } = useI18n()
 
-/** 静态图固定追踪 Claude；WebGL 版本通过 vendor-change 更新。 */
+/**
+ * 被追踪的厂商。静态图固定 Claude；WebGL 版本在合轨时轮换、铭珠可手动切换，
+ * 都通过 vendor-change 更新，Model Chip 与代码卡随之刷新 model。
+ */
 const activeVendor = ref<BrandVendor>('claude')
+const trackedModel = computed(() =>
+  activeVendor.value === 'claude' ? props.model : HERO_VENDOR_MODELS[activeVendor.value]
+)
 </script>
 
 <style scoped>
@@ -293,7 +302,20 @@ const activeVendor = ref<BrandVendor>('claude')
   text-align: right;
 }
 
+/* Chip and code card cross-fade when the tracked model changes. */
+.bh-hero__refresh {
+  animation: bh-hero-refresh 320ms var(--bh-ease);
+}
+@keyframes bh-hero-refresh {
+  from {
+    opacity: 0.2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .bh-hero__refresh {
+    animation: none;
+  }
   .bh-hero__stroke {
     animation: none;
     clip-path: none;
