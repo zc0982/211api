@@ -80,6 +80,18 @@ export const FOOTER_STAGE_HEIGHT = 380
 export const SCENE_STACK_BREAKPOINT = 860
 /** Narrow screens: world shown at 0.75× (1080px wide), the camera pans across it. */
 export const NARROW_SCENE_SCALE = 0.75
+/**
+ * The hero fills the first screen (100svh) like the reference site: the
+ * ground strip (skyline, stations, characters, labels) is anchored to the
+ * bottom, the moon to the top, and the sky between them stretches; the traces
+ * are recomputed for the actual height. World height = stage height / scale,
+ * never below `minHeight` (shorter windows scroll a little rather than letting
+ * the chips run into the copy). On narrow screens the scale shrinks from 0.75
+ * down to `narrowMinScale` so about `narrowHeight` world pixels fit the space
+ * left under the copy.
+ */
+export const HERO_FIT = { minHeight: 640, narrowHeight: 760, narrowMinScale: 0.34 } as const
+
 /** One round trip of the narrow-screen camera, seconds (ease-in-out each way). */
 export const PAN_PERIOD = 30
 

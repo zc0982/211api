@@ -1,7 +1,7 @@
 <template>
   <section id="bh-top" class="bh-hero" aria-labelledby="bh-hero-title">
-    <PixelStage class="bh-hero__stage" :width="SCENE_WIDTH" :height="HERO_SCENE_HEIGHT">
-      <HeroScene :switch-label="t('brandHome.hero.switched')" :credit-label="t('brandHome.hero.illustrative')" />
+    <PixelStage v-slot="{ height }" class="bh-hero__stage" :width="SCENE_WIDTH" :height="HERO_SCENE_HEIGHT" fit>
+      <HeroScene :height="height" :switch-label="t('brandHome.hero.switched')" :credit-label="t('brandHome.hero.illustrative')" />
     </PixelStage>
 
     <div class="bh-container bh-hero__copy">
@@ -46,9 +46,10 @@ import type { HomeLinks } from '../composables/homeLinks'
 import { HERO_SCENE_HEIGHT, HERO_STATIONS, SCENE_WIDTH } from '../config'
 
 /**
- * 首屏「星链」（Figma 46:2720）：夜空像素场景按 1440 设计宽等比缩放，文案和按钮
- * 是叠在场景左上方的 HTML。860px 以下文案移到场景上方，场景整幅缩放到屏宽
- * （PR 2 再加 0.75 倍镜头平移）。首屏在两种主题下都是夜空。
+ * 首屏「星链」（Figma 46:2720）：整块刚好占满第一屏（100svh）。夜空像素场景按
+ * 1440 设计宽缩放，月亮贴顶、地面一排（天际线、工位、角色、工具名）贴底，中间的
+ * 天空随屏幕高度伸缩；文案和按钮是叠在场景左上方的 HTML，位置和字号同时看屏宽和
+ * 屏高。860px 以下文案在上、场景填满剩下的高度并左右平移。首屏两种主题下都是夜空。
  */
 defineProps<{ links: HomeLinks }>()
 const { t } = useI18n()
@@ -59,6 +60,9 @@ const { t } = useI18n()
   position: relative;
   display: flex;
   flex-direction: column;
+  /* Exactly the first screen; the stage takes whatever the copy leaves. */
+  min-height: 100vh;
+  min-height: 100svh;
   background: #050b18;
   color: var(--bh-night-ink);
 }
@@ -68,7 +72,8 @@ const { t } = useI18n()
   position: absolute;
   left: 0;
   right: 0;
-  top: max(96px, calc(100vw * 174 / 1440));
+  /* Figma: badge at y = 174 of 900; follows the shorter of width and height. */
+  top: max(88px, min(calc(100vw * 174 / 1440), calc(100svh * 174 / 900)));
 }
 
 .bh-hero__badge {
@@ -91,7 +96,7 @@ const { t } = useI18n()
   max-width: 920px;
   color: var(--bh-night-ink);
   font-family: var(--bh-font-serif);
-  font-size: clamp(36px, 3.9vw, 56px);
+  font-size: clamp(32px, min(3.9vw, 6.2svh), 56px);
   font-weight: 600;
   line-height: 1.29;
   letter-spacing: 0.03em;
@@ -124,8 +129,8 @@ const { t } = useI18n()
   .bh-hero__copy {
     position: static;
     order: -1;
-    padding-top: 104px;
-    padding-bottom: 32px;
+    padding-top: 92px;
+    padding-bottom: 20px;
   }
   .bh-hero__title {
     font-size: clamp(26px, 7.6vw, 40px);

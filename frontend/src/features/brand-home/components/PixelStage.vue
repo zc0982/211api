@@ -1,45 +1,70 @@
 <template>
-  <div ref="stageEl" class="bh-stage" :style="{ height: `${height * scale}px` }" aria-hidden="true">
-    <div class="bh-stage__world" :style="{ width: `${width}px`, height: `${height}px`, transform: worldTransform }">
-      <slot />
+  <div ref="stageEl" class="bh-stage" :class="{ 'is-fit': fit }" :style="stageStyle" aria-hidden="true">
+    <div class="bh-stage__world" :style="{ width: `${width}px`, height: `${worldHeight}px`, transform: worldTransform }">
+      <slot :height="worldHeight" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { NARROW_SCENE_SCALE, SCENE_STACK_BREAKPOINT } from '../config'
+import { SCENE_STACK_BREAKPOINT } from '../config'
 import { panAt } from '../composables/motion'
+import { stageLayout } from '../composables/starlink'
 import { reducedMotion, useSceneClock } from '../composables/useSceneClock'
 
 /**
- * Fixed-size design world (e.g. 1440×900) shown through the stage with one
- * transform, so every pixel sprite keeps its relative position.
+ * Fixed-width design world (1440) shown through the stage with one transform,
+ * so every pixel sprite keeps its relative position.
  *
  * - ≥ 860px: scaled to the stage width.
- * - < 860px: shown at 0.75× (1440 → 1080px) so nobody is cropped out; the
- *   stage clips it and the camera pans across, one round trip every 30s, on
- *   the shared scene clock (pauses off screen / in a hidden tab).
- * - < 860px with reduced motion: no pan, the whole world scaled to fit.
+ * - < 860px: shown at 0.75× (smaller in `fit` mode when the space is short)
+ *   so nobody is cropped out; the stage clips it and the camera pans across,
+ *   one round trip every 30s, on the shared scene clock.
+ * - < 860px with reduced motion: no pan, the whole width scaled to fit.
+ *
+ * Height: by default the world is `height` tall and the stage follows it.
+ * With `fit` the stage takes the height its parent gives it (the hero fills
+ * the first screen) and the world is as tall as that at the current scale, at
+ * least HERO_FIT.minHeight; the slot receives that world height.
  *
  * The stage is decorative (aria-hidden); readable text lives next to it.
  */
-const props = defineProps<{ width: number; height: number }>()
+const props = defineProps<{ width: number; height: number; fit?: boolean }>()
 
 const stageEl = ref<HTMLElement | null>(null)
 // First guess from the viewport so the first frame is already the right size.
 const stageWidth = ref(typeof window === 'undefined' ? props.width : document.documentElement.clientWidth || props.width)
+const stageHeight = ref(typeof window === 'undefined' ? props.height : window.innerHeight || props.height)
 
 function measure() {
-  const w = stageEl.value?.clientWidth
-  if (w) stageWidth.value = w
+  const el = stageEl.value
+  if (!el) return
+  if (el.clientWidth) stageWidth.value = el.clientWidth
+  if (el.clientHeight) stageHeight.value = el.clientHeight
 }
 
 const narrow = computed(() => stageWidth.value < SCENE_STACK_BREAKPOINT)
 const panEnabled = computed(() => narrow.value && !reducedMotion.value)
 const { time } = useSceneClock(stageEl, panEnabled)
 
-const scale = computed(() => (panEnabled.value ? NARROW_SCENE_SCALE : Math.max(0.1, stageWidth.value / props.width)))
+const layout = computed(() =>
+  stageLayout({
+    stageWidth: stageWidth.value,
+    stageHeight: stageHeight.value,
+    worldWidth: props.width,
+    designHeight: props.height,
+    pan: panEnabled.value,
+    fit: !!props.fit
+  })
+)
+const scale = computed(() => layout.value.scale)
+const worldHeight = computed(() => layout.value.worldHeight)
+// Fit: never shorter than the minimum world, otherwise the parent decides. Fixed: follow the world.
+const stageStyle = computed(() =>
+  props.fit ? { minHeight: `${layout.value.stageHeight.toFixed(2)}px` } : { height: `${layout.value.stageHeight}px` }
+)
+
 const offset = computed(() => (panEnabled.value ? panAt(time.value, props.width * scale.value - stageWidth.value) : 0))
 const worldTransform = computed(() => `translateX(${-offset.value}px) scale(${scale.value})`)
 
@@ -53,7 +78,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
-defineExpose({ scale })
+defineExpose({ scale, worldHeight })
 </script>
 
 <style scoped>
@@ -61,6 +86,9 @@ defineExpose({ scale })
   position: relative;
   width: 100%;
   overflow: hidden;
+}
+.bh-stage.is-fit {
+  flex: 1 1 auto;
 }
 .bh-stage__world {
   position: absolute;

@@ -2,7 +2,6 @@
   <div ref="root" class="bh-hs">
     <div class="bh-hs__sky" />
     <img class="bh-hs__layer" :src="starsUrl" alt="" width="1440" height="742" decoding="async" />
-    <div class="bh-hs__haze" />
     <div class="bh-hs__moon-glow" />
 
     <svg class="bh-hs__orbits" viewBox="0 0 1440 900" width="1440" height="900">
@@ -11,20 +10,23 @@
       <circle :cx="MOON.cx" :cy="MOON.cy" r="225" stroke-opacity="0.05" />
     </svg>
 
-    <img
-      class="bh-hs__layer bh-pixel"
-      :src="skylineUrl"
-      alt=""
-      width="1440"
-      height="318"
-      decoding="async"
-      :style="{ top: '582px' }"
-    />
+    <!-- Ground strip, back layer: anchored to the bottom of the stage (moves by dy). -->
+    <div class="bh-hs__ground" :style="groundStyle">
+      <div class="bh-hs__haze" />
+      <img
+        class="bh-hs__layer bh-pixel"
+        :src="skylineUrl"
+        alt=""
+        width="1440"
+        height="318"
+        decoding="async"
+        :style="{ top: '582px' }"
+      />
+      <!-- Gold glow on the ground under the tracked station. -->
+      <span class="bh-hs__ground-glow" />
+    </div>
 
-    <!-- Gold glow on the ground under the tracked station. -->
-    <span class="bh-hs__ground-glow" />
-
-    <svg class="bh-hs__traces" viewBox="0 0 1440 900" width="1440" height="900">
+    <svg class="bh-hs__traces" :viewBox="`0 0 1440 ${height}`" width="1440" :height="height">
       <path
         v-for="trace in traces"
         :key="trace.tool"
@@ -68,6 +70,8 @@
 
     <span class="bh-hs__dot" :style="{ transform: `translate(${dot.x - 12}px, ${dot.y - 12}px)`, opacity: dot.opacity }" />
 
+    <!-- Ground strip, front layer. -->
+    <div class="bh-hs__ground" :style="groundStyle">
     <template v-for="station in stations" :key="station.tool">
       <img
         class="bh-hs__sprite bh-pixel"
@@ -106,6 +110,7 @@
     </template>
 
     <span class="bh-hs__credit">{{ creditLabel }}</span>
+    </div>
   </div>
 </template>
 
@@ -117,16 +122,17 @@ import SpriteActor from './SpriteActor.vue'
 import starsUrl from '../assets/scene/hero-stars.svg?url'
 import skylineUrl from '../assets/scene/hero-skyline.svg?url'
 import {
-  GOLD_DOT,
   HERO_CHARACTERS,
   HERO_FEET_Y,
+  HERO_SCENE_HEIGHT,
   HERO_STATIONS,
   MOON,
   SPRITE_SCALE,
   SWITCH_MARKER_TOOL,
   TRACE_LIT,
   TRACE_PULSE,
-  type HeroCharacter
+  type HeroCharacter,
+  type HeroStation
 } from '../config'
 import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../composables/starlink'
 import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations, pulseStateAt } from '../composables/motion'
@@ -141,7 +147,16 @@ import { useSpriteSheets } from '../composables/useSpriteSheets'
  * 精灵表后才开始动；减少动态效果时停在每人 A 点的第 1 帧。场景整体 aria-hidden，
  * 可读文本在 HeroStarlink 的读屏列表里。两种主题下都不变。
  */
-defineProps<{ switchLabel: string; creditLabel: string }>()
+const props = withDefaults(defineProps<{ switchLabel: string; creditLabel: string; height?: number }>(), { height: HERO_SCENE_HEIGHT })
+
+/** World height beyond the 900 design: the ground strip moves down (or up) by this much. */
+const dy = computed(() => props.height - HERO_SCENE_HEIGHT)
+const groundStyle = computed(() => ({ transform: `translateY(${dy.value}px)` }))
+/** Trace for a station with its chip where the ground strip puts it. */
+const stationTrace = (s: HeroStation, shift: number) => {
+  const a = chipAnchor(s)
+  return traceFor({ x: a.x, y: a.y + shift })
+}
 
 const PROPS = import.meta.glob('../assets/sprites/hero/prop-*.png', { eager: true, import: 'default', query: '?url' }) as Record<
   string,
@@ -159,22 +174,25 @@ const boxStyle = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `
 
 const stations = HERO_STATIONS.map((s) => ({ ...s, box: propBox(s) }))
 
-const traces = HERO_STATIONS.slice()
-  // Tracked trace last so it draws on top.
-  .sort((a, b) => Number(!!a.tracked) - Number(!!b.tracked))
-  .map((s) => ({
-    tool: s.tool,
-    tracked: !!s.tracked,
-    opacity: s.traceOpacity ?? 0.34,
-    d: tracePath(traceFor(chipAnchor(s)))
-  }))
+const traces = computed(() =>
+  HERO_STATIONS.slice()
+    // Tracked trace last so it draws on top.
+    .sort((a, b) => Number(!!a.tracked) - Number(!!b.tracked))
+    .map((s) => ({
+      tool: s.tool,
+      tracked: !!s.tracked,
+      opacity: s.traceOpacity ?? 0.34,
+      d: tracePath(stationTrace(s, dy.value))
+    }))
+)
 
 const switchStation = HERO_STATIONS.find((s) => s.tool === SWITCH_MARKER_TOOL)!
-const marker = pointOnTrace(traceFor(chipAnchor(switchStation)), 0.5)
+const marker = computed(() => pointOnTrace(stationTrace(switchStation, dy.value), 0.5))
 
 const trackedStation = HERO_STATIONS.find((s) => s.tracked)!
-const goldTrace = arcTable(traceFor(chipAnchor(trackedStation)))
-const goldPhase = dotPhase(goldTrace)
+// The dot's phase comes from the 900-tall design (Figma position); on other heights it sits at the same arc fraction.
+const goldPhase = dotPhase(arcTable(stationTrace(trackedStation, 0)))
+const goldTrace = computed(() => arcTable(stationTrace(trackedStation, dy.value)))
 
 const root = ref<HTMLElement | null>(null)
 const { ready } = useSpriteSheets('hero', root)
@@ -191,16 +209,21 @@ const states = computed(() =>
 )
 const lit = computed(() => litStations(states.value))
 /** Untracked traces in station order: their slot in the moonlight cascade. */
-const pulseTraces = HERO_STATIONS.filter((s) => !s.tracked).map((s, slot) => ({ tool: s.tool, slot, table: arcTable(traceFor(chipAnchor(s))) }))
+const pulseTraces = computed(() =>
+  HERO_STATIONS.filter((s) => !s.tracked).map((s, slot) => ({ tool: s.tool, slot, table: arcTable(stationTrace(s, dy.value)) }))
+)
 const pulses = computed(() =>
-  pulseTraces.map(({ tool, slot, table }) => {
+  pulseTraces.value.map(({ tool, slot, table }) => {
     // Same clock as the gold dot: slot 0 leaves the moon together with it.
     const p = pulseStateAt(table, time.value + goldPhase, slot)
     return { tool, x: p.x, y: p.y, angle: p.angle, opacity: p.opacity * (lit.value.has(tool) ? 1 : TRACE_PULSE.dim) }
   })
 )
 
-const dot = computed(() => (animated.value ? dotStateAt(goldTrace, time.value, goldPhase) : { ...GOLD_DOT, opacity: 1 }))
+const dot = computed(() => {
+  const d = dotStateAt(goldTrace.value, animated.value ? time.value : 0, goldPhase)
+  return animated.value ? d : { x: d.x, y: d.y, opacity: 1 }
+})
 
 /** Head-side badge, fixed to the character's work-frame head whichever way it faces. */
 const badgeStyle = (c: HeroCharacter, x: number) => ({
@@ -226,6 +249,16 @@ const badgeStyle = (c: HeroCharacter, x: number) => ({
   left: 0;
   top: 0;
   max-width: none;
+}
+/* Bottom-anchored ground strip: same 1440×900 coordinates, shifted by dy. */
+.bh-hs__ground {
+  left: 0;
+  top: 0;
+  width: 1440px;
+  height: 900px;
+}
+.bh-hs__ground > * {
+  position: absolute;
 }
 .bh-hs__haze {
   left: 0;
