@@ -97,19 +97,11 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
   border-radius: 16px;
   background: var(--bh-faq-bg);
 }
+/* Open item: sky border + surface + float shadow. No gold bar: gold is only for the tracked call (One Star Rule). */
 .bh-faq__item[open] {
   border-color: rgb(var(--brand-sky) / 0.9);
   background: var(--bh-surface);
   box-shadow: 0 12px 32px -12px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
-}
-.bh-faq__item[open]::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--bh-gold);
 }
 .bh-faq__q {
   display: flex;
