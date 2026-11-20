@@ -1,6 +1,6 @@
 # 品牌首页（brand-home）
 
-`/home` 的 211API 品牌首页。设计源是 Figma「211API」（fileKey `5ZuuXYB3ZCw4RFHh8sYFTj`）的「Home / v2 · Light 1440」（节点 `1:1147`）和「Home / v2 · Dark 1440」（节点 `46:1740`，区块结构与浅色版一一对应），规范以设计仓库的 `DESIGN.md`、`PRODUCT.md`、`.impeccable/design.json` 为准；本仓库的副本在 `docs/brand/`（只读，以设计源为准）。`design.json`（组件参考 HTML/CSS、motion、breakpoints）不复制，路径为 `/Users/luoee/Design/211API-UI/.impeccable/design.json`。
+`/home` 的 211API 品牌首页，v3「星链」：夜空像素首屏 + 暖纸色内容区 + 像素工地页脚。设计源是 Figma「211API」（fileKey `5ZuuXYB3ZCw4RFHh8sYFTj`）区块 06 的「Home / v3 · 星链 1440」（节点 `46:2719`）和区块 07 的深色版「Home / v3 · 星链 · Dark 1440」（节点 `94:47709`，结构一一对应）。规范以设计仓库的 `DESIGN.md`、`PRODUCT.md`、`.impeccable/design.json`、`export/sprites/README.md` 和 `handoff/home-v3-prompts.md` 为准；本仓库的副本在 `docs/brand/`（只读，以设计源为准）。v2（浑天仪首屏，Figma `1:1147` / `46:1740`）已停用。
 
 ## 接入方式
 
@@ -26,11 +26,11 @@
 | 文件 | 改动 | 原因 |
 |---|---|---|
 | `frontend/src/router/index.ts` | `/home` 的 component 与 `titleKey` | 接入入口 |
-| `frontend/tailwind.config.js` | `theme.extend` 下追加 `colors.brand`、`fontFamily.brand-*`、`boxShadow.brand-*`、`borderRadius.brand-*`（相邻已有行只补逗号）。`colors.brand.*` 写成 `rgb(var(--brand-*) / <alpha-value>)`，`boxShadow.brand-*` 写成 `var(--bh-shadow-*)`，值由 `brand-home.css` 按主题提供 | 品牌 token，不改已有键；随深浅色切换 |
+| `frontend/tailwind.config.js` | `theme.extend` 下追加 `colors.brand`（含 v3 的 `band`）、`fontFamily.brand-*`、`boxShadow.brand-*`、`borderRadius.brand-*`（相邻已有行只补逗号）。`colors.brand.*` 写成 `rgb(var(--brand-*) / <alpha-value>)`，`boxShadow.brand-*` 写成 `var(--bh-shadow-*)`，值由 `brand-home.css` 按主题提供 | 品牌 token，不改已有键；随深浅色切换 |
 | `frontend/src/i18n/locales/{zh,en}/index.ts` | 各加一行 import 和 `brandHome` 键 | 文案命名空间 |
-| `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons`、`/node_modules/three/ → vendor-three` | 不追加时图标、three.js 会被并入所有页面都 modulepreload 的 `vendor-misc`。图标分支经用户确认后加入；three 分支由 PR 2 交接提示词指定 |
-| 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 10 个测试 | CI 只跑这份清单 |
-| `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue`、`three`、`@types/three`（dev）精确版本 | 厂商 / 工具图标（Vue 3 包）；首屏浑天仪 WebGL |
+| `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons` | 不追加时图标会被并入所有页面都 modulepreload 的 `vendor-misc`（经用户确认后加入）。v2 的 `vendor-three` 分支随 three.js 一起删除 |
+| 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 8 个测试 | CI 只跑这份清单 |
+| `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue` 精确版本（v2 的 `three`、`@types/three` 已移除） | 厂商 / 工具图标（Vue 3 包） |
 | `frontend/public/logo.svg` | 换成品牌首页学士帽标志（透明底，藏青帽 + 金穗） | 未上传站点 Logo 时，控制台侧栏、登录页、公开页和 favicon 的回退图与首页一致，见「标志」 |
 | `AppSidebar.vue`、`AuthLayout.vue`、`PlazaNavBar.vue`、`LegalDocumentView.vue`、`KeyUsageView.vue`、`HomeView.vue` | 标志容器/图片追加 `dark:bg-white dark:p-*`（`PlazaNavBar.vue`、`LegalDocumentView.vue` 原有的 `dark:bg-dark-800` 换成 `dark:bg-white`） | 透明底藏青标志在深色模式下需浅色底，见「标志」 |
 
@@ -38,24 +38,15 @@
 
 ## 主题（跟随系统 + 手动切换）
 
-- **状态复用上游，不新增存储键。** 上游的主题实现：`main.ts` 的 `initThemeClass()` 在挂载前按 `localStorage.theme`（`'dark'` / `'light'`，没有值 = 跟随系统）写 `html.dark`；控制台 `AppSidebar.vue` 的切换按钮读写同一个键。品牌首页的 `composables/useBrandTheme.ts` 用同一个键和同一个类，所以首页和控制台的选择互相同步。上游只有浅 / 深两态，「跟随系统」就是「没有手动值」：选回跟随系统时 `removeItem('theme')`。没有改上游文件。
-- 跟随系统时监听 `matchMedia('(prefers-color-scheme: dark)')` 的 `change`，系统切换时实时跟随；手动选浅色 / 深色后不再跟随。其他标签页改了 `theme` 时通过 `storage` 事件同步。离开首页后 `html.dark` 保持当前值（控制台按同一规则显示）。
-- **首次绘制前确定主题**：靠上游 `main.ts` 在 `app.mount` 前写好 `html.dark`，品牌首页挂载时只复核一次。没有改 `index.html`；JS 加载前的空白帧是全站已有行为（`body` 未上色），不在本模块处理。
-- **按钮与菜单**：`components/ThemeToggle.vue`，放在导航右侧玻璃胶囊最左边，窄屏也保留（Figma `10:988` 浅 / `46:1808` 深 / `46:2685` 菜单）。32px 圆形，底色 navy 6%（深色 8%），16px 图标浅色太阳、深色月亮；菜单 184px，三项「跟随系统 / 浅色 / 深色」，当前项 tint 底 + navy 对勾。`role="menu"` + `menuitemradio`；Enter / Space / ↓ 打开并聚焦当前项，↑↓ Home End 移动，Esc 关闭并回到按钮，Tab 或点外面关闭。按钮 `aria-label` 带当前模式。
-- **颜色全部走 CSS 变量**（`styles/brand-home.css`）：`--brand-*` 是 `R G B` 三元组，`.brand-home` 上是浅色值，`.dark .brand-home` 覆盖为 DESIGN.md「Dark Theme（学院夜空）」表里的深色值；`--bh-navy` 等是对应的 `rgb()`。组件里要透明度时写 `rgb(var(--brand-line) / 0.9)`。不用 Tailwind `dark:` 变体。
-- 没进 token 的配方也是变量，深色值按 DESIGN.md 同一节：
-  - 玻璃：底色 = surface 同等不透明度；`--bh-glass-edge` 白 90% → 白 7%；`--bh-glass-highlight` 内高光白 45% → 白 8%。
-  - 阴影：`rgb(var(--bh-shadow-navy) / min(calc(a * var(--bh-shadow-k)), 0.5))`，浅色深蓝 × 1，深色黑色 × 3、上限 50%。
-  - 背景：`--bh-hero-bg` 首屏渐变；`--bh-band` 区块渐变带（白 → `#0b1427`）；`--bh-grid-line`、`--bh-orbit-*` 网格与轨道线（深色 `#a9c1f0` 4%–12%）。
-  - 云团：`--bh-cloud` / `--bh-cloud-sky`（天空蓝 → `#1e3a78`）、`--bh-cloud-navy`（深蓝 20% → 55%）、`--bh-veil`（标题白雾 → canvas 55%）、`--bh-core-glow`（仪心金光 34% → 20%）。
-  - 金色高亮底：`--bh-gold-code`（代码行，深色 10%）。
-  - 文字在 navy 底上用 `--bh-on-navy`（浅色白，深色 surface）：深色下主按钮是月白底深字。
-- 根节点自带 canvas 底色和文字色，`color-scheme` 随主题，`min-height: 100dvh`。全局 `* { border-color }` 在根节点下重设为细线色。
-- 切换时 `useBrandTheme` 给根节点加 `.bh-theming` 约 250ms，`background-color` / `color` / `border-color` 过渡 200ms；`prefers-reduced-motion` 下不加（CSS 也只在 `no-preference` 下生效）。
-- 浑天仪静态图和 WebGL 渲染深浅色共用，灯光未单独调（见「待调」）。
-- 上传的站点 Logo 在深色下加白底小圆角（规则写在 `brand-home.css` 全局段：scoped 样式里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`，把样式加到 `html` 上）。
-- 不复用上游 `LocaleSwitcher`，语言切换是自写的 `components/LocaleToggle.vue`，放在页脚右侧，切换不整页刷新，两种主题都走变量。
-- 待调：WebGL 浑天仪在深色下的灯光、环境贴图（目前与浅色相同，蓝釉在深底上偏亮）。
+- **状态复用上游，不新增存储键。** 上游 `main.ts` 的 `initThemeClass()` 在挂载前按 `localStorage.theme`（`'dark'` / `'light'`，没有值 = 跟随系统）写 `html.dark`；控制台 `AppSidebar.vue` 的切换按钮读写同一个键。品牌首页的 `composables/useBrandTheme.ts` 用同一个键和同一个类，首页和控制台的选择互相同步。没有改上游文件。
+- 默认跟随系统：监听 `matchMedia('(prefers-color-scheme: dark)')` 的 `change` 实时跟随。点导航里的主题按钮手动切换后写入 `theme`，以手动选择为准，刷新后保留；其他标签页改了 `theme` 时通过 `storage` 事件同步。`setPreference('system')` 会删除手动值（v3 的按钮只在浅 / 深之间切换，没有「跟随系统」选项；清除手动值后自动恢复跟随系统）。
+- **首次绘制前确定主题**：靠上游 `main.ts` 在 `app.mount` 前写好 `html.dark`，品牌首页挂载时只复核一次。没有改 `index.html`；JS 加载前的空白帧是全站已有行为。
+- **按钮**（`components/ThemeToggle.vue`，DESIGN.md「Navigation」）：在「登录」左侧 12px，36px 圆形，月白 6% 底、白 22% 描边，16px、1.5px 描边的月白线条图标；浅色显示太阳、深色显示月亮；`aria-label` 写明切到哪个主题。窄屏也保留。
+- **颜色全部走 CSS 变量**（`styles/brand-home.css`）：`--brand-*` 是 `R G B` 三元组，`.brand-home` 上是浅色值，`.dark .brand-home` 只覆盖为 DESIGN.md「Dark Theme」表里的深色值（含 v3 的 `band`）；组件里写 `var(--bh-*)` 或 `rgb(var(--brand-*) / α)`，不用 Tailwind `dark:` 变体。根节点 `color-scheme` 随主题，保留 `min-height: 100dvh`。
+- 没进 token 的暖纸色细节也是变量：表格行线 `--bh-row-line`、表头 `--bh-head-bg` / `--bh-head-line`、「示例数据」标签 `--bh-tag-bg`、次级按钮描边 `--bh-btn-line`、服务状态玻璃面板 `--bh-panel-bg` / `--bh-panel-edge`、FAQ 折叠项 `--bh-faq-bg`；深色值按 DESIGN.md 同一节。阴影 `rgb(var(--bh-shadow-navy) / min(calc(a * var(--bh-shadow-k)), 0.5))`：浅色深蓝 × 1，深色黑色 × 3、上限 50%。
+- **两种主题下都不变**：首屏和页脚的夜空像素场景、导航、快速接入的代码面板、密钥额度卡。它们用固定的 `--bh-night-*` 变量；深色下深色卡片外框补 1px `#1f2d48`（`--bh-dark-card-edge`）。
+- 切换时 `useBrandTheme` 给根节点加 `.bh-theming` 约 250ms，背景色 / 文字色 / 描边色过渡 200ms；`prefers-reduced-motion` 下不加。
+- 不复用上游 `LocaleSwitcher`，语言切换是自写的 `components/LocaleToggle.vue`，放在页脚品牌信息下方；页脚在本地把它用到的变量换成夜色值。
 
 ## 链接与登录态
 
@@ -68,11 +59,13 @@
 | 模型 / 模型价格 / 查看全部模型 | `model_plaza_enabled === true` 且（不要求登录或已登录）时显示 `/model-plaza`（同 `HomeView.vue` `showModelPlazaEntry`），否则隐藏 |
 | 文档 / 查看文档 | `doc_url` 经 `sanitizeUrl` 后非空才显示，外链 `rel="noopener"` |
 | 联系我们 | `contact_info` 非空才显示；能校验为 http(s) 链接或邮箱时作为链接，否则点击后以纯文本展示，不用 `v-html` |
-| 查看调用明细 / 查看全部调用 / 在控制台中打开 | `/usage`，未登录交给路由守卫 |
-| 注册（页脚） | 未登录且注册未关闭时显示 |
-| 状态、关于 | 没有公开页面，隐藏 |
+| 查看调用明细 / 在调用明细中查看 / 在控制台中打开 | `/usage`，未登录交给路由守卫 |
+| 前往密钥管理、页脚「密钥」 | `/keys`，未登录交给路由守卫 |
+| 查看接入文档 | 同「文档」：`doc_url` 安全时显示 |
+| 注册（页脚「账户」列） | 未登录且注册未关闭时显示 |
+| 状态、关于（导航「状态」、页脚「关于」列） | 没有公开页面，隐藏 |
 
-导航「首页」和页脚「首页」用 `scrollIntoView` 回到顶部；路由 `scrollBehavior` 不处理 hash，不改。字标和版权用 `site_name`（缺省 `211API`）+ 当前年份。
+导航「首页」用 `scrollIntoView` 回到顶部；路由 `scrollBehavior` 不处理 hash，不改。字标和版权用 `site_name`（缺省 `211API`）+ 当前年份。
 
 ## 数据来源与隐藏规则
 
@@ -93,16 +86,16 @@
 
 可用率、首字延迟、今日 / 累计调用、「所有系统运行正常」没有公开接口：
 
-- 首屏信任条只保留「主流供应商 4 家」（PRODUCT.md）；
+- 首屏徽章用「一个接口 · 四家模型」（PRODUCT.md）；
 - 「服务状态」区块（`sections/StatusSection.vue`）不渲染，由 `config.ts` 的 `liveStats = false` 控制。开关是代码级的，不接后台设置或环境变量；接入时数值只能来自真实接口。
 
 ### 示例数据标注
 
-示意 UI：首屏 Model Chip 耗时、代码卡「200 · 286 ms」、快速接入的响应行、透明可追溯区的调用明细面板与时间线。标注：调用明细面板右上角「示例数据」，首屏 Credit 行后「界面数值为示意」。示意数字不做数字滚动，不出现「实时」。调用明细面板只展示控制台真实存在的字段（模型、总耗时、首字延迟、tokens、费用、状态，见 `backend/internal/handler/dto/types.go` `UsageLog`），金额用美元（与控制台一致）。
+示意 UI：首屏工位状态牌、「429 → 已自动切换」标记和金色光点；快速接入的响应行；调用明细面板与时间线；密钥额度卡；页脚工地的参数牌（首字、tok/s、token、缓存命中、上下文）。标注：首屏右下「界面数值为示意」，快速接入下方「接入示意 · 地址与密钥为占位，响应数值为示意」，调用明细与额度卡右上「示例数据」，额度卡下方「密钥额度示意」，页脚「工地参数为示意」。所有示意数值写在 `config.ts`，不硬编码在模板里；不做数字滚动，不出现「实时」。调用明细只展示控制台真实存在的字段（模型、总耗时、首字延迟、tokens、费用、状态，见 `backend/internal/handler/dto/types.go` `UsageLog`），金额统一用美元（与控制台一致，Figma 为人民币）。
 
 ### 代码示例
 
-`base_url`：`api_base_url` 非空用它，否则 `window.location.origin`；按 `UseKeyModal.vue` 的做法去掉末尾 `/v1` 与 `/`，再补 `/v1`（`composables/baseUrl.ts`）。`api_key` 用占位符 `sk-YOUR_API_KEY`。示例模型为 `config.ts` 的 `HERO_DEFAULT_MODEL`（与静态浑天仪图的金环 Claude 一致）。
+`base_url`：`api_base_url` 非空用它，否则 `window.location.origin`；按 `UseKeyModal.vue` 的做法去掉末尾 `/v1` 与 `/`，再补 `/v1`（`composables/baseUrl.ts`）。客户端（`composables/codeSamples.ts`）：OpenAI SDK（Python / Node.js）、curl、Codex 用 `/v1` 地址；Anthropic SDK 与 Claude Code 用根地址（`rootOf`，与 `UseKeyModal.vue` 一致）。有官方地址的客户端把官方那行划掉、211API 那行标成金色；「复制」只复制改后的代码。`api_key` 用占位符 `sk-YOUR_API_KEY`；示例模型 `config.SAMPLE_MODEL`（Codex 用 `CODEX_SAMPLE_MODEL`，与控制台 Codex 配置默认一致）。
 
 ## 文案核对
 
@@ -132,7 +125,18 @@
 | 价格公开可查 | 仅模型广场可见时显示 | `model_plaza_enabled` / `model_plaza_require_auth` |
 | 迁移答案：请求和响应格式完全兼容 | 改为「兼容官方协议」；地址用运行时 base_url | 「完全」无法保证 |
 | 最终 CTA 区块（1:3661）：极速、稳定、安全，从这里开始；注册即送体验额度，五分钟完成接入 | 整个区块不渲染（按产品要求删除） | 原文另有无证据表述：性能 / 安全、赠送额度 |
-| 全面兼容主流应用与生态工具（8 个工具） | 保留 | PRODUCT.md「生态工具」；Claude Code / Codex 配置见 `UseKeyModal.vue`，其余工具未逐一实测 |
+| 生态工具（8 个工位：Claude Code、Cursor、OpenCode、Codex、Pi、Hermes、DeepSeek Harness、OpenClaw） | 保留（v3 不再单独成块，放在首屏工位） | PRODUCT.md「生态工具」；Claude Code / Codex 配置见 `UseKeyModal.vue`，其余工具未逐一实测 |
+| v3 快速接入：换一个地址，其余照旧；模型名称与官方一致 | 保留 | 同「兼容 OpenAI 与 Anthropic 协议」；模型名直接透传 |
+| v3 调用明细副文：路由节点、首字延迟、tokens 和费用逐笔记录；看清鉴权 → 路由 → 上游 → 计费的完整链路 | 改为「模型、首字延迟、tokens 和费用逐笔记录；看清这次请求从发出到计费的时间线」，表格「路由节点」列改为「总耗时」，展开行改为请求时间线 | 同「路由节点」「调用链路」两行 |
+| v3 调用明细：日志保留 30 天，可导出对账 | 改为「可导出 CSV 对账」 | 同「日志保留 30 天」一行 |
+| v3 调用明细：429 → 200 自动切换行 | 不渲染 | 用户侧用量日志不记录重试过程 |
+| v3 首屏：429 → 已切换 sg-01 | 改为「429 → 已自动切换」 | 上游失败会切换账号重试（`UpstreamFailoverError`）；「sg-01」节点名在用户侧不存在 |
+| v3 密钥额度：为每个密钥设置额度、速率与告警，超出预算自动暂停；卡片「60 RPM · 告警 80%」 | 改为「额度、有效期与周期用量上限，额度用尽自动停用」；卡片第二行改为「7 天上限」 | 同「用量与预算控制」一行；密钥没有 RPM 与告警 |
+| v3 核心能力：一个 Key、一个地址，调用四家供应商的全部模型 | 改为「一个地址对接多家模型，兼容 OpenAI 与 Anthropic 协议」 | 同「全部模型」一行 |
+| v3 核心能力：智能路由，多节点实时测速，上游异常时自动切换节点，请求不中断 | 改为「自动切换：多账号调度，上游异常时自动切换重试」 | 同「智能路由」一行 |
+| v3 核心能力：用多少付多少，没有月费；控制台与账单以人民币结算 | 改为「按每次请求的实际用量计费，用多少付多少」 | 站点有订阅套餐；控制台金额以美元显示 |
+| v3 核心能力：安全合规，密钥加密存储，传输全程 TLS | 改为「访问控制：IP 白名单与黑名单，可随时停用或设置过期」 | 同「安全合规」一行 |
+| v3 页脚：关于 211API | 不渲染 | 没有公开页面 |
 
 FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据保存、查看费用、429 / 超时、发票与对公）等待真实答案后再加。
 
@@ -152,10 +156,10 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 
 ## 标志
 
-- 以后台「站点设置 → 站点 Logo」（`site_logo`）为准，全站同一来源：首页页头（`BrandHome.vue` 经 `sanitizeUrl` 传给 `components/BrandLogo.vue` 的 `src`）、控制台侧栏、登录页、公开页、后端注入的 favicon。换标志只需在后台重新上传。
-- 未上传、地址不安全或图片加载失败时回退：首页页头用 `BrandLogo.vue` 内联的学士帽，其余页面用 `frontend/public/logo.svg`（同一学士帽，透明底，裁切 `viewBox="10 15 44 33"` 与页头一致）。两处回退图形来自设计源 `export/logo/logo-mark-light.svg`，改回退图时一起改。后台上传的标志也用透明底、同一裁切（PNG 176×132），首页页头按高 28px 显示时与内置标志尺寸相同。
-- 页头里上传的图片按高 28px 等比显示（最宽 112px）。
-- 标志是透明底藏青色，深色模式下看不清。控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`）。新增显示 `site_logo` 的位置也要加。品牌首页在 `brand-home.css` 里用 `.dark .brand-home .bh-logo__img` 加同样的白底；内置学士帽用 `currentColor`（navy 变量），深色下自动变月白，不加底。
+- 以后台「站点设置 → 站点 Logo」（`site_logo`）为准，全站同一来源：首页导航与页脚（`BrandHome.vue` 经 `sanitizeUrl` 传给 `components/BrandLogo.vue` 的 `src`）、控制台侧栏、登录页、公开页、后端注入的 favicon。换标志只需在后台重新上传。
+- 未上传、地址不安全或图片加载失败时回退：首页用 `BrandLogo.vue` 内联的学士帽，其余页面用 `frontend/public/logo.svg`（同一学士帽，透明底，裁切 `viewBox="10 15 44 33"`）。两处回退图形来自设计源 `export/logo/logo-mark-light.svg`，改回退图时一起改。
+- v3 的导航和页脚都在夜空上：内置学士帽和站点名用白色（帽穗仍是金色）；上传的标志一律加白底小圆角（规则写在 `brand-home.css` 全局段：scoped 样式里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`）。首屏月亮里的学士帽是场景的一部分，不随后台标志变化。
+- 控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`）。新增显示 `site_logo` 的位置也要加。
 
 ## 图标
 
@@ -165,83 +169,21 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 
 ## 动效
 
-- 首屏：导航 .5s 滑入（延迟 .1s）；徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）；云团 12–20s 漂移。标题「编程模型。」为交互蓝实色，没有渐变和金色笔画（设计源已删除）。
-- 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。挂载时已在屏内的区块、没有 IntersectionObserver 的浏览器不隐藏。
-- 调用明细时间线的光点 2.4s 匀速跑完整条线（发起请求 → 计费入账）后循环。
-- 首屏浑天仪：见下一节。
-- `prefers-reduced-motion`：关闭漂移、光点、上浮和主题切换过渡，只保留 200ms 淡入；浑天仪保留静态图（合轨态），不加载 three.js。
+- 首屏：徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）。像素场景本版本只渲染第 0 秒的静态画面（角色在 A 点、work 第 1 帧，金色光点在 Figma 位置，吊钩在顶部），角色走位、金线光点、吊钩升降、窄屏镜头平移在下一个 PR（handoff v3 提示词 2）实现。
+- 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。
+- `prefers-reduced-motion`：关闭上浮和主题切换过渡，只保留 200ms 淡入。
 
-## 浑天仪
+## 像素场景（首屏「星链」与页脚工地）
 
-规格来源：Figma `10:890`（实现说明，冲突时为准）、`10:872`（分镜）、`10:763` / `10:920`（首屏），视觉对照 `10:959`（静态渲染图）；DESIGN.md「Armillary Hero」；design.json `motion.armillary-cycle`。
+规格来源：handoff v3 提示词 1 第二、三、四节，Figma `46:2720`（首屏）、`46:3761` / `59:22798`（页脚），素材 `export/sprites/`。
 
-### 结构
-
-| 文件 | 内容 | 是否依赖 three |
-|---|---|---|
-| `components/ArmillaryHero.vue` | 静态图、HTML 叠加层（铭珠、Model Chip、代码卡、接地阴影）、降级判定、按需加载 | 否 |
-| `armillary/timeline.ts` | 时间函数（纯函数） | 否 |
-| `armillary/capability.ts` | 降级判定（纯函数）与设备探测 | 否 |
-| `armillary/dials.ts` | 外层三环刻度的 CanvasTexture 绘制 | 否 |
-| `armillary/scene.ts` | three.js 场景、渲染循环、投影、资源释放 | 是，只经 `import()` 加载 |
-
-`ArmillaryHero` 对外接口不变：props `activeVendor`、`reducedMotion`、`alt`，新增可选 `beadLabel`（铭珠的可读名称，`HeroSection` 传 `brandHome.hero.trackVendor`）；事件 `vendor-change`。`HeroSection` 按被追踪厂商取 `config.HERO_VENDOR_MODELS`，刷新 Model Chip 与代码卡的 model（耗时仍是示意值，不按厂商编造）。
-
-各厂商的示例模型取自后端内置默认模型列表里该平台的第一个文本模型：`claude-fable-5-2`（`pkg/claude/constants.go`）、`gpt-5.6-sol`（`pkg/openai/constants.go`）、`gemini-3-flash`（`pkg/geminicli/models.go`，跳过前面的图像模型）、`grok-4.7`（`pkg/xai/models.go`）。
-
-### 加载顺序
-
-1. 首屏文字、按钮和静态图（`assets/hero/armillary*.webp`，合轨态、Claude 金槽）先显示。
-2. 组件挂载后判定降级条件（见下）。不降级才 `import('../armillary/scene')`，连带加载 `vendor-three`。
-3. 创建 `WebGLRenderer`；第一帧画完后静态图 200ms 线性淡出（`ARMILLARY_WEBGL.fadeMs`），铭珠从 Figma 坐标切换到每帧投影坐标。
-
-### 场景
-
-- 外层静止：地平环（r 1.2，十二地支）、子午环（r 1.13，竖直，十天干）、赤道环（r 1.0，垂直于极轴，二十八宿）。极轴在子午面内仰起 34.6°（洛阳纬度）。材质 `MeshPhysicalMaterial` 学院深蓝釉面（`#21418f`，clearcoat），刻度天蓝 `#a9c8f5`。
-- 刻度与刻字由 `dials.ts` 在运行时画进 CanvasTexture，用 RingGeometry 的平面 UV 贴到环面两侧；字体为系统衬线 CJK 栈 `"Songti SC", "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC", SimSun, serif`（品牌衬线是子集字体，未必包含这些字）。
-- 内层四环（`config.ARMILLARY_RINGS`）：抛光银（`MeshStandardMaterial` metalness .92 / roughness .2，`RoomEnvironment` 环境贴图）加蓝槽 `#2f5fd0`；外→内 Claude r .86、OpenAI .75、Gemini .64、Grok .53，环宽 .044。不使用厂商品牌色。
-- 被追踪的环换成金槽 `#d4a84b`，金色光点 2.4s 匀速绕行；仪心是深蓝小球加金环与淡金光晕。合轨时金环亮起、光晕闪一次，一圈蓝色细线沿赤道扩散 1.2s。
-- 取景：相机仰角约 10°、视距 6.85、fov 26°，仪器绕竖轴转 2.23 rad（子午面约 53° 斜视），按 10:959 的椭圆比例反推，合轨态与静态图叠加对齐。
-- 渲染：`alpha: true`、clear alpha 0 叠在 CSS 背景上；`NeutralToneMapping`；`setPixelRatio(min(devicePixelRatio, 2))`；`ResizeObserver` 跟随画布尺寸。画布比仪器区四周各大 10%（`CANVAS_OVERHANG`，给视差留余量），只按宽度定尺寸（窄屏时代码卡在框内，框比仪器高）。画布 `aria-hidden="true"`。
-
-### 时间函数（`armillary/timeline.ts`）
-
-- 首次合轨 3.2s：每环从 `introSpin(i) = π(2.35 + 0.4i)` 按 ease-out cubic 转回 0。
-- 之后每 9.5s 一个周期：合轨停留 2.0s，再翻转 7.5s（smootherstep）。环 i 在第 c 个周期翻 `halfTurns(i, c)` = 1 或 2 个半圈，相邻环交替、方向相反。
-- 每个内环绕自己在赤道面内的一条直径翻转；绕这样的轴转 π 正好回到赤道面，所以角度函数在合轨时刻恰为 π 的整数倍，合轨是角度函数本身保证的，不是插值拼接。测试逐个检查合轨时刻、停留段、相位边界连续性和 4 个周期的重复。
-- 追踪轮换：外→内 Claude → OpenAI → Gemini → Grok → Claude。首次合轨保持 Claude（与静态图、Figma `t = 4.6s` 定格一致），之后每次合轨换下一家。
-- 手动切换：铭珠是 `<button>`（`aria-pressed`、可读名称「追踪 Claude」等），悬停、聚焦、点击都会切换，并通过 `vendor-change` 刷新 Model Chip 与代码卡。切换后自动轮换暂停 12s（`ARMILLARY_WEBGL.manualHoldMs`），移出或失焦时再从那一刻起算 12s；之后的下一次合轨从当前厂商继续轮换。
-- 视差：仅精确指针且可悬停的设备（`(hover: hover) and (pointer: fine)`，触屏不做），整体偏航 ±0.2 rad、俯仰 ±0.07 rad，指数阻尼 2.6/s。
-- 铭珠、Model Chip 每帧由 3D 锚点投影到屏幕，只写 `transform`、`opacity`、`z-index`，不触发布局；转到背面时变淡缩小（opacity .35–1、scale .82–1），被追踪的铭珠保持不透明。
-
-### 降级条件（`armillary/capability.ts`，阈值在 `config.ARMILLARY_WEBGL`）
-
-| 条件 | 时机 | 结果（`data-armillary-reason`） |
-|---|---|---|
-| `prefers-reduced-motion: reduce` | 加载前；运行中切换时立即停止 | `reduced-motion`，保留静态图（合轨态） |
-| 无 `WebGLRenderingContext` | 加载前 | `no-webgl` |
-| `hardwareConcurrency ≤ 4` | 加载前 | `low-cores` |
-| `deviceMemory ≤ 4`（GB，仅 Chromium 提供） | 加载前 | `low-memory` |
-| 创建 WebGL 上下文失败 | 加载后 | `context-failed` |
-| 运行中 `webglcontextlost` | 运行中 | `context-lost` |
-| 首帧之后 60 帧平均帧时长 > 32ms | 运行中 | `slow-frames` |
-| 窄屏（< 860px） | — | 不降级（`enableOnNarrow: true`），见下 |
-
-降级时立即释放场景、恢复静态图和 Figma 坐标的铭珠（装饰、`aria-hidden`），追踪对象回到 Claude，与静态图一致。浏览器不提供的信号（例如 Safari 没有 `deviceMemory`）不参与判定。
-
-窄屏：在 390×844（DPR 3）实测平均帧时长 16.6ms，与桌面相同，CPU 降速 4 倍时 16.7ms；低端机靠核数、内存和 60 帧探测兜底，所以窄屏不单独关闭。测试机是 Apple M4，未在真实低端手机上测过。
-
-离开视口（IntersectionObserver）或 `document.hidden` 时暂停渲染循环，动画时钟随之暂停；恢复时重新开始帧时长探测。
-
-### 分包
-
-- `vite.config.ts` 的 `manualChunks` 在 `vendor-misc` 兜底前追加 `id.includes('/node_modules/three/') → 'vendor-three'`。不追加时 three 会被并入每个页面都 modulepreload 的 `vendor-misc`。
-- `scene.ts` 是单独的应用 chunk，只被 `ArmillaryHero` 的 `import()` 引用；`vendor-three` 只出现在它的依赖里。
-- 构建后检查：`dist/index.html` 的 modulepreload 只有 `vendor-vue`、`vendor-i18n`、`vendor-misc`；`/login`、`/models` 等路由不请求 three。
-
-### 资源释放
-
-卸载或降级时：取消 rAF，断开 ResizeObserver / IntersectionObserver，移除 `pointermove`、`visibilitychange`、`webglcontextlost` 监听；dispose 所有几何体、材质、纹理（含 PMREM 环境贴图和 CanvasTexture），`renderer.renderLists.dispose()`、`renderer.dispose()`，再 `forceContextLoss()`。开发模式下 `window.__armillary` 暴露控制器（`info()`、`freeze(t)`、`debugProject`）用于截图和泄漏检查，生产构建会裁掉。
+- **缩放**：`components/PixelStage.vue` 把 1440 宽的设计世界（首屏 1440×900，页脚 1440×380：340 场景 + 地面边 + 缓存牌所在的 40px 底边）用一个 `transform: scale(容器宽 / 1440)` 等比缩放，宽度由 `ResizeObserver` 测量。≥ 860px 时首屏文案是叠在场景左上方的 HTML（徽章顶 `max(96px, 100vw × 174 / 1440)`）；860px 以下文案移到场景上方，场景整幅缩放到屏宽（0.75 倍 + 30s 镜头平移在 PR 2 实现）。页面不产生横向滚动。
+- **背景**：夜空渐变、地平线雾、月光、月亮光晕用 CSS；星星和「远景剪影 + 学院建筑 + 松树 + 地面」是从 Figma 分组导出后合成的两张 SVG（`assets/scene/hero-stars.svg`、`hero-skyline.svg`；页脚 `footer-stars.svg`、`footer-skyline.svg`），运行时不逐块绘制。重新导出时按文件头注释的坐标合成。
+- **工位与连线**（`config.HERO_STATIONS`、`composables/starlink.ts`）：8 个工位道具 1.5 倍、底边贴地（脚线 y=838）；状态牌是 HTML 胶囊；连线是一张内联 SVG，从月亮底 (1060, 264) 到状态牌顶部中点，`c1 = s + (dx·0.22, dy·0.42)`、`c2 = e − (dx·0.18, dy·0.48)`。只有 Claude Code 是金线（One Star Rule），Codex 线在 t=0.5 挂「429 → 已自动切换」。
+- **角色**：6 人各在 A 点、work 第 1 帧，头侧 18px 圆标（Claude / GPT / Gemini / Grok 用 `@lobehub/icons-vue` 模型图标，OpenCode / DSH 用工具图标）。页脚 6 人按第 0 秒状态摆放（每队前两人砌砖、第三人在砖堆抱砖，右队镜像），参数牌按状态显示首字 / tok/s / token。
+- **图片**：一律 `<img>` + `image-rendering: pixelated`，宽高写死为 1x × 倍数，`decoding="async"`，`alt=""`；首屏不懒加载，页脚 `loading="lazy"`。PR 1 只引入第 0 秒用到的精灵图（首屏 8 个道具 + 6 个 work 第 1 帧，页脚 10 个道具 + 6 帧）。
+- **可访问性**：两个场景容器 `aria-hidden="true"`。首屏另有视觉隐藏的工位列表（工具名、示意模型与耗时、被追踪的那一个）和「界面数值为示意」；页脚有一句场景说明。
+- 示意数值、坐标全部在 `config.ts`：`HERO_STATIONS`、`HERO_CHARACTERS`、`GOLD_DOT`、`SITE_PROPS`、`SITE_HOOK`、`SITE_WORKERS`、`SITE_PARAMS`、`SITE_CACHE_CHIPS`。
 
 ## SEO
 
@@ -251,8 +193,9 @@ SPA，不做 SSR 或预渲染。只保证路由 `titleKey`、语义标题层级�
 
 1. 上游 `views/HomeView.vue`：`home_content`、`compact_home_enabled` 的判断与优先级有没有变化；如有，同步 `resolveHomeVariant` 与测试。
 2. 上游 `/home` 路由是否改名或新增 meta；保留本地 component 覆盖与 `titleKey`。
-3. `i18n/locales/{zh,en}/index.ts` 的 `brandHome` 接入行、`tailwind.config.js` 的 `brand` 追加项、`vite.config.ts` 的 `vendor-brand-icons` 与 `vendor-three` 分支仍在（都要在 `vendor-misc` 兜底之前）。构建后 `dist/index.html` 的 modulepreload 里不能出现 `vendor-three`。
+3. `i18n/locales/{zh,en}/index.ts` 的 `brandHome` 接入行、`tailwind.config.js` 的 `brand` 追加项（含 `band`）、`vite.config.ts` 的 `vendor-brand-icons` 分支仍在（在 `vendor-misc` 兜底之前）。
 4. `@/api/modelPlaza` 的响应结构、`@/utils/pricing` 与 `PlazaModelPricingTable.vue` 的实付价公式是否变化；变化时同步 `plazaCards.ts`。
-5. `appStore.fetchPublicSettings`、`authStore.isAuthenticated / isAdmin` 的语义是否变化。
-6. 跑 `FRONTEND_CRITICAL_VITEST` 里的 brand-home 测试和 `pnpm build`。
-7. 升级 `three` 时：`NeutralToneMapping`（r162 起）与 `three/examples/jsm/environments/RoomEnvironment.js` 路径仍可用；按「浑天仪 · 资源释放」一节复测上下文释放。
+5. `appStore.fetchPublicSettings`、`authStore.isAuthenticated / isAdmin` 的语义是否变化；`main.ts` 的主题初始化与 `localStorage.theme` 约定是否变化（见「主题」）。
+6. `UseKeyModal.vue` 里 Claude Code / Codex / SDK 的地址口径是否变化；变化时同步 `codeSamples.ts`。
+7. 跑 `FRONTEND_CRITICAL_VITEST` 里的 brand-home 测试和 `pnpm build`。
+

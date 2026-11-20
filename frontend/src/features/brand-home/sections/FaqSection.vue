@@ -1,5 +1,5 @@
 <template>
-  <section v-reveal class="bh-section bh-band" aria-labelledby="bh-faq-title">
+  <section v-reveal class="bh-section bh-on-canvas bh-faq" aria-labelledby="bh-faq-title">
     <div class="bh-container">
       <header class="bh-section-head bh-faq__head" data-reveal style="--bh-i: 0">
         <h2 id="bh-faq-title" class="bh-section-title">{{ t('brandHome.faq.title') }}</h2>
@@ -61,10 +61,17 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
 </script>
 
 <style scoped>
+.bh-faq {
+  --bh-section-y: 96px;
+}
+@media (max-width: 860px) {
+  .bh-faq {
+    --bh-section-y: 72px;
+  }
+}
 .bh-faq__actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 12px;
   margin-top: 28px;
 }
@@ -88,7 +95,7 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
   overflow: hidden;
   border: 1px solid var(--bh-line);
   border-radius: 16px;
-  background: rgb(var(--brand-canvas) / 0.9);
+  background: var(--bh-faq-bg);
 }
 .bh-faq__item[open] {
   border-color: rgb(var(--brand-sky) / 0.9);

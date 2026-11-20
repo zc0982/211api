@@ -1,5 +1,5 @@
 <template>
-  <section ref="root" v-reveal class="bh-section bh-band bh-plaza" aria-labelledby="bh-plaza-title">
+  <section ref="root" v-reveal class="bh-section bh-on-band bh-plaza" aria-labelledby="bh-plaza-title">
     <div class="bh-container">
       <header class="bh-section-head" data-reveal style="--bh-i: 0">
         <h2 id="bh-plaza-title" class="bh-section-title">{{ t('brandHome.plaza.title') }}</h2>
@@ -78,6 +78,14 @@ const showCards = computed(() => enabled.value && state.value !== 'failed')
 </script>
 
 <style scoped>
+.bh-plaza {
+  --bh-section-y: 96px;
+}
+@media (max-width: 860px) {
+  .bh-plaza {
+    --bh-section-y: 72px;
+  }
+}
 .bh-plaza__toolbar {
   display: flex;
   flex-wrap: wrap;

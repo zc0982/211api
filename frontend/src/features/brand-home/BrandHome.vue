@@ -5,22 +5,21 @@
       :links="links"
       :site-name="siteName"
       :site-logo="siteLogo"
-      :theme-preference="theme.preference.value"
       :is-dark="theme.isDark.value"
       @anchor="scrollToId"
       @theme="theme.setPreference"
     />
     <main id="bh-main" tabindex="-1">
-      <HeroSection :links="links" :base-url="baseUrl" :model="HERO_DEFAULT_MODEL" :reduced-motion="reducedMotion" />
-      <EcosystemSection />
-      <QuickstartSection :links="links" :base-url="baseUrl" :model="HERO_DEFAULT_MODEL" :site-name="siteName" />
-      <TraceabilitySection :links="links" />
-      <FeaturesSection />
+      <HeroStarlink :links="links" />
+      <QuickStart :links="links" :base-url="baseUrl" :site-name="siteName" />
+      <CallLog :links="links" />
+      <KeyBudget :links="links" />
+      <Features />
       <ModelPlazaSection :links="links" />
       <StatusSection v-if="liveStats && stats" :stats="stats" />
       <FaqSection :links="links" :base-url="baseUrl" :site-name="siteName" />
     </main>
-    <FooterSection :links="links" :site-name="siteName" @anchor="scrollToId" />
+    <FooterSite :links="links" :site-name="siteName" :site-logo="siteLogo" />
   </div>
 </template>
 
@@ -32,21 +31,21 @@ import { sanitizeUrl } from '@/utils/url'
 import './styles/brand-home.css'
 import serifTitleFont from './assets/fonts/noto-serif-sc-600.woff2?url'
 import sansBodyFont from './assets/fonts/noto-sans-sc-400.woff2?url'
-import { DEFAULT_SITE_NAME, HERO_DEFAULT_MODEL, liveStats } from './config'
+import { DEFAULT_SITE_NAME, liveStats } from './config'
 import { resolveHomeLinks } from './composables/homeLinks'
 import { normalizeApiBaseUrl } from './composables/baseUrl'
 import { useReducedMotion } from './composables/useReducedMotion'
 import { useBrandTheme } from './composables/useBrandTheme'
 import SiteHeader from './sections/SiteHeader.vue'
-import HeroSection from './sections/HeroSection.vue'
-import EcosystemSection from './sections/EcosystemSection.vue'
-import QuickstartSection from './sections/QuickstartSection.vue'
-import TraceabilitySection from './sections/TraceabilitySection.vue'
-import FeaturesSection from './sections/FeaturesSection.vue'
+import HeroStarlink from './sections/HeroStarlink.vue'
+import QuickStart from './sections/QuickStart.vue'
+import CallLog from './sections/CallLog.vue'
+import KeyBudget from './sections/KeyBudget.vue'
+import Features from './sections/Features.vue'
 import ModelPlazaSection from './sections/ModelPlazaSection.vue'
 import StatusSection, { type LiveStats } from './sections/StatusSection.vue'
 import FaqSection from './sections/FaqSection.vue'
-import FooterSection from './sections/FooterSection.vue'
+import FooterSite from './sections/FooterSite.vue'
 
 /**
  * 211API 品牌首页。主题跟随系统，可在导航里手动切换（composables/useBrandTheme）：

@@ -1,7 +1,7 @@
 <template>
-  <section class="bh-status" aria-labelledby="bh-status-title">
+  <section class="bh-status bh-on-band" aria-labelledby="bh-status-title">
     <div class="bh-container">
-      <div class="bh-status__panel bh-glass">
+      <div class="bh-status__panel">
         <p class="bh-status__head">
           <span class="bh-status__ok"><i aria-hidden="true" />{{ t('brandHome.status.allOperational') }}</span>
           <span id="bh-status-title">{{ t('brandHome.status.label') }}</span>
@@ -53,9 +53,13 @@ const { t } = useI18n()
 .bh-status {
   padding: 0 0 96px;
 }
+/* v3 (Figma 94:47389): glass panel on the band, surface 70% with a white rim. */
 .bh-status__panel {
   padding: 24px 40px 28px;
-  border-radius: 20px;
+  border: 1px solid var(--bh-panel-edge);
+  border-radius: 24px;
+  background: var(--bh-panel-bg);
+  box-shadow: 0 12px 32px -8px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
 }
 .bh-status__head {
   display: flex;

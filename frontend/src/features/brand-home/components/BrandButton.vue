@@ -22,7 +22,7 @@ import { computed } from 'vue'
  */
 const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'glass' | 'outline'
+    variant?: 'primary' | 'glass' | 'outline' | 'night' | 'night-outline'
     size?: 'md' | 'sm'
     to?: string | null
     href?: string | null
@@ -107,6 +107,32 @@ const classes = computed(() => ['bh-btn', `bh-btn--${props.variant}`, `bh-btn--$
   box-shadow: var(--bh-shadow-glass-hover);
 }
 
+/* On the night sky (hero, header): fixed colours, same in both themes. */
+.bh-btn--night {
+  background: var(--bh-night-moon);
+  border-color: var(--bh-night-moon);
+  color: var(--bh-night-inner);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.bh-btn--night:hover {
+  background: #eef3fd;
+}
+.bh-btn--night.bh-btn--md:hover {
+  transform: translateY(-2px);
+}
+.bh-btn--night-outline {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: var(--bh-night-ink);
+}
+.bh-btn--night-outline:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-2px);
+}
+.bh-btn--night:focus-visible,
+.bh-btn--night-outline:focus-visible {
+  outline-color: var(--bh-night-blue);
+}
 .bh-btn--sm {
   height: 36px;
   padding: 0 16px;

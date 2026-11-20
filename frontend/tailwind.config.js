@@ -61,6 +61,7 @@ export default {
           line: 'rgb(var(--brand-line) / <alpha-value>)',
           surface: 'rgb(var(--brand-surface) / <alpha-value>)',
           canvas: 'rgb(var(--brand-canvas) / <alpha-value>)',
+          band: 'rgb(var(--brand-band) / <alpha-value>)',
           tint: 'rgb(var(--brand-tint) / <alpha-value>)',
           sky: 'rgb(var(--brand-sky) / <alpha-value>)'
         }
