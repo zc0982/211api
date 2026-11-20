@@ -198,6 +198,8 @@ export const GOLD_DOT_FADE = 0.25
 export const TRACE_PULSE = { period: 4.8, trip: 2.4, stagger: 0.6, dim: 0.6 } as const
 /** Trace stroke opacity multiplier: station lit / dim (base is the station's traceOpacity, default 0.34). */
 export const TRACE_LIT = { lit: 1.45, dim: 0.65 } as const
+/** The tracked (gold) trace: still the one gold line, but toned down so it does not shout. */
+export const TRACE_TRACKED_OPACITY = 0.62
 
 export const HERO_GROUND_Y = 836
 /** Characters stand 2px below the ground line in Figma (feet overlap the edge). */

@@ -32,7 +32,7 @@
         :key="trace.tool"
         :d="trace.d"
         :class="{ 'is-tracked': trace.tracked }"
-        :stroke-opacity="trace.tracked ? 1 : trace.opacity * (lit.has(trace.tool) ? TRACE_LIT.lit : TRACE_LIT.dim)"
+        :stroke-opacity="trace.tracked ? TRACE_TRACKED_OPACITY : trace.opacity * (lit.has(trace.tool) ? TRACE_LIT.lit : TRACE_LIT.dim)"
       />
     </svg>
 
@@ -131,6 +131,7 @@ import {
   SWITCH_MARKER_TOOL,
   TRACE_LIT,
   TRACE_PULSE,
+  TRACE_TRACKED_OPACITY,
   type HeroCharacter,
   type HeroStation
 } from '../config'
@@ -293,8 +294,8 @@ const badgeStyle = (c: HeroCharacter, x: number) => ({
 }
 .bh-hs__traces path.is-tracked {
   stroke: var(--bh-night-gold);
-  stroke-width: 1.75;
-  filter: drop-shadow(0 0 4px rgba(227, 185, 94, 0.9));
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 3px rgba(227, 185, 94, 0.4));
 }
 .bh-hs__ground-glow {
   left: 86px;

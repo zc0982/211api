@@ -186,7 +186,7 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
   - 实测首屏高度等于窗口高度，工具名都在窗口内：1440×900、1440×780、1920×1080、1366×768、1280×620、768×1024、430×932、390×844、375×667。360×640 会超出 15px。页面不产生横向滚动。
 - **页脚舞台**仍是固定的 1440×380，按宽度缩放；窄屏 0.75 倍加平移。
 - **背景**：夜空渐变、地平线雾、月光、月亮光晕用 CSS；星星和「远景剪影 + 学院建筑 + 松树 + 地面」是从 Figma 分组导出后合成的两张 SVG（`assets/scene/hero-stars.svg`、`hero-skyline.svg`；页脚 `footer-stars.svg`、`footer-skyline.svg`），运行时不逐块绘制。重新导出时按文件头注释的坐标合成。
-- **工位与连线**（`config.HERO_STATIONS`、`composables/starlink.ts`）：8 个工位道具 1.5 倍、底边贴地（脚线 y=838）；状态牌是 HTML 胶囊；连线是一张内联 SVG，从月亮底 (1060, 264) 到状态牌顶部中点，`c1 = s + (dx·0.22, dy·0.42)`、`c2 = e − (dx·0.18, dy·0.48)`。只有 Claude Code 是金线（One Star Rule），Codex 线在 t=0.5 挂「429 → 已自动切换」。
+- **工位与连线**（`config.HERO_STATIONS`、`composables/starlink.ts`）：8 个工位道具 1.5 倍、底边贴地（脚线 y=838）；状态牌是 HTML 胶囊；连线是一张内联 SVG，从月亮底 (1060, 264) 到状态牌顶部中点，`c1 = s + (dx·0.22, dy·0.42)`、`c2 = e − (dx·0.18, dy·0.48)`。只有 Claude Code 是金线（One Star Rule；线宽 1.5、不透明度 0.62、3px 淡金光晕，比 Figma 的 1.75 / 1.0 / 8px 收敛，避免过于醒目），Codex 线在 t=0.5 挂「429 → 已自动切换」。
 - **角色**：`components/SpriteActor.vue`，中心 x、脚底贴脚线，头侧 18px 圆标（Claude / GPT / Gemini / Grok 用 `@lobehub/icons-vue` 模型图标，OpenCode / DSH 用工具图标）随人移动。页脚参数牌随人移动，按状态显示首字 / tok/s / token / 费用。
 - **图片**：一律 `<img>` + `image-rendering: pixelated`，宽高写死为 1x × 倍数，`decoding="async"`，`alt=""`；首屏不懒加载，页脚 `loading="lazy"`。
 - **角色精灵图**：设计仓库 `export/sprites/{hero,footer}/characters/` 的逐帧 PNG 由 `scripts/build-sprite-sheets.py <设计仓库>/export/sprites`（需 Pillow）打包，产物入库：
