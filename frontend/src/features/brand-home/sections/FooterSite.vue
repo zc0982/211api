@@ -16,7 +16,6 @@
         <p class="bh-footer__tagline">{{ t('brandHome.footer.tagline') }}</p>
         <p class="bh-footer__copy bh-mono">{{ t('brandHome.footer.copyright', { year, site: siteName }) }}</p>
         <p class="bh-footer__note">{{ t('brandHome.footer.siteNote') }}</p>
-        <LocaleToggle class="bh-footer__locale" :label="t('brandHome.a11y.language')" />
       </div>
       <nav class="bh-footer__cols" :aria-label="t('brandHome.a11y.footerNav')">
         <div class="bh-footer__col">
@@ -42,7 +41,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import BrandLogo from '../components/BrandLogo.vue'
-import LocaleToggle from '../components/LocaleToggle.vue'
 import PixelStage from '../components/PixelStage.vue'
 import SiteScene from '../components/SiteScene.vue'
 import type { HomeLinks } from '../composables/homeLinks'
@@ -51,7 +49,7 @@ import { FOOTER_STAGE_HEIGHT, SCENE_WIDTH } from '../config'
 /**
  * 页脚 · 新教学楼工地（Figma 46:3761）：上半是像素工地场景（第 0 秒静态），
  * 下半是夜色底上的链接。两种主题下都是夜色。「关于」没有公开页面，不渲染；
- * 其余链接按可见性显示（同 v2）。语言切换放在品牌信息下方。
+ * 其余链接按可见性显示（同 v2）。语言切换在导航右上（SiteHeader）。
  */
 defineProps<{ links: HomeLinks; siteName: string; siteLogo?: string }>()
 const { t } = useI18n()
@@ -60,7 +58,7 @@ const year = new Date().getFullYear()
 
 <style scoped>
 .bh-footer {
-  /* Night palette for the shared components rendered here (LocaleToggle). */
+  /* Night palette for the shared components rendered here (BrandLogo). */
   --bh-surface: rgba(255, 255, 255, 0.04);
   --bh-line: rgba(255, 255, 255, 0.14);
   --bh-tint: rgba(219, 230, 251, 0.12);
@@ -102,9 +100,6 @@ const year = new Date().getFullYear()
   color: var(--bh-night-mist);
   font-size: 12px;
   line-height: 14px;
-}
-.bh-footer__locale {
-  margin-top: 20px;
 }
 .bh-footer__cols {
   display: flex;

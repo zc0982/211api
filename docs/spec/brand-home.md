@@ -142,17 +142,18 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 
 ## 字体
 
-| 字体 | 字重 | 来源（官方发布） | 许可 |
-|---|---|---|---|
-| Noto Serif SC | 500 / 600 | notofonts/noto-cjk `Serif2.003` · `14_NotoSerifSC.zip` · `SubsetOTF/SC` | SIL OFL 1.1 |
-| Noto Sans SC | 400 / 500 | notofonts/noto-cjk `Sans2.004` · `18_NotoSansSC.zip` | SIL OFL 1.1 |
-| Geist | 600 | vercel/geist-font `v1.9.2` | SIL OFL 1.1 |
-| Geist Mono | 400 / 500 | vercel/geist-font `v1.9.2` | SIL OFL 1.1 |
+参考 astrlink.com（2026-11-20 产品决定），正文和标题都用系统字体栈，不再自托管中文字体：
 
-- 许可证文件在 `features/brand-home/assets/fonts/LICENSE-*.txt`。
-- 子集化脚本 `features/brand-home/scripts/subset-fonts.py`（fontTools，不进 package.json），字符清单 `scripts/charset-*.txt`。宋体只含标题用字，黑体含全部 zh / en 文案用字。**改动 brandHome 文案后必须重跑脚本**，否则新字会走回退字体。
-- `@font-face` 的族名加 `Brand` 前缀，与系统已装的完整字体区分；`font-display: swap`；只 preload 首屏标题（宋体 600）和正文（黑体 400）；保留 DESIGN.md 的系统回退栈；不用外链字体。
-- 字标按 DESIGN.md 用 Geist 600；Figma 字标实际是 Plus Jakarta Sans ExtraBold，未引入该字体。
+- `--bh-font-sans`：`Inter, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, system-ui, 'Segoe UI', sans-serif`（与 astrlink.com 相同，Inter 只在用户已安装时生效，不外链）。
+- 标题：首屏标题和区块标题都用同一无衬线字体，字重 700、字距 −0.01em；首屏标题行高 1.22。原先的 Noto Serif SC 宋体标题、Noto Sans SC 正文、Geist 600 字标已删除（共约 300KB 的 woff2 子集和首屏字体预加载）。
+- 等宽：代码面板和数字仍用自托管的 Geist Mono 400 / 500（vercel/geist-font `v1.9.2`，SIL OFL 1.1，许可证 `assets/fonts/LICENSE-Geist.txt`）。子集化脚本 `scripts/subset-fonts.py` 只处理 Geist Mono（ASCII 加几个符号，字符清单 `scripts/charset-mono.txt`），与文案无关，改文案不用重跑。
+- Figma 和设计仓库 DESIGN.md 仍写着宋体标题，以本节为准；字标在 Figma 中为 Plus Jakarta Sans ExtraBold，未引入。
+
+## 语言切换
+
+- 在导航右上（`components/LocaleToggle.vue`，参考 astrlink.com）：纯文字「中 / EN」，14px；当前语言白色、字重 600，另一个 `--bh-night-slate`，斜杠 `--bh-night-mist`。导航在两种主题下都压在夜空上，所以只用夜空色板。按钮带 `aria-pressed`、`lang` 和完整语言名 `aria-label`；切换只更新文案，不整页刷新。
+- 页脚不再放语言切换。
+- 窄屏（< 860px）导航只留品牌、「中 / EN」、主题按钮和「获取 API Key」；≤ 400px 再收起「获取 API Key」（首屏文案里紧接着有同一个按钮）。
 
 ## 标志
 

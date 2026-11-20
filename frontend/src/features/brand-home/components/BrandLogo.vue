@@ -57,7 +57,7 @@ watch(
   object-fit: contain;
 }
 .bh-logo__word {
-  font-family: var(--bh-font-wordmark);
+  font-family: var(--bh-font-sans);
   font-size: 20px;
   font-weight: 600;
   line-height: 1.2;

@@ -230,6 +230,18 @@ describe('BrandHome', () => {
     wrapper.unmount()
   })
 
+  it('puts the 中 / EN switch at the top right of the header, not in the footer', async () => {
+    const { setLocale } = await import('@/i18n')
+    const wrapper = mountHome()
+    const toggle = wrapper.get('.bh-header .bh-locale')
+    expect(wrapper.find('.bh-footer .bh-locale').exists()).toBe(false)
+    const buttons = toggle.findAll('button')
+    expect(buttons.map((b) => b.text())).toEqual(['中', 'EN'])
+    expect(buttons[0].attributes('aria-pressed')).toBe('true')
+    await buttons[1].trigger('click')
+    expect(setLocale).toHaveBeenCalledWith('en')
+  })
+
   it('keeps the console theme choice and lets the header switch it', async () => {
     localStorage.setItem('theme', 'dark')
     const wrapper = mountHome()

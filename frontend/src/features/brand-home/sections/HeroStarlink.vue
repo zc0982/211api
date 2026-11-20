@@ -95,11 +95,11 @@ const { t } = useI18n()
   margin: 15px 0 0;
   max-width: 920px;
   color: var(--bh-night-ink);
-  font-family: var(--bh-font-serif);
+  font-family: var(--bh-font-sans);
   font-size: clamp(32px, min(3.9vw, 6.2svh), 56px);
-  font-weight: 600;
-  line-height: 1.29;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 /* Two lines: 「一个账户，」/「接入顶级编程模型。」 */

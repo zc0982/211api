@@ -63,7 +63,7 @@ const classes = computed(() => ['bh-btn', `bh-btn--${props.variant}`, `bh-btn--$
   transform: none;
 }
 .bh-btn__arrow {
-  font-family: var(--bh-font-wordmark);
+  font-family: var(--bh-font-sans);
   font-weight: 600;
 }
 
