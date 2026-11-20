@@ -94,6 +94,29 @@ describe('useBrandTheme', () => {
     expect(media.listenerCount()).toBe(0)
   })
 
+  it('tracks system changes on legacy Safari that only has addListener', () => {
+    const system = { dark: false }
+    const listeners = new Set<Listener>()
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        get matches() {
+          return query.includes('prefers-color-scheme') ? system.dark : false
+        },
+        media: query,
+        addListener: (fn: Listener) => query.includes('prefers-color-scheme') && listeners.add(fn),
+        removeListener: (fn: Listener) => listeners.delete(fn)
+      }))
+    )
+    const { theme, stop } = mountTheme()
+    expect(theme.isDark.value).toBe(false)
+    system.dark = true
+    listeners.forEach((fn) => fn({ matches: true } as MediaQueryListEvent))
+    expect(theme.isDark.value).toBe(true)
+    stop()
+    expect(listeners.size).toBe(0)
+  })
+
   it('persists a manual choice under the shared `theme` key and ignores the system', () => {
     const media = installMatchMedia({ dark: false })
     const { theme, stop } = mountTheme()

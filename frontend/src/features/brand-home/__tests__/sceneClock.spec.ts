@@ -168,6 +168,31 @@ describe('shared scene clock', () => {
     localStorage.removeItem('bh-motion')
   })
 
+  it('follows a reduced-motion change on legacy Safari that only has addListener', async () => {
+    const legacy: ((e: { matches: boolean }) => void)[] = []
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: false,
+      media: q,
+      addListener: (fn: (e: { matches: boolean }) => void) => legacy.push(fn),
+      removeListener() {}
+    }))
+    const { useSceneClock, reducedMotion } = await import('../composables/useSceneClock')
+    const Comp = defineComponent({
+      setup() {
+        const el = ref<HTMLElement | null>(null)
+        useSceneClock(el)
+        return () => h('div', { ref: el })
+      }
+    })
+    mount(Comp)
+    intersect(true)
+    expect(frames.size).toBe(1)
+    expect(legacy).toHaveLength(1)
+    legacy[0]({ matches: true })
+    expect(reducedMotion.value).toBe(true)
+    expect(frames.size).toBe(0)
+  })
+
   it('stops the loop when the last subscriber unmounts', async () => {
     const { wrapper } = await mountClock()
     intersect(true)

@@ -131,7 +131,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/features/brand-home/__tests__/starlink.spec.ts \
 	src/features/brand-home/__tests__/motion.spec.ts \
 	src/features/brand-home/__tests__/sceneClock.spec.ts \
-	src/features/brand-home/__tests__/RollingNumber.spec.ts
+	src/features/brand-home/__tests__/RollingNumber.spec.ts \
+	src/features/brand-home/__tests__/mediaQuery.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

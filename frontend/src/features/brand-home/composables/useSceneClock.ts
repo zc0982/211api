@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch, type Ref } from 'vue'
+import { onMediaChange } from './mediaQuery'
 
 /**
  * One requestAnimationFrame loop for every animated part of the home page
@@ -94,7 +95,7 @@ export function watchMotionPreference() {
   if (typeof window.matchMedia === 'function') {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
     reducedMotion.value = query.matches
-    query.addEventListener?.('change', (e) => {
+    onMediaChange(query, (e) => {
       reducedMotion.value = e.matches
       update()
     })
