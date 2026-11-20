@@ -30,7 +30,7 @@ const year = new Date().getFullYear()
 <style scoped>
 .bh-footer {
   border-top: 1px solid var(--bh-line);
-  background: #fff;
+  background: var(--bh-surface);
 }
 .bh-footer__row {
   display: flex;

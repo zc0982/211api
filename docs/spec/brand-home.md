@@ -1,6 +1,6 @@
 # 品牌首页（brand-home）
 
-`/home` 的 211API 品牌首页。设计源是 Figma「211API」（fileKey `5ZuuXYB3ZCw4RFHh8sYFTj`）的「Home / v2 · Light 1440」（节点 `1:1147`），规范以设计仓库的 `DESIGN.md`、`PRODUCT.md`、`.impeccable/design.json` 为准；本仓库的副本在 `docs/brand/`（只读，以设计源为准）。`design.json`（组件参考 HTML/CSS、motion、breakpoints）不复制，路径为 `/Users/luoee/Design/211API-UI/.impeccable/design.json`。
+`/home` 的 211API 品牌首页。设计源是 Figma「211API」（fileKey `5ZuuXYB3ZCw4RFHh8sYFTj`）的「Home / v2 · Light 1440」（节点 `1:1147`）和「Home / v2 · Dark 1440」（节点 `46:1740`，区块结构与浅色版一一对应），规范以设计仓库的 `DESIGN.md`、`PRODUCT.md`、`.impeccable/design.json` 为准；本仓库的副本在 `docs/brand/`（只读，以设计源为准）。`design.json`（组件参考 HTML/CSS、motion、breakpoints）不复制，路径为 `/Users/luoee/Design/211API-UI/.impeccable/design.json`。
 
 ## 接入方式
 
@@ -26,21 +26,36 @@
 | 文件 | 改动 | 原因 |
 |---|---|---|
 | `frontend/src/router/index.ts` | `/home` 的 component 与 `titleKey` | 接入入口 |
-| `frontend/tailwind.config.js` | `theme.extend` 下追加 `colors.brand`、`fontFamily.brand-*`、`boxShadow.brand-*`、`borderRadius.brand-*`（相邻已有行只补逗号） | 品牌 token，不改已有键 |
+| `frontend/tailwind.config.js` | `theme.extend` 下追加 `colors.brand`、`fontFamily.brand-*`、`boxShadow.brand-*`、`borderRadius.brand-*`（相邻已有行只补逗号）。`colors.brand.*` 写成 `rgb(var(--brand-*) / <alpha-value>)`，`boxShadow.brand-*` 写成 `var(--bh-shadow-*)`，值由 `brand-home.css` 按主题提供 | 品牌 token，不改已有键；随深浅色切换 |
 | `frontend/src/i18n/locales/{zh,en}/index.ts` | 各加一行 import 和 `brandHome` 键 | 文案命名空间 |
 | `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons`、`/node_modules/three/ → vendor-three` | 不追加时图标、three.js 会被并入所有页面都 modulepreload 的 `vendor-misc`。图标分支经用户确认后加入；three 分支由 PR 2 交接提示词指定 |
-| 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 8 个测试 | CI 只跑这份清单 |
+| 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 10 个测试 | CI 只跑这份清单 |
 | `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue`、`three`、`@types/three`（dev）精确版本 | 厂商 / 工具图标（Vue 3 包）；首屏浑天仪 WebGL |
 | `frontend/public/logo.svg` | 换成品牌首页学士帽标志（透明底，藏青帽 + 金穗） | 未上传站点 Logo 时，控制台侧栏、登录页、公开页和 favicon 的回退图与首页一致，见「标志」 |
 | `AppSidebar.vue`、`AuthLayout.vue`、`PlazaNavBar.vue`、`LegalDocumentView.vue`、`KeyUsageView.vue`、`HomeView.vue` | 标志容器/图片追加 `dark:bg-white dark:p-*`（`PlazaNavBar.vue`、`LegalDocumentView.vue` 原有的 `dark:bg-dark-800` 换成 `dark:bg-white`） | 透明底藏青标志在深色模式下需浅色底，见「标志」 |
 
 除上表外，不改后端、其他页面和全局样式（`style.css`、`main.ts`）。
 
-## 固定浅色
+## 主题（跟随系统 + 手动切换）
 
-- `.brand-home` 根节点自带底色 `#f6f9fe`、墨色文字、`color-scheme: light`、`min-height: 100dvh`；不使用 `dark:` 变体，不读写 `html.dark`。
-- 全局 `* { border-color }` 在 `.dark` 下会变深，品牌首页在根节点下重设为细线色。
-- 不复用上游 `LocaleSwitcher`（带 `dark:` 样式），语言切换是自写的 `components/LocaleToggle.vue`，放在页脚右侧，切换不整页刷新。
+- **状态复用上游，不新增存储键。** 上游的主题实现：`main.ts` 的 `initThemeClass()` 在挂载前按 `localStorage.theme`（`'dark'` / `'light'`，没有值 = 跟随系统）写 `html.dark`；控制台 `AppSidebar.vue` 的切换按钮读写同一个键。品牌首页的 `composables/useBrandTheme.ts` 用同一个键和同一个类，所以首页和控制台的选择互相同步。上游只有浅 / 深两态，「跟随系统」就是「没有手动值」：选回跟随系统时 `removeItem('theme')`。没有改上游文件。
+- 跟随系统时监听 `matchMedia('(prefers-color-scheme: dark)')` 的 `change`，系统切换时实时跟随；手动选浅色 / 深色后不再跟随。其他标签页改了 `theme` 时通过 `storage` 事件同步。离开首页后 `html.dark` 保持当前值（控制台按同一规则显示）。
+- **首次绘制前确定主题**：靠上游 `main.ts` 在 `app.mount` 前写好 `html.dark`，品牌首页挂载时只复核一次。没有改 `index.html`；JS 加载前的空白帧是全站已有行为（`body` 未上色），不在本模块处理。
+- **按钮与菜单**：`components/ThemeToggle.vue`，放在导航右侧玻璃胶囊最左边，窄屏也保留（Figma `10:988` 浅 / `46:1808` 深 / `46:2685` 菜单）。32px 圆形，底色 navy 6%（深色 8%），16px 图标浅色太阳、深色月亮；菜单 184px，三项「跟随系统 / 浅色 / 深色」，当前项 tint 底 + navy 对勾。`role="menu"` + `menuitemradio`；Enter / Space / ↓ 打开并聚焦当前项，↑↓ Home End 移动，Esc 关闭并回到按钮，Tab 或点外面关闭。按钮 `aria-label` 带当前模式。
+- **颜色全部走 CSS 变量**（`styles/brand-home.css`）：`--brand-*` 是 `R G B` 三元组，`.brand-home` 上是浅色值，`.dark .brand-home` 覆盖为 DESIGN.md「Dark Theme（学院夜空）」表里的深色值；`--bh-navy` 等是对应的 `rgb()`。组件里要透明度时写 `rgb(var(--brand-line) / 0.9)`。不用 Tailwind `dark:` 变体。
+- 没进 token 的配方也是变量，深色值按 DESIGN.md 同一节：
+  - 玻璃：底色 = surface 同等不透明度；`--bh-glass-edge` 白 90% → 白 7%；`--bh-glass-highlight` 内高光白 45% → 白 8%。
+  - 阴影：`rgb(var(--bh-shadow-navy) / min(calc(a * var(--bh-shadow-k)), 0.5))`，浅色深蓝 × 1，深色黑色 × 3、上限 50%。
+  - 背景：`--bh-hero-bg` 首屏渐变；`--bh-band` 区块渐变带（白 → `#0b1427`）；`--bh-grid-line`、`--bh-orbit-*` 网格与轨道线（深色 `#a9c1f0` 4%–12%）。
+  - 云团：`--bh-cloud` / `--bh-cloud-sky`（天空蓝 → `#1e3a78`）、`--bh-cloud-navy`（深蓝 20% → 55%）、`--bh-veil`（标题白雾 → canvas 55%）、`--bh-core-glow`（仪心金光 34% → 20%）。
+  - 金色高亮底：`--bh-gold-code`（代码行，深色 10%）。
+  - 文字在 navy 底上用 `--bh-on-navy`（浅色白，深色 surface）：深色下主按钮是月白底深字。
+- 根节点自带 canvas 底色和文字色，`color-scheme` 随主题，`min-height: 100dvh`。全局 `* { border-color }` 在根节点下重设为细线色。
+- 切换时 `useBrandTheme` 给根节点加 `.bh-theming` 约 250ms，`background-color` / `color` / `border-color` 过渡 200ms；`prefers-reduced-motion` 下不加（CSS 也只在 `no-preference` 下生效）。
+- 浑天仪静态图和 WebGL 渲染深浅色共用，灯光未单独调（见「待调」）。
+- 上传的站点 Logo 在深色下加白底小圆角（规则写在 `brand-home.css` 全局段：scoped 样式里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`，把样式加到 `html` 上）。
+- 不复用上游 `LocaleSwitcher`，语言切换是自写的 `components/LocaleToggle.vue`，放在页脚右侧，切换不整页刷新，两种主题都走变量。
+- 待调：WebGL 浑天仪在深色下的灯光、环境贴图（目前与浅色相同，蓝釉在深底上偏亮）。
 
 ## 链接与登录态
 
@@ -96,6 +111,9 @@
 | Figma 原文 | 处理 | 证据 / 理由 |
 |---|---|---|
 | 一个接口 · 四家模型；主流供应商 4 家 | 保留 | `docs/brand/PRODUCT.md`「模型供应商」 |
+| 首屏徽章：稳定 · 透明 · 高效 | 不用，保留「一个接口 · 四家模型」 | 「稳定」「高效」没有可用率 / 延迟的公开数据（`config.liveStats = false`） |
+| 首屏标题：一个账户，接入顶级编程模型。 | 保留 | 营销定位，不含可核对的数字或承诺 |
+| 首屏副文：一个 Key 调通 Claude、GPT、Gemini、Grok；每次调用的路由与费用逐笔可查 | 改为「一个地址接入 Claude、GPT、Gemini、Grok；每次调用的用量与费用逐笔可查」 | 一个 Key 跨四家取决于 Composite 分组配置（同下「全部模型」一行）；用户侧没有路由信息（同下「路由节点」一行）；用量与费用见 `UsageLog` |
 | 兼容 OpenAI 与 Anthropic 协议 | 保留 | `backend/internal/server/routes/gateway.go`（`/v1/messages`、`/v1/chat/completions`） |
 | 一个 Key、一个地址对接全部模型 | 改为「多家模型」 | Composite 分组可跨平台路由（`backend/internal/service/admin_group.go` `PlatformComposite`），取决于管理员配置；「全部」无法保证 |
 | 为每个项目创建独立密钥，可单独设置额度与有效期 | 保留 | `frontend/src/api/keys.ts`（`quota`、`expiresInDays`） |
@@ -137,7 +155,7 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 - 以后台「站点设置 → 站点 Logo」（`site_logo`）为准，全站同一来源：首页页头（`BrandHome.vue` 经 `sanitizeUrl` 传给 `components/BrandLogo.vue` 的 `src`）、控制台侧栏、登录页、公开页、后端注入的 favicon。换标志只需在后台重新上传。
 - 未上传、地址不安全或图片加载失败时回退：首页页头用 `BrandLogo.vue` 内联的学士帽，其余页面用 `frontend/public/logo.svg`（同一学士帽，透明底，裁切 `viewBox="10 15 44 33"` 与页头一致）。两处回退图形来自设计源 `export/logo/logo-mark-light.svg`，改回退图时一起改。后台上传的标志也用透明底、同一裁切（PNG 176×132），首页页头按高 28px 显示时与内置标志尺寸相同。
 - 页头里上传的图片按高 28px 等比显示（最宽 112px）。
-- 标志是透明底藏青色，深色模式下看不清。控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`）。新增显示 `site_logo` 的位置也要加。品牌首页固定浅色，不加。
+- 标志是透明底藏青色，深色模式下看不清。控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`）。新增显示 `site_logo` 的位置也要加。品牌首页在 `brand-home.css` 里用 `.dark .brand-home .bh-logo__img` 加同样的白底；内置学士帽用 `currentColor`（navy 变量），深色下自动变月白，不加底。
 
 ## 图标
 
@@ -147,11 +165,11 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 
 ## 动效
 
-- 首屏：导航 .5s 滑入（延迟 .1s）；徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）；「海量」金色笔画 600ms 描出；云团 12–20s 漂移。
+- 首屏：导航 .5s 滑入（延迟 .1s）；徽章 → 标题 → 副文 → 按钮依次上浮 8px（400ms，间隔 60ms）；云团 12–20s 漂移。标题「编程模型。」为交互蓝实色，没有渐变和金色笔画（设计源已删除）。
 - 首屏以下：`composables/vReveal.ts` 的 `v-reveal` 指令。挂载时顶部已在视口下方的区块才加 `.bh-reveal`，其中 `[data-reveal]` 子元素先隐藏；进入视口（rootMargin 底部 -12%）后加 `.is-revealed`，按 `--bh-i` 依次上浮淡入，只播一次。挂载时已在屏内的区块、没有 IntersectionObserver 的浏览器不隐藏。
 - 调用明细时间线的光点 2.4s 匀速跑完整条线（发起请求 → 计费入账）后循环。
 - 首屏浑天仪：见下一节。
-- `prefers-reduced-motion`：关闭漂移、光点、上浮，「海量」金线直接完成，只保留 200ms 淡入；浑天仪保留静态图（合轨态），不加载 three.js。
+- `prefers-reduced-motion`：关闭漂移、光点、上浮和主题切换过渡，只保留 200ms 淡入；浑天仪保留静态图（合轨态），不加载 three.js。
 
 ## 浑天仪
 

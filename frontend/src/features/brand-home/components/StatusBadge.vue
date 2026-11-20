@@ -15,7 +15,7 @@ defineProps<{ label: string; meta?: string }>()
   height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(19, 122, 82, 0.1);
+  background: rgb(var(--brand-ok) / 0.1);
   color: var(--bh-ok);
   font-size: 12px;
   font-weight: 500;

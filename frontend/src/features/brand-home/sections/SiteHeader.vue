@@ -12,15 +12,18 @@
         :label="t('brandHome.a11y.primaryNav')"
         @anchor="(id) => emit('anchor', id)"
       />
-      <nav class="bh-header__actions" :aria-label="t('brandHome.a11y.accountNav')">
-        <RouterLink v-if="links.console" :to="links.console" class="bh-header__text-link">
-          {{ t('brandHome.nav.console') }}
-        </RouterLink>
-        <RouterLink v-else :to="links.login" class="bh-header__text-link">
-          {{ t('brandHome.nav.login') }}
-        </RouterLink>
-        <BrandButton :to="links.getKey" size="sm" arrow>{{ t('brandHome.nav.getKey') }}</BrandButton>
-      </nav>
+      <div class="bh-header__actions">
+        <ThemeToggle :preference="themePreference" :is-dark="isDark" @select="(value) => emit('theme', value)" />
+        <nav class="bh-header__account" :aria-label="t('brandHome.a11y.accountNav')">
+          <RouterLink v-if="links.console" :to="links.console" class="bh-header__text-link">
+            {{ t('brandHome.nav.console') }}
+          </RouterLink>
+          <RouterLink v-else :to="links.login" class="bh-header__text-link">
+            {{ t('brandHome.nav.login') }}
+          </RouterLink>
+          <BrandButton :to="links.getKey" size="sm" arrow>{{ t('brandHome.nav.getKey') }}</BrandButton>
+        </nav>
+      </div>
     </div>
   </header>
 </template>
@@ -31,10 +34,18 @@ import { useI18n } from 'vue-i18n'
 import BrandLogo from '../components/BrandLogo.vue'
 import BrandButton from '../components/BrandButton.vue'
 import NavDock, { type DockItem } from '../components/NavDock.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
+import type { ThemePreference } from '../composables/useBrandTheme'
 import type { HomeLinks } from '../composables/homeLinks'
 
-const props = defineProps<{ links: HomeLinks; siteName: string; siteLogo?: string }>()
-const emit = defineEmits<{ (e: 'anchor', id: string): void }>()
+const props = defineProps<{
+  links: HomeLinks
+  siteName: string
+  siteLogo?: string
+  themePreference: ThemePreference
+  isDark: boolean
+}>()
+const emit = defineEmits<{ (e: 'anchor', id: string): void; (e: 'theme', value: ThemePreference): void }>()
 const { t } = useI18n()
 
 /** Once the page scrolls, the bar gets a glass backdrop so content does not run under the wordmark. */
@@ -69,8 +80,8 @@ const dockItems = computed<DockItem[]>(() => {
   content: '';
   position: absolute;
   inset: 0;
-  border-bottom: 1px solid rgba(220, 228, 242, 0.7);
-  background: rgba(246, 249, 254, 0.72);
+  border-bottom: 1px solid rgb(var(--brand-line) / 0.7);
+  background: rgb(var(--brand-canvas) / 0.72);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   backdrop-filter: blur(20px) saturate(1.4);
   opacity: 0;
@@ -102,16 +113,21 @@ const dockItems = computed<DockItem[]>(() => {
   align-items: center;
   gap: 4px;
   padding: 3px 3px 3px 6px;
-  border: 1px solid rgba(12, 24, 48, 0.08);
+  border: 1px solid rgb(var(--brand-ink) / 0.08);
   border-radius: 999px;
   background:
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.14), transparent 45%),
-    rgba(255, 255, 255, 0.55);
+    linear-gradient(to bottom, rgb(var(--brand-surface) / 0.14), transparent 45%),
+    rgb(var(--brand-surface) / 0.55);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 8px 24px -8px rgba(12, 24, 48, 0.2);
+    inset 0 1px 0 var(--bh-glass-highlight),
+    0 8px 24px -8px rgb(var(--bh-shadow-ink) / min(calc(0.2 * var(--bh-shadow-k)), 0.5));
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
   backdrop-filter: blur(20px) saturate(1.5);
+}
+.bh-header__account {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .bh-header__text-link {
   padding: 8px 14px;

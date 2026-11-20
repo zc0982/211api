@@ -61,7 +61,7 @@
               <button type="button" class="bh-qs__copy" @click="copy">
                 <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
                   <rect x="1" y="1" width="9" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.4" />
-                  <rect x="4.5" y="3.5" width="8.5" height="9.5" rx="2" fill="#fff" stroke="currentColor" stroke-width="1.4" />
+                  <rect x="4.5" y="3.5" width="8.5" height="9.5" rx="2" style="fill: var(--bh-surface)" stroke="currentColor" stroke-width="1.4" />
                 </svg>
                 <span>{{ copyLabel }}</span>
               </button>
@@ -206,14 +206,14 @@ onBeforeUnmount(() => {
   top: 120px;
   width: 1000px;
   height: 700px;
-  background: radial-gradient(closest-side, rgba(191, 214, 246, 0.55), rgba(191, 214, 246, 0.18) 55%, transparent);
+  background: radial-gradient(closest-side, rgb(var(--bh-cloud) / 0.55), rgb(var(--bh-cloud) / 0.18) 55%, transparent);
 }
 .bh-qs__bloom--gold {
   left: calc(50% + 160px);
   top: 320px;
   width: 540px;
   height: 420px;
-  background: radial-gradient(closest-side, rgba(212, 168, 75, 0.16), transparent);
+  background: radial-gradient(closest-side, rgb(var(--brand-gold) / 0.16), transparent);
 }
 
 .bh-qs__grid {
@@ -241,7 +241,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 .bh-qs__step.is-active {
-  background: rgba(232, 240, 252, 0.72);
+  background: rgb(var(--brand-tint) / 0.72);
 }
 .bh-qs__step.is-active::before {
   content: '';
@@ -291,10 +291,10 @@ onBeforeUnmount(() => {
 .bh-qs__card {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--bh-glass-edge);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 12px 32px -8px rgba(20, 48, 107, 0.08);
+  background: rgb(var(--brand-surface) / 0.74);
+  box-shadow: 0 12px 32px -8px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
 }
@@ -304,14 +304,14 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 20px;
-  border-bottom: 1px solid rgba(220, 228, 242, 0.8);
+  border-bottom: 1px solid rgb(var(--brand-line) / 0.8);
 }
 .bh-qs__tabs {
   display: inline-flex;
   gap: 2px;
   padding: 4px;
   border-radius: 999px;
-  background: rgba(232, 240, 252, 0.8);
+  background: rgb(var(--brand-tint) / 0.8);
 }
 .bh-qs__tab {
   display: inline-flex;
@@ -333,10 +333,10 @@ onBeforeUnmount(() => {
   color: var(--bh-ink);
 }
 .bh-qs__tab.is-on {
-  background: #fff;
+  background: var(--bh-surface);
   color: var(--bh-navy);
   font-weight: 500;
-  box-shadow: 0 2px 6px rgba(20, 48, 107, 0.1);
+  box-shadow: 0 2px 6px rgb(var(--bh-shadow-navy) / min(calc(0.1 * var(--bh-shadow-k)), 0.5));
 }
 .bh-qs__tab i {
   width: 6px;
@@ -368,7 +368,7 @@ onBeforeUnmount(() => {
   padding: 0 12px;
   border: 1px solid var(--bh-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--bh-surface);
   color: var(--bh-slate);
   font-family: var(--bh-font-sans);
   font-size: 12px;
@@ -397,14 +397,14 @@ onBeforeUnmount(() => {
   padding-right: 24px;
 }
 .bh-qs__line.is-hl {
-  background: rgba(212, 168, 75, 0.14);
+  background: var(--bh-gold-code);
   box-shadow: inset 2px 0 0 var(--bh-gold);
 }
 .bh-qs__ln {
   display: inline-block;
   width: 44px;
   margin-right: 20px;
-  color: rgba(102, 115, 140, 0.7);
+  color: rgb(var(--brand-mist) / 0.7);
   text-align: right;
   user-select: none;
 }
@@ -433,8 +433,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 14px 20px;
-  border-top: 1px solid rgba(220, 228, 242, 0.8);
-  background: rgba(246, 249, 254, 0.7);
+  border-top: 1px solid rgb(var(--brand-line) / 0.8);
+  background: rgb(var(--brand-canvas) / 0.7);
 }
 .bh-qs__result-text {
   flex: 1;

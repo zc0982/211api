@@ -26,8 +26,8 @@ withDefaults(
   /* Figma 10:970: 16px 20px inside a 1px border (Figma strokes sit inside), label 16 + 6 + two 18px code lines 6 apart = 96px tall. */
   padding: 15px 20px 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 12px 32px -8px rgba(20, 48, 107, 0.08);
+  background: rgb(var(--brand-surface) / 0.66);
+  box-shadow: 0 12px 32px -8px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
   color: var(--bh-ink);
   text-align: left;
 }

@@ -78,10 +78,10 @@ const tools = computed(() => ECOSYSTEM_TOOLS.map((tool) => ({ ...tool, caption: 
   align-items: center;
   height: 144px;
   padding: 24px 8px 20px;
-  border: 1px solid #fff;
+  border: 1px solid var(--bh-glass-edge);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 24px -8px rgba(20, 48, 107, 0.06);
+  background: rgb(var(--brand-surface) / 0.72);
+  box-shadow: 0 8px 24px -8px rgb(var(--bh-shadow-navy) / min(calc(0.06 * var(--bh-shadow-k)), 0.5));
   text-align: center;
 }
 .bh-eco__mono {
@@ -92,7 +92,7 @@ const tools = computed(() => ECOSYSTEM_TOOLS.map((tool) => ({ ...tool, caption: 
   margin-bottom: 12px;
   border: 1px solid var(--bh-sky);
   border-radius: 12px;
-  background: #fff;
+  background: var(--bh-surface);
 }
 .bh-eco__name {
   color: var(--bh-ink);

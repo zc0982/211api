@@ -53,7 +53,7 @@ async function choose(code: string) {
   padding: 3px;
   border: 1px solid var(--bh-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--bh-surface);
 }
 .bh-locale__btn {
   min-width: 44px;

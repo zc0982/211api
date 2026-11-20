@@ -88,12 +88,12 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
   overflow: hidden;
   border: 1px solid var(--bh-line);
   border-radius: 16px;
-  background: rgba(246, 249, 254, 0.9);
+  background: rgb(var(--brand-canvas) / 0.9);
 }
 .bh-faq__item[open] {
-  border-color: rgba(191, 214, 246, 0.9);
-  background: #fff;
-  box-shadow: 0 12px 32px -12px rgba(20, 48, 107, 0.08);
+  border-color: rgb(var(--brand-sky) / 0.9);
+  background: var(--bh-surface);
+  box-shadow: 0 12px 32px -12px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
 }
 .bh-faq__item[open]::before {
   content: '';
@@ -140,7 +140,7 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
   height: 28px;
   border: 1px solid var(--bh-line);
   border-radius: 50%;
-  background: #fff;
+  background: var(--bh-surface);
   transition: transform 0.2s var(--bh-ease);
 }
 .bh-faq__toggle path {
@@ -156,7 +156,7 @@ const contactHref = computed(() => props.links.contact?.href ?? null)
   transform: rotate(180deg);
 }
 .bh-faq__item[open] .bh-faq__toggle path {
-  stroke: #fff;
+  stroke: var(--bh-on-navy);
 }
 .bh-faq__a {
   max-width: 840px;

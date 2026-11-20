@@ -205,35 +205,35 @@ const stages = computed(() => [
   top: 340px;
   width: 1240px;
   height: 900px;
-  background: radial-gradient(closest-side, rgba(191, 214, 246, 0.6), rgba(191, 214, 246, 0.2) 55%, transparent);
+  background: radial-gradient(closest-side, rgb(var(--bh-cloud) / 0.6), rgb(var(--bh-cloud) / 0.2) 55%, transparent);
 }
 .bh-trace__bloom--right {
   left: calc(50% - 60px);
   top: 214px;
   width: 1020px;
   height: 760px;
-  background: radial-gradient(closest-side, rgba(191, 214, 246, 0.5), rgba(191, 214, 246, 0.16) 55%, transparent);
+  background: radial-gradient(closest-side, rgb(var(--bh-cloud) / 0.5), rgb(var(--bh-cloud) / 0.16) 55%, transparent);
 }
 .bh-trace__bloom--gold {
   left: calc(50% + 120px);
   top: 574px;
   width: 740px;
   height: 560px;
-  background: radial-gradient(closest-side, rgba(212, 168, 75, 0.16), transparent);
+  background: radial-gradient(closest-side, rgb(var(--brand-gold) / 0.16), transparent);
 }
 .bh-trace__orbit--outer {
   left: calc(50% - 880px);
   top: 374px;
   width: 1760px;
   height: 760px;
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--bh-orbit-line);
 }
 .bh-trace__orbit--inner {
   left: calc(50% - 700px);
   top: 474px;
   width: 1400px;
   height: 560px;
-  border: 1px solid rgba(191, 214, 246, 0.55);
+  border: 1px solid var(--bh-orbit-line-soft);
 }
 .bh-trace__head {
   margin-bottom: 40px;
@@ -267,7 +267,7 @@ const stages = computed(() => [
   margin: 4px;
   border: 1.5px solid var(--bh-gold);
   border-radius: 50%;
-  background: #fff;
+  background: var(--bh-surface);
 }
 .bh-trace__node i {
   width: 8px;
@@ -294,10 +294,10 @@ const stages = computed(() => [
   position: relative;
   margin: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--bh-glass-edge);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 12px 32px -8px rgba(20, 48, 107, 0.08);
+  background: rgb(var(--brand-surface) / 0.74);
+  box-shadow: 0 12px 32px -8px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
 }
@@ -341,7 +341,7 @@ const stages = computed(() => [
   padding: 6px 12px;
   border: 1px solid var(--bh-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--bh-surface);
   color: var(--bh-slate);
   font-size: 12px;
   font-weight: 500;
@@ -361,7 +361,7 @@ const stages = computed(() => [
   padding: 0 12px 0 14px;
   border: 1px solid var(--bh-line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgb(var(--brand-surface) / 0.9);
   font-size: 13px;
   white-space: nowrap;
 }
@@ -404,19 +404,19 @@ const stages = computed(() => [
 }
 .bh-console__row--head {
   height: 40px;
-  border-top: 1px solid rgba(220, 228, 242, 0.9);
-  border-bottom: 1px solid rgba(220, 228, 242, 0.9);
-  background: rgba(232, 240, 252, 0.55);
+  border-top: 1px solid rgb(var(--brand-line) / 0.9);
+  border-bottom: 1px solid rgb(var(--brand-line) / 0.9);
+  background: rgb(var(--brand-tint) / 0.55);
   color: var(--bh-mist);
   font-size: 12px;
   font-weight: 500;
 }
 .bh-console__group {
   position: relative;
-  border-bottom: 1px solid rgba(220, 228, 242, 0.9);
+  border-bottom: 1px solid rgb(var(--brand-line) / 0.9);
 }
 .bh-console__group.is-open {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgb(var(--brand-surface) / 0.85);
   box-shadow: inset 3px 0 0 var(--bh-gold);
 }
 .bh-console__group.is-faded {
@@ -471,7 +471,7 @@ const stages = computed(() => [
   right: 0;
   top: 33px;
   height: 2px;
-  background: linear-gradient(90deg, rgba(212, 168, 75, 0.55), var(--bh-gold));
+  background: linear-gradient(90deg, rgb(var(--brand-gold) / 0.55), var(--bh-gold));
 }
 .bh-timeline__segment {
   position: absolute;
@@ -490,8 +490,8 @@ const stages = computed(() => [
   margin-left: -6px;
   border: 2px solid var(--bh-gold);
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 10px rgba(212, 168, 75, 0.18);
+  background: var(--bh-surface);
+  box-shadow: 0 0 0 10px rgb(var(--brand-gold) / 0.18);
   animation: bh-light-run 2.4s linear infinite;
 }
 @keyframes bh-light-run {
@@ -520,7 +520,7 @@ const stages = computed(() => [
   height: 12px;
   border: 2px solid var(--bh-gold);
   border-radius: 50%;
-  background: #fff;
+  background: var(--bh-surface);
 }
 .bh-timeline__stage.is-end i {
   background: var(--bh-gold);

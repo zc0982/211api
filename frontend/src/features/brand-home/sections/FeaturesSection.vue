@@ -10,36 +10,36 @@
           <span class="bh-feature__icon" aria-hidden="true">
             <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <template v-if="item.key === 'unified'">
-                <path d="M4 24L13.333 16L4 8M13.333 16H4" stroke="#14306B" />
-                <path d="M13.333 16H24" stroke="#D4A84B" />
-                <circle cx="26.667" cy="16" r="2.667" fill="#D4A84B" stroke="none" />
+                <path d="M4 24L13.333 16L4 8M13.333 16H4" class="ink" />
+                <path d="M13.333 16H24" class="accent" />
+                <circle cx="26.667" cy="16" r="2.667" class="dot" />
               </template>
               <template v-else-if="item.key === 'routing'">
-                <path d="M4 16H10.667C14.667 16 14.667 8 18.667 8H28" stroke="#14306B" />
-                <path d="M10.667 16C14.667 16 14.667 24 18.667 24H28" stroke="#D4A84B" />
-                <circle cx="10.667" cy="16" r="2.033" fill="#fff" stroke="#14306B" />
+                <path d="M4 16H10.667C14.667 16 14.667 8 18.667 8H28" class="ink" />
+                <path d="M10.667 16C14.667 16 14.667 24 18.667 24H28" class="accent" />
+                <circle cx="10.667" cy="16" r="2.033" class="ink hollow" />
               </template>
               <template v-else-if="item.key === 'tracing'">
-                <path d="M5.333 16H26.667" stroke="#D4A84B" />
-                <circle cx="5.333" cy="16" r="2.567" fill="#fff" stroke="#14306B" />
-                <circle cx="16" cy="16" r="3.467" fill="#D4A84B" stroke="none" />
-                <circle cx="26.667" cy="16" r="2.567" fill="#fff" stroke="#14306B" />
-                <path d="M16 5.333V9.333M16 22.667V26.667" stroke="#14306B" />
+                <path d="M5.333 16H26.667" class="accent" />
+                <circle cx="5.333" cy="16" r="2.567" class="ink hollow" />
+                <circle cx="16" cy="16" r="3.467" class="dot" />
+                <circle cx="26.667" cy="16" r="2.567" class="ink hollow" />
+                <path d="M16 5.333V9.333M16 22.667V26.667" class="ink" />
               </template>
               <template v-else-if="item.key === 'billing'">
-                <path d="M8 4H24V28L20 25.333L16 28L12 25.333L8 28V4Z" stroke="#14306B" />
-                <path d="M12 10.667H20M12 16H20" stroke="#14306B" />
-                <path d="M12 21.333H16" stroke="#D4A84B" />
+                <path d="M8 4H24V28L20 25.333L16 28L12 25.333L8 28V4Z" class="ink" />
+                <path d="M12 10.667H20M12 16H20" class="ink" />
+                <path d="M12 21.333H16" class="accent" />
               </template>
               <template v-else-if="item.key === 'budget'">
-                <path d="M5.333 22.667C5.333 16.776 10.11 12 16 12C21.891 12 26.667 16.776 26.667 22.667" stroke="#14306B" />
-                <path d="M16 22.667L21.333 16" stroke="#D4A84B" />
-                <circle cx="16" cy="22.667" r="2.4" fill="#D4A84B" stroke="none" />
-                <path d="M5.333 26.667H26.667" stroke="#14306B" />
+                <path d="M5.333 22.667C5.333 16.776 10.11 12 16 12C21.891 12 26.667 16.776 26.667 22.667" class="ink" />
+                <path d="M16 22.667L21.333 16" class="accent" />
+                <circle cx="16" cy="22.667" r="2.4" class="dot" />
+                <path d="M5.333 26.667H26.667" class="ink" />
               </template>
               <template v-else>
-                <path d="M16 4L25.333 8V16C25.333 22 21.333 26 16 28C10.667 26 6.667 22 6.667 16V8L16 4Z" stroke="#14306B" />
-                <path d="M12 16L14.667 18.667L20 13.333" stroke="#D4A84B" />
+                <path d="M16 4L25.333 8V16C25.333 22 21.333 26 16 28C10.667 26 6.667 22 6.667 16V8L16 4Z" class="ink" />
+                <path d="M12 16L14.667 18.667L20 13.333" class="accent" />
               </template>
             </svg>
           </span>
@@ -89,6 +89,19 @@ const items = computed(() => [
   height: 56px;
   border-radius: 14px;
   background: var(--bh-tint);
+}
+.bh-feature__icon .ink {
+  stroke: var(--bh-navy);
+}
+.bh-feature__icon .accent {
+  stroke: var(--bh-gold);
+}
+.bh-feature__icon .dot {
+  fill: var(--bh-gold);
+  stroke: none;
+}
+.bh-feature__icon .hollow {
+  fill: var(--bh-surface);
 }
 .bh-feature__title {
   margin: 24px 0 0;

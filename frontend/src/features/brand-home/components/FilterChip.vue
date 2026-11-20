@@ -19,7 +19,7 @@ defineProps<{ active: boolean }>()
   padding: 0 16px;
   border: 1px solid var(--bh-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--bh-surface);
   color: var(--bh-slate);
   font-family: var(--bh-font-sans);
   font-size: 13px;
@@ -38,8 +38,8 @@ defineProps<{ active: boolean }>()
 .bh-chip.is-on {
   border-color: var(--bh-navy);
   background: var(--bh-navy);
-  color: #fff;
-  box-shadow: 0 4px 12px -4px rgba(20, 48, 107, 0.18);
+  color: var(--bh-on-navy);
+  box-shadow: 0 4px 12px -4px rgb(var(--bh-shadow-navy) / min(calc(0.18 * var(--bh-shadow-k)), 0.5));
 }
 .bh-chip:focus-visible {
   outline: 2px solid var(--bh-blue);

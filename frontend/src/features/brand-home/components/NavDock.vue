@@ -112,14 +112,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   display: inline-flex;
   gap: 2px;
   padding: 6px;
-  border: 1px solid rgba(12, 24, 48, 0.08);
+  border: 1px solid rgb(var(--brand-ink) / 0.08);
   border-radius: 999px;
   background:
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.14), transparent 45%),
-    rgba(255, 255, 255, 0.55);
+    linear-gradient(to bottom, rgb(var(--brand-surface) / 0.14), transparent 45%),
+    rgb(var(--brand-surface) / 0.55);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 8px 24px -8px rgba(12, 24, 48, 0.2);
+    inset 0 1px 0 var(--bh-glass-highlight),
+    0 8px 24px -8px rgb(var(--bh-shadow-ink) / min(calc(0.2 * var(--bh-shadow-k)), 0.5));
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
   backdrop-filter: blur(20px) saturate(1.5);
 }
@@ -129,7 +129,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   left: 0;
   height: calc(100% - 12px);
   border-radius: 999px;
-  background: rgba(12, 24, 48, 0.07);
+  background: rgb(var(--brand-ink) / 0.07);
   transition:
     transform 0.45s var(--bh-ease-knob),
     width 0.45s var(--bh-ease-knob),

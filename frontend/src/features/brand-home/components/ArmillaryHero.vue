@@ -293,7 +293,7 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
   overflow: visible;
   fill: none;
-  stroke: var(--bh-navy);
+  stroke: var(--bh-orbit-stroke);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
@@ -309,7 +309,7 @@ onBeforeUnmount(() => {
   height: 76%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(233, 199, 123, 0.34), rgba(233, 199, 123, 0.12) 55%, transparent);
+  background: radial-gradient(closest-side, var(--bh-core-glow), var(--bh-core-glow-soft) 55%, transparent);
   pointer-events: none;
 }
 .bh-armillary__shadow {
@@ -320,7 +320,12 @@ onBeforeUnmount(() => {
   height: 5.93%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(20, 48, 107, 0.22), rgba(20, 48, 107, 0.08) 55%, rgba(20, 48, 107, 0));
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--bh-shadow-navy) / min(calc(0.22 * var(--bh-shadow-k)), 0.5)),
+    rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5)) 55%,
+    rgb(var(--bh-shadow-navy) / 0)
+  );
 }
 /*
  * The canvas is the 573×607 instrument area grown by 10% per side
@@ -358,10 +363,10 @@ onBeforeUnmount(() => {
   height: var(--bh-bead-size);
   padding: 0;
   transform: translate(-50%, -50%);
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--bh-glass-edge);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 4px 14px rgba(20, 48, 107, 0.12);
+  background: rgb(var(--brand-surface) / 0.82);
+  box-shadow: 0 4px 14px rgb(var(--bh-shadow-navy) / min(calc(0.12 * var(--bh-shadow-k)), 0.5));
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
@@ -383,8 +388,8 @@ button.bh-bead:focus-visible {
 .bh-bead.is-traced {
   border-color: var(--bh-gold);
   box-shadow:
-    0 0 0 4px rgba(212, 168, 75, 0.14),
-    0 6px 18px rgba(20, 48, 107, 0.14);
+    0 0 0 4px rgb(var(--brand-gold) / 0.14),
+    0 6px 18px rgb(var(--bh-shadow-navy) / min(calc(0.14 * var(--bh-shadow-k)), 0.5));
 }
 .is-handoff button.bh-bead,
 .is-handoff .bh-armillary__chip {

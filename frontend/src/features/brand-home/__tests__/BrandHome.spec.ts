@@ -210,12 +210,19 @@ describe('BrandHome', () => {
     wrapper.unmount()
   })
 
-  it('never toggles the html.dark class', () => {
-    document.documentElement.classList.add('dark')
+  it('keeps the console theme choice and lets the header switch it', async () => {
+    localStorage.setItem('theme', 'dark')
     const wrapper = mountHome()
     expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    await wrapper.get('.bh-theme__btn').trigger('click')
+    const light = wrapper.findAll('[role="menuitemradio"]')[1]
+    await light.trigger('click')
+    expect(localStorage.getItem('theme')).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+
     wrapper.unmount()
-    document.documentElement.classList.remove('dark')
+    localStorage.removeItem('theme')
   })
 })
 

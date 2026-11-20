@@ -54,32 +54,87 @@
   src: url('../assets/fonts/geist-mono-500.woff2') format('woff2');
 }
 
+/*
+ * Colour tokens. --brand-* hold "R G B" triplets so both these styles and the
+ * Tailwind brand.* colours (tailwind.config.js) can add alpha:
+ * rgb(var(--brand-navy) / 0.5). Light values sit on .brand-home; .dark
+ * .brand-home swaps in the DESIGN.md "Dark Theme" table. Recipes that are not
+ * plain tokens (glass, clouds, grid, shadows, hero gradient) get their own
+ * variables here so components never branch on the theme.
+ */
 .brand-home {
-  --bh-navy: #14306b;
+  --brand-navy: 20 48 107;
+  --brand-blue: 47 95 208;
+  --brand-gold: 212 168 75;
+  --brand-bronze: 138 100 32;
+  --brand-ink: 12 24 48;
+  --brand-slate: 69 83 110;
+  --brand-mist: 102 115 140;
+  --brand-ok: 19 122 82;
+  --brand-line: 220 228 242;
+  --brand-surface: 255 255 255;
+  --brand-canvas: 246 249 254;
+  --brand-tint: 232 240 252;
+  --brand-sky: 191 214 246;
+
+  --bh-navy: rgb(var(--brand-navy));
   --bh-navy-hover: #1a3a7e;
-  --bh-blue: #2f5fd0;
-  --bh-gold: #d4a84b;
-  --bh-bronze: #8a6420;
-  --bh-ink: #0c1830;
-  --bh-slate: #45536e;
-  --bh-mist: #66738c;
-  --bh-ok: #137a52;
-  --bh-line: #dce4f2;
-  --bh-surface: #ffffff;
-  --bh-canvas: #f6f9fe;
-  --bh-tint: #e8f0fc;
-  --bh-sky: #bfd6f6;
+  --bh-blue: rgb(var(--brand-blue));
+  --bh-gold: rgb(var(--brand-gold));
+  --bh-bronze: rgb(var(--brand-bronze));
+  --bh-ink: rgb(var(--brand-ink));
+  --bh-slate: rgb(var(--brand-slate));
+  --bh-mist: rgb(var(--brand-mist));
+  --bh-ok: rgb(var(--brand-ok));
+  --bh-line: rgb(var(--brand-line));
+  --bh-surface: rgb(var(--brand-surface));
+  --bh-canvas: rgb(var(--brand-canvas));
+  --bh-tint: rgb(var(--brand-tint));
+  --bh-sky: rgb(var(--brand-sky));
+  /* Text and icons on a navy fill (primary button, selected chip). */
+  --bh-on-navy: #ffffff;
+
+  /* Shadows: navy-tinted in light; black at 3x opacity (max 50%) in dark. */
+  --bh-shadow-navy: 20 48 107;
+  --bh-shadow-ink: 12 24 48;
+  --bh-shadow-k: 1;
+
+  /* Glass: white rim and inner highlight; the fill is surface at the same opacity. */
+  --bh-glass-edge: rgba(255, 255, 255, 0.9);
+  --bh-glass-highlight: rgba(255, 255, 255, 0.45);
+
+  /* Atmosphere */
+  --bh-band: 255 255 255;
+  --bh-hero-bg: linear-gradient(to bottom, #f7faff 0%, #edf3fd 50%, #f5f8fe 100%);
+  --bh-grid-line: rgba(20, 48, 107, 0.05);
+  /* Contour orbits around the instrument (per-ring opacity set in ArmillaryHero). */
+  --bh-orbit-stroke: #14306b;
+  --bh-orbit-line: rgba(255, 255, 255, 0.95);
+  --bh-orbit-line-soft: rgba(191, 214, 246, 0.55);
+  --bh-cloud: 191 214 246;
+  --bh-cloud-sky: 141 182 242;
+  --bh-cloud-blue: 47 95 208;
+  --bh-cloud-navy: rgba(20, 48, 107, 0.2);
+  --bh-cloud-navy-soft: rgba(20, 48, 107, 0.07);
+  --bh-veil: rgba(255, 255, 255, 0.75);
+  --bh-veil-soft: rgba(255, 255, 255, 0.35);
+  --bh-core-glow: rgba(233, 199, 123, 0.34);
+  --bh-core-glow-soft: rgba(233, 199, 123, 0.12);
+  /* Gold highlight behind the "only change this line" code row. */
+  --bh-gold-code: rgba(212, 168, 75, 0.14);
+  /* Theme button fill: navy 6% (dark: moon white 8%). */
+  --bh-toggle-alpha: 0.06;
 
   --bh-font-serif: 'Brand Noto Serif SC', 'Noto Serif SC', 'Songti SC', serif;
   --bh-font-sans: 'Brand Noto Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --bh-font-mono: 'Brand Geist Mono', 'Geist Mono', 'SF Mono', Menlo, monospace;
   --bh-font-wordmark: 'Brand Geist', Geist, 'Noto Sans SC', sans-serif;
 
-  --bh-shadow-primary: 0 6px 16px rgba(20, 48, 107, 0.18);
-  --bh-shadow-primary-hover: 0 10px 24px rgba(20, 48, 107, 0.24);
-  --bh-shadow-glass: 0 6px 24px rgba(20, 48, 107, 0.08);
-  --bh-shadow-glass-hover: 0 10px 28px rgba(20, 48, 107, 0.12);
-  --bh-shadow-card: 0 8px 24px -12px rgba(20, 48, 107, 0.05);
+  --bh-shadow-primary: 0 6px 16px rgb(var(--bh-shadow-navy) / min(calc(0.18 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-primary-hover: 0 10px 24px rgb(var(--bh-shadow-navy) / min(calc(0.24 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-glass: 0 6px 24px rgb(var(--bh-shadow-navy) / min(calc(0.08 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-glass-hover: 0 10px 28px rgb(var(--bh-shadow-navy) / min(calc(0.12 * var(--bh-shadow-k)), 0.5));
+  --bh-shadow-card: 0 8px 24px -12px rgb(var(--bh-shadow-navy) / min(calc(0.05 * var(--bh-shadow-k)), 0.5));
 
   --bh-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --bh-ease-knob: cubic-bezier(0.34, 1.3, 0.5, 1);
@@ -102,6 +157,81 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Dark theme ("学院夜空", DESIGN.md) ---------------------------------------- */
+
+.dark .brand-home {
+  --brand-navy: 219 230 251;
+  --brand-blue: 122 162 255;
+  --brand-gold: 227 185 94;
+  --brand-bronze: 236 201 120;
+  --brand-ink: 233 238 248;
+  --brand-slate: 170 182 203;
+  --brand-mist: 127 140 165;
+  --brand-ok: 61 214 140;
+  --brand-line: 31 45 72;
+  --brand-surface: 14 24 48;
+  --brand-canvas: 7 14 29;
+  --brand-tint: 21 34 63;
+  --brand-sky: 43 65 112;
+
+  --bh-navy-hover: #eef3fd;
+  --bh-on-navy: rgb(var(--brand-surface));
+
+  --bh-shadow-navy: 0 0 0;
+  --bh-shadow-ink: 0 0 0;
+  --bh-shadow-k: 3;
+
+  --bh-glass-edge: rgba(255, 255, 255, 0.07);
+  --bh-glass-highlight: rgba(255, 255, 255, 0.08);
+
+  --bh-band: 11 20 39;
+  --bh-hero-bg: linear-gradient(to bottom, #060c1a 0%, #0b1530 50%, #070e1d 100%);
+  --bh-grid-line: rgba(169, 193, 240, 0.05);
+  --bh-orbit-stroke: #a9c1f0;
+  --bh-orbit-line: rgba(169, 193, 240, 0.12);
+  --bh-orbit-line-soft: rgba(169, 193, 240, 0.06);
+  --bh-cloud: 30 58 120;
+  --bh-cloud-sky: 30 58 120;
+  --bh-cloud-navy: rgba(20, 48, 107, 0.55);
+  --bh-cloud-navy-soft: rgba(20, 48, 107, 0.2);
+  --bh-veil: rgba(7, 14, 29, 0.55);
+  --bh-veil-soft: rgba(7, 14, 29, 0.25);
+  --bh-core-glow: rgba(233, 199, 123, 0.2);
+  --bh-core-glow-soft: rgba(233, 199, 123, 0.07);
+  --bh-gold-code: rgba(227, 185, 94, 0.1);
+  --bh-toggle-alpha: 0.08;
+
+  color-scheme: dark;
+}
+
+/*
+ * The uploaded site logo is usually a navy mark on a transparent background;
+ * in the dark theme it sits on a white tile (same as the console sidebar).
+ * Kept here, not in BrandLogo's scoped styles: a scoped `:global(.dark) x`
+ * compiles to a bare `.dark {}` rule.
+ */
+.dark .brand-home .bh-logo__img {
+  padding: 3px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+/*
+ * Theme switch: composables/useBrandTheme.ts adds .bh-theming for ~250ms so
+ * colours cross-fade without making every hover transition slower.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .brand-home.bh-theming,
+  .brand-home.bh-theming *,
+  .brand-home.bh-theming *::before,
+  .brand-home.bh-theming *::after {
+    transition:
+      background-color 200ms ease-out,
+      color 200ms ease-out,
+      border-color 200ms ease-out !important;
+  }
+}
+
 .brand-home *,
 .brand-home *::before,
 .brand-home *::after {
@@ -109,7 +239,7 @@
 }
 
 .brand-home ::selection {
-  background: rgba(47, 95, 208, 0.18);
+  background: rgb(var(--brand-blue) / 0.18);
   color: var(--bh-ink);
 }
 
@@ -156,7 +286,7 @@
   padding: 10px 16px;
   border-radius: 999px;
   background: var(--bh-navy);
-  color: #fff;
+  color: var(--bh-on-navy);
   font-weight: 500;
   transition: top 0.16s ease-out;
 }
@@ -171,14 +301,14 @@
   padding: var(--bh-section-y) 0;
 }
 
-/* White band used by quick-start / features / models / FAQ (Figma fill). */
+/* Surface band (white in light, #0b1427 in dark) used by quick-start / features / models / FAQ (Figma fill). */
 .brand-home .bh-band {
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    #fff 16%,
-    #fff 84%,
-    rgba(255, 255, 255, 0) 100%
+    rgb(var(--bh-band) / 0) 0%,
+    rgb(var(--bh-band)) 16%,
+    rgb(var(--bh-band)) 84%,
+    rgb(var(--bh-band) / 0) 100%
   );
 }
 
@@ -209,8 +339,8 @@
 /* Glass recipe ----------------------------------------------------------- */
 
 .brand-home .bh-glass {
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid var(--bh-glass-edge);
+  background: rgb(var(--brand-surface) / 0.62);
   box-shadow: var(--bh-shadow-glass);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);

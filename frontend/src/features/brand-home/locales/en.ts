@@ -21,12 +21,19 @@ export default {
     console: 'Console',
     getKey: 'Get API Key'
   },
+  theme: {
+    toggle: 'Change theme, current: {mode}',
+    menu: 'Theme',
+    system: 'System',
+    light: 'Light',
+    dark: 'Dark'
+  },
   hero: {
     badge: 'One API · Four providers',
-    titleLine1: 'One API gateway',
-    titleLine2: 'for {emphasis} AI models',
-    titleEmphasis: 'many',
-    lead: 'Reach a wide range of models through one standard API. Power your AI apps, keep usage under control, and build what comes next.',
+    titleLine1: 'One account for',
+    titleLine2: 'the top {emphasis}',
+    titleEmphasis: 'coding models.',
+    lead: 'Works with Claude Code, Codex and other coding tools. One endpoint reaches Claude, GPT, Gemini and Grok, and the usage and cost of every call are on record.',
     ctaDocs: 'Read the docs',
     providersLabel: 'Major providers',
     providersValue: '4',

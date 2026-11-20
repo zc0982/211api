@@ -25,19 +25,19 @@ withDefaults(defineProps<{ model: string; meta?: string; label?: string; active?
   gap: 10px;
   height: 40px;
   padding: 0 16px;
-  border: 1.25px solid rgba(255, 255, 255, 0.9);
+  border: 1.25px solid var(--bh-glass-edge);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgb(var(--brand-surface) / 0.85);
   color: var(--bh-navy);
   font-size: 13px;
   white-space: nowrap;
-  box-shadow: 0 12px 28px -8px rgba(20, 48, 107, 0.14);
+  box-shadow: 0 12px 28px -8px rgb(var(--bh-shadow-navy) / min(calc(0.14 * var(--bh-shadow-k)), 0.5));
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
 }
 .bh-model-chip.is-active {
   border-color: var(--bh-gold);
-  background: rgba(255, 255, 255, 0.88);
+  background: rgb(var(--brand-surface) / 0.88);
 }
 .bh-model-chip__name {
   font-weight: 500;

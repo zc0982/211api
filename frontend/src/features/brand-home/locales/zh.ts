@@ -21,12 +21,19 @@ export default {
     console: '控制台',
     getKey: '获取 API Key'
   },
+  theme: {
+    toggle: '切换主题，当前：{mode}',
+    menu: '主题',
+    system: '跟随系统',
+    light: '浅色',
+    dark: '深色'
+  },
   hero: {
     badge: '一个接口 · 四家模型',
-    titleLine1: '统一 API 网关，服务于',
-    titleLine2: '{emphasis} AI 模型',
-    titleEmphasis: '海量',
-    lead: '通过统一、标准的接口协议接入海量模型。承载 AI 应用，高效管理数字资产，连接未来。',
+    titleLine1: '一个账户，',
+    titleLine2: '接入顶级{emphasis}',
+    titleEmphasis: '编程模型。',
+    lead: '兼容 Claude Code、Codex 等编码工具，一个地址接入 Claude、GPT、Gemini、Grok；每次调用的用量与费用逐笔可查。',
     ctaDocs: '查看文档',
     providersLabel: '主流供应商',
     providersValue: '4 家',
