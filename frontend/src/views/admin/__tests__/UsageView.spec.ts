@@ -28,6 +28,7 @@ const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listE
 })
 
 const messages: Record<string, string> = {
+  'usage.cacheHitRate': 'Cache hit rate',
   'admin.dashboard.timeRange': 'Time Range',
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
@@ -751,8 +752,8 @@ describe('admin UsageView model audit export', () => {
 				request_type: 'sync',
 				input_tokens: 1,
 				output_tokens: 1,
-				cache_read_tokens: 0,
-				cache_creation_tokens: 0,
+				cache_read_tokens: 6,
+				cache_creation_tokens: 3,
 				duration_ms: 10,
 			}],
 			total: 1,
@@ -796,6 +797,7 @@ describe('admin UsageView model audit export', () => {
 			'Upstream model mismatch',
 		])
 		const row = sheetAddAoa.mock.calls[0][1][0]
+		expect(row[headers.indexOf('Cache hit rate')]).toEqual({ t: 'n', v: 0.6, z: '0.0%' })
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})

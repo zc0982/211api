@@ -206,6 +206,10 @@
           </div>
         </template>
 
+        <template #cell-cache_hit_rate="{ row }">
+          <span class="whitespace-nowrap text-sm tabular-nums" :title="t('usage.cacheHitRateHint')">{{ formatCacheHitRate(row) }}</span>
+        </template>
+
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
@@ -547,6 +551,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'

@@ -222,6 +222,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
@@ -691,6 +692,7 @@ const exportToCSV = async () => {
       'Original Cost',
       'First Token (ms)',
       'Duration (ms)',
+      'Cache Hit Rate',
     ]
     const rows = allLogs.map((log) => [
       log.created_at,
@@ -710,6 +712,7 @@ const exportToCSV = async () => {
       log.total_cost.toFixed(8),
       log.first_token_ms ?? '',
       log.duration_ms ?? '',
+      formatCacheHitRate(log, ''),
     ].map(escapeCSVValue))
     const csvContent = [
       headers.map(escapeCSVValue).join(','),
@@ -745,6 +748,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'stream', label: t('usage.type'), sortable: false },
   { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
+  { key: 'cache_hit_rate', label: t('usage.cacheHitRate'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'latency', label: t('usage.latency'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
