@@ -31,7 +31,7 @@
 | `frontend/vite.config.ts` | `manualChunks` 在 `vendor-misc` 兜底前追加 `@lobehub/icons-vue → vendor-brand-icons` | 不追加时图标会被并入所有页面都 modulepreload 的 `vendor-misc`（经用户确认后加入）。v2 的 `vendor-three` 分支随 three.js 一起删除 |
 | 根 `Makefile` | `FRONTEND_CRITICAL_VITEST` 登记 brand-home 的 8 个测试 | CI 只跑这份清单 |
 | `frontend/package.json`、`pnpm-lock.yaml` | 新增 `@lobehub/icons-vue` 精确版本（v2 的 `three`、`@types/three` 已移除） | 厂商 / 工具图标（Vue 3 包） |
-| `frontend/public/logo.svg` | 换成品牌首页学士帽标志（透明底，藏青帽 + 金穗） | 未上传站点 Logo 时，控制台侧栏、登录页、公开页和 favicon 的回退图与首页一致，见「标志」 |
+| `frontend/public/logo.svg` | 换成星狐通用头像（透明底、白色贴纸描边、两耳间一颗金星） | 未上传站点 Logo 时，首页导航与页脚、控制台侧栏、登录页、公开页和 favicon 共用这一张回退图，见「标志」 |
 | `AppSidebar.vue`、`AuthLayout.vue`、`PlazaNavBar.vue`、`LegalDocumentView.vue`、`KeyUsageView.vue`、`HomeView.vue` | 标志容器/图片追加 `dark:bg-white dark:p-*`（`PlazaNavBar.vue`、`LegalDocumentView.vue` 原有的 `dark:bg-dark-800` 换成 `dark:bg-white`） | 透明底藏青标志在深色模式下需浅色底，见「标志」 |
 
 除上表外，不改后端、其他页面和全局样式（`style.css`、`main.ts`）。
@@ -158,9 +158,11 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 ## 标志
 
 - 以后台「站点设置 → 站点 Logo」（`site_logo`）为准，全站同一来源：首页导航与页脚（`BrandHome.vue` 经 `sanitizeUrl` 传给 `components/BrandLogo.vue` 的 `src`）、控制台侧栏、登录页、公开页、后端注入的 favicon。换标志只需在后台重新上传。
-- 未上传、地址不安全或图片加载失败时回退：首页用 `BrandLogo.vue` 内联的学士帽，其余页面用 `frontend/public/logo.svg`（同一学士帽，透明底，裁切 `viewBox="10 15 44 33"`）。两处回退图形来自设计源 `export/logo/logo-mark-light.svg`，改回退图时一起改。
-- v3 的导航和页脚都在夜空上：内置学士帽和站点名用白色（帽穗仍是金色）；上传的标志一律加白底小圆角（规则写在 `brand-home.css` 全局段：scoped 样式里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`）。首屏月亮里的学士帽是场景的一部分，不随后台标志变化。
-- 控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`）。新增显示 `site_logo` 的位置也要加。
+- 未上传、地址不安全或图片加载失败时，全站回退到同一张 `frontend/public/logo.svg`：星狐通用头像（2026-11 起取代学士帽），来自设计源 `logo-gen/round7-vectorcraft-fox/211api-star-fox-icon-universal.svg`，裁切为 `viewBox="104 59 816 914"`（贴着白色描边外缘各留 4 个单位）。首页 `BrandLogo.vue` 直接引用它，不再内联一份图形；换回退图只改这一个文件。
+- 后台已上传的站点 Logo 优先于回退图：生产若仍存着旧的学士帽 PNG，要在后台删掉或换成星狐，前台才会显示星狐。
+- v3 的导航和页脚都在夜空上：内置星狐头像高 34px（宽 30px），站点名用白色、20px，两者间距 6px，对应 DESIGN.md「Logo」横版比例；星狐自带白色贴纸描边，在夜空上不加白底。上传的标志一律加白底小圆角（规则写在 `brand-home.css` 全局段，只作用于 `.bh-logo__img`：scoped 样式里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`）。
+- 首屏月亮中心是「月中星狐」：淡色全身剪影（`#CDD9EE`，43×58，比圆心向右、向下各偏 2px，与 Figma 一致），内联在 `HeroScene.vue`，来自设计源 `211api-star-fox-moon-silhouette.svg`。它是场景的一部分，不随后台标志变化，也不放彩色头像，以免和导航 Logo 重复。
+- 控制台侧栏、登录页、模型广场、公开页、Key 查询页和上游首页的标志容器在深色模式加白底和小内边距（`dark:bg-white dark:p-1`，大图标 `p-1.5`/`p-2`），照顾后台上传的透明底深色标志；星狐回退图放在白底上同样清楚。新增显示 `site_logo` 的位置也要加。
 
 ## 图标
 

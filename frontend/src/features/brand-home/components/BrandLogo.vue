@@ -1,16 +1,7 @@
 <template>
   <span class="bh-logo">
     <img v-if="src && !failed" class="bh-logo__img" :src="src" alt="" @error="failed = true" />
-    <svg v-else class="bh-logo__mark" viewBox="10 15 44 33" aria-hidden="true" focusable="false">
-      <path d="M32 17.5L52 28L32 38.5L12 28L32 17.5Z" fill="currentColor" />
-      <path d="M20.75 34.22L32 40.125L43.25 34.22V42.16L32 46.375L20.75 42.16V34.22Z" fill="currentColor" />
-      <path
-        d="M45.6543 32.7383L45.9746 32.9072V40.125H44.7754V33.6328L31.7207 26.7812L32.2793 25.7188L45.6543 32.7383Z"
-        class="bh-logo__tassel"
-      />
-      <circle class="bh-logo__tassel" cx="32" cy="26.25" r="1.5" />
-      <circle class="bh-logo__tassel" cx="45.375" cy="40.125" r="1.55" />
-    </svg>
+    <img v-else class="bh-logo__mark" src="/logo.svg" width="30" height="34" alt="" />
     <span v-if="name" class="bh-logo__word">{{ name }}</span>
   </span>
 </template>
@@ -21,7 +12,9 @@ import { ref, watch } from 'vue'
 /**
  * 站点标志 + 站点名字标。
  * `src` 为后台「站点 Logo」（调用方已做 sanitizeUrl），有值时以它为准；
- * 未上传或加载失败时回退到内置学士帽（设计源 export/logo/logo-mark-*.svg）。
+ * 未上传或加载失败时回退到内置星狐头像 `/logo.svg`（与控制台、favicon 同一文件；
+ * 设计源 logo-gen/round7-vectorcraft-fox/211api-star-fox-icon-universal.svg）。
+ * 星狐头像自带白色贴纸描边，深浅背景都能用，不加白底。
  */
 const props = withDefaults(defineProps<{ name?: string; src?: string }>(), {
   name: '',
@@ -43,10 +36,13 @@ watch(
   gap: 6px;
   color: var(--bh-navy);
 }
+/* Lockup proportions (DESIGN.md · Logo): icon 34px, wordmark ≈ 42% of it, gap ≈ 15%. */
 .bh-logo__mark {
-  width: 37px;
-  height: 28px;
+  display: block;
+  width: 30px;
+  height: 34px;
   flex: none;
+  object-fit: contain;
 }
 .bh-logo__img {
   display: block;
@@ -62,9 +58,6 @@ watch(
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
-}
-.bh-logo__tassel {
-  fill: var(--bh-gold);
 }
 /* Dark theme: the uploaded logo sits on a white tile, see styles/brand-home.css. */
 </style>
