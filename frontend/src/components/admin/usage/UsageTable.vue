@@ -251,6 +251,8 @@
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
               <span class="text-gray-400 dark:text-gray-500" :title="t('usage.outputTpsHint')">{{ t('usage.outputTps') }}</span>
               <span data-testid="output-tps" class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatUsageOutputRate(row) }}</span>
+              <span class="text-gray-400 dark:text-gray-500" :title="t('usage.cacheHitRateHint')">{{ t('usage.cacheRate') }}</span>
+              <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatCacheHitRate(row.cache_hit_rate) }}</span>
             </div>
           </div>
         </template>
@@ -547,6 +549,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'

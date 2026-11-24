@@ -52,6 +52,8 @@ const (
 	FieldCacheCreationTokens = "cache_creation_tokens"
 	// FieldCacheReadTokens holds the string denoting the cache_read_tokens field in the database.
 	FieldCacheReadTokens = "cache_read_tokens"
+	// FieldUpstreamCacheReadTokens holds the string denoting the upstream_cache_read_tokens field in the database.
+	FieldUpstreamCacheReadTokens = "upstream_cache_read_tokens"
 	// FieldCacheCreation5mTokens holds the string denoting the cache_creation_5m_tokens field in the database.
 	FieldCacheCreation5mTokens = "cache_creation_5m_tokens"
 	// FieldCacheCreation1hTokens holds the string denoting the cache_creation_1h_tokens field in the database.
@@ -183,6 +185,7 @@ var Columns = []string{
 	FieldOutputTokens,
 	FieldCacheCreationTokens,
 	FieldCacheReadTokens,
+	FieldUpstreamCacheReadTokens,
 	FieldCacheCreation5mTokens,
 	FieldCacheCreation1hTokens,
 	FieldCacheCreation30mTokens,
@@ -403,6 +406,11 @@ func ByCacheCreationTokens(opts ...sql.OrderTermOption) OrderOption {
 // ByCacheReadTokens orders the results by the cache_read_tokens field.
 func ByCacheReadTokens(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCacheReadTokens, opts...).ToFunc()
+}
+
+// ByUpstreamCacheReadTokens orders the results by the upstream_cache_read_tokens field.
+func ByUpstreamCacheReadTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamCacheReadTokens, opts...).ToFunc()
 }
 
 // ByCacheCreation5mTokens orders the results by the cache_creation_5m_tokens field.

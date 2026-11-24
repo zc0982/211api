@@ -222,6 +222,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
@@ -691,6 +692,7 @@ const exportToCSV = async () => {
       'Original Cost',
       'First Token (ms)',
       'Duration (ms)',
+      'Cache Hit Rate',
     ]
     const rows = allLogs.map((log) => [
       log.created_at,
@@ -710,6 +712,7 @@ const exportToCSV = async () => {
       log.total_cost.toFixed(8),
       log.first_token_ms ?? '',
       log.duration_ms ?? '',
+      formatCacheHitRate(log.cache_hit_rate, ''),
     ].map(escapeCSVValue))
     const csvContent = [
       headers.map(escapeCSVValue).join(','),

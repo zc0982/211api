@@ -34,6 +34,7 @@ const localizedMessages: Record<'en' | 'zh', Record<string, string>> = {
 
 const messages: Record<string, string> = {
   'usage.outputTps': 'Output TPS',
+  'usage.cacheRate': 'Cache rate',
   'admin.usage.userDeletedBadge': 'Deleted',
   'usage.costDetails': 'Cost Breakdown',
   'admin.usage.inputCost': 'Input Cost',
@@ -163,6 +164,29 @@ describe('admin UsageTable tooltip', () => {
     } finally {
       wrapper.unmount()
     }
+  })
+
+  it('shows each cache rate directly below output TPS in the latency cell', () => {
+    const row = { ...baseImageRow, input_tokens: 20, cache_creation_tokens: 20, cache_read_tokens: 60, output_tokens: 900, cache_hit_rate: 0.6 }
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          row,
+          { ...row, request_id: 'miss', cache_hit_rate: 0 },
+          { ...row, request_id: 'empty', cache_hit_rate: null, input_tokens: 0, cache_read_tokens: 0, cache_creation_tokens: 0 },
+          { ...row, request_id: 'cached', cache_hit_rate: 1, input_tokens: 0, cache_creation_tokens: 0 },
+        ],
+        loading: false,
+        columns: [{ key: 'latency', label: 'Latency' }],
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const rates = wrapper.findAll('[data-testid="output-tps"]').map(tps => {
+      const label = tps.element.nextElementSibling
+      expect(label?.textContent).toBe('Cache rate')
+      return label?.nextElementSibling?.textContent
+    })
+    expect(rates).toEqual(['60.0%', '0.0%', '—', '100.0%'])
   })
 
   it('shows output TPS in the latency cell using total duration', () => {

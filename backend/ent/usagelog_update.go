@@ -393,6 +393,33 @@ func (_u *UsageLogUpdate) AddCacheReadTokens(v int) *UsageLogUpdate {
 	return _u
 }
 
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdate) SetUpstreamCacheReadTokens(v int) *UsageLogUpdate {
+	_u.mutation.ResetUpstreamCacheReadTokens()
+	_u.mutation.SetUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamCacheReadTokens(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddUpstreamCacheReadTokens adds value to the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdate) AddUpstreamCacheReadTokens(v int) *UsageLogUpdate {
+	_u.mutation.AddUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// ClearUpstreamCacheReadTokens clears the value of the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdate) ClearUpstreamCacheReadTokens() *UsageLogUpdate {
+	_u.mutation.ClearUpstreamCacheReadTokens()
+	return _u
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (_u *UsageLogUpdate) SetCacheCreation5mTokens(v int) *UsageLogUpdate {
 	_u.mutation.ResetCacheCreation5mTokens()
@@ -1258,6 +1285,15 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedCacheReadTokens(); ok {
 		_spec.AddField(usagelog.FieldCacheReadTokens, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.UpstreamCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamCacheReadTokens(); ok {
+		_spec.AddField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if _u.mutation.UpstreamCacheReadTokensCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt)
+	}
 	if value, ok := _u.mutation.CacheCreation5mTokens(); ok {
 		_spec.SetField(usagelog.FieldCacheCreation5mTokens, field.TypeInt, value)
 	}
@@ -1958,6 +1994,33 @@ func (_u *UsageLogUpdateOne) SetNillableCacheReadTokens(v *int) *UsageLogUpdateO
 // AddCacheReadTokens adds value to the "cache_read_tokens" field.
 func (_u *UsageLogUpdateOne) AddCacheReadTokens(v int) *UsageLogUpdateOne {
 	_u.mutation.AddCacheReadTokens(v)
+	return _u
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) SetUpstreamCacheReadTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetUpstreamCacheReadTokens()
+	_u.mutation.SetUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamCacheReadTokens(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddUpstreamCacheReadTokens adds value to the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) AddUpstreamCacheReadTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.AddUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// ClearUpstreamCacheReadTokens clears the value of the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) ClearUpstreamCacheReadTokens() *UsageLogUpdateOne {
+	_u.mutation.ClearUpstreamCacheReadTokens()
 	return _u
 }
 
@@ -2855,6 +2918,15 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedCacheReadTokens(); ok {
 		_spec.AddField(usagelog.FieldCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.UpstreamCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamCacheReadTokens(); ok {
+		_spec.AddField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if _u.mutation.UpstreamCacheReadTokensCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt)
 	}
 	if value, ok := _u.mutation.CacheCreation5mTokens(); ok {
 		_spec.SetField(usagelog.FieldCacheCreation5mTokens, field.TypeInt, value)

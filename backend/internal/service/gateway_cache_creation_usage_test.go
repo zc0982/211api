@@ -706,3 +706,30 @@ func TestAnthropicCacheOnlyBufferedSSEUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestRecordUsage_ForceCacheBillingPreservesUpstreamHits(t *testing.T) {
+	for _, reads := range []int{0, 25} {
+		repo := &openAIRecordUsageLogRepoStub{inserted: true}
+		svc := newGatewayRecordUsageServiceWithBillingRepoForTest(repo, &openAIRecordUsageBillingRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+		svc.billingService = newTestBillingServiceWithPrices(map[string]*ModelPricing{
+			"claude-sonnet-4": {InputPricePerToken: 0.01, CacheReadPricePerToken: 0.001},
+		})
+		groupID := int64(10)
+		result := &ForwardResult{RequestID: "forced-cache", Model: "claude-sonnet-4", Usage: ClaudeUsage{InputTokens: 100 - reads, CacheReadInputTokens: reads}}
+		input := &RecordUsageInput{
+			Result: result,
+			APIKey: &APIKey{ID: 501, GroupID: &groupID, Group: &Group{ID: groupID, Platform: PlatformAnthropic, RateMultiplier: 1}},
+			User:   &User{ID: 601}, Account: &Account{ID: 701, Platform: PlatformAnthropic},
+			ForceCacheBilling: true,
+		}
+		for attempt := 0; attempt < 2; attempt++ {
+			require.NoError(t, svc.RecordUsage(context.Background(), input))
+			log := repo.lastLog
+			require.Equal(t, 0, log.InputTokens)
+			require.Equal(t, 100, log.CacheReadTokens)
+			require.InDelta(t, 0.1, log.TotalCost, 1e-12)
+			require.NotNil(t, log.CacheHitRate())
+			require.InDelta(t, float64(reads)/100, *log.CacheHitRate(), 1e-12)
+		}
+	}
+}

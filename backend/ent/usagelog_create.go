@@ -253,6 +253,20 @@ func (_c *UsageLogCreate) SetNillableCacheReadTokens(v *int) *UsageLogCreate {
 	return _c
 }
 
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (_c *UsageLogCreate) SetUpstreamCacheReadTokens(v int) *UsageLogCreate {
+	_c.mutation.SetUpstreamCacheReadTokens(v)
+	return _c
+}
+
+// SetNillableUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamCacheReadTokens(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamCacheReadTokens(*v)
+	}
+	return _c
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (_c *UsageLogCreate) SetCacheCreation5mTokens(v int) *UsageLogCreate {
 	_c.mutation.SetCacheCreation5mTokens(v)
@@ -1065,6 +1079,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldCacheReadTokens, field.TypeInt, value)
 		_node.CacheReadTokens = value
 	}
+	if value, ok := _c.mutation.UpstreamCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+		_node.UpstreamCacheReadTokens = &value
+	}
 	if value, ok := _c.mutation.CacheCreation5mTokens(); ok {
 		_spec.SetField(usagelog.FieldCacheCreation5mTokens, field.TypeInt, value)
 		_node.CacheCreation5mTokens = value
@@ -1637,6 +1655,30 @@ func (u *UsageLogUpsert) UpdateCacheReadTokens() *UsageLogUpsert {
 // AddCacheReadTokens adds v to the "cache_read_tokens" field.
 func (u *UsageLogUpsert) AddCacheReadTokens(v int) *UsageLogUpsert {
 	u.Add(usagelog.FieldCacheReadTokens, v)
+	return u
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsert) SetUpstreamCacheReadTokens(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamCacheReadTokens, v)
+	return u
+}
+
+// UpdateUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamCacheReadTokens() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamCacheReadTokens)
+	return u
+}
+
+// AddUpstreamCacheReadTokens adds v to the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsert) AddUpstreamCacheReadTokens(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldUpstreamCacheReadTokens, v)
+	return u
+}
+
+// ClearUpstreamCacheReadTokens clears the value of the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsert) ClearUpstreamCacheReadTokens() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldUpstreamCacheReadTokens)
 	return u
 }
 
@@ -2581,6 +2623,34 @@ func (u *UsageLogUpsertOne) AddCacheReadTokens(v int) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateCacheReadTokens() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheReadTokens()
+	})
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertOne) SetUpstreamCacheReadTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamCacheReadTokens(v)
+	})
+}
+
+// AddUpstreamCacheReadTokens adds v to the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertOne) AddUpstreamCacheReadTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamCacheReadTokens(v)
+	})
+}
+
+// UpdateUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamCacheReadTokens() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamCacheReadTokens()
+	})
+}
+
+// ClearUpstreamCacheReadTokens clears the value of the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertOne) ClearUpstreamCacheReadTokens() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamCacheReadTokens()
 	})
 }
 
@@ -3779,6 +3849,34 @@ func (u *UsageLogUpsertBulk) AddCacheReadTokens(v int) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateCacheReadTokens() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheReadTokens()
+	})
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertBulk) SetUpstreamCacheReadTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamCacheReadTokens(v)
+	})
+}
+
+// AddUpstreamCacheReadTokens adds v to the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertBulk) AddUpstreamCacheReadTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamCacheReadTokens(v)
+	})
+}
+
+// UpdateUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamCacheReadTokens() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamCacheReadTokens()
+	})
+}
+
+// ClearUpstreamCacheReadTokens clears the value of the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertBulk) ClearUpstreamCacheReadTokens() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamCacheReadTokens()
 	})
 }
 
