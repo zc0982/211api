@@ -126,24 +126,36 @@ describe('BrandHome', () => {
     const img = wrapper.find('.bh-header__brand img.bh-logo__img')
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('data:image/png;base64,AAAA')
-    expect(wrapper.find('.bh-header__brand svg.bh-logo__mark').exists()).toBe(false)
+    expect(wrapper.find('.bh-header__brand .bh-logo__mark').exists()).toBe(false)
     wrapper.unmount()
   })
 
   it('header logo falls back to the built-in mark when site_logo is empty or unsafe', () => {
     for (const site_logo of ['', 'javascript:alert(1)']) {
       const wrapper = mountHome({ site_logo })
-      expect(wrapper.find('.bh-header__brand img').exists()).toBe(false)
-      expect(wrapper.find('.bh-header__brand svg.bh-logo__mark').exists()).toBe(true)
+      expect(wrapper.find('.bh-header__brand img.bh-logo__img').exists()).toBe(false)
+      // Built-in fallback is the star-fox icon, the same /logo.svg as the console and favicon.
+      expect(wrapper.find('.bh-header__brand img.bh-logo__mark').attributes('src')).toBe('/logo.svg')
+      expect(wrapper.find('.bh-footer__brand img.bh-logo__mark').attributes('src')).toBe('/logo.svg')
       wrapper.unmount()
     }
   })
 
   it('header logo falls back to the built-in mark when the uploaded image fails to load', async () => {
     const wrapper = mountHome({ site_logo: '/broken.png' })
-    await wrapper.find('.bh-header__brand img').trigger('error')
-    expect(wrapper.find('.bh-header__brand img').exists()).toBe(false)
-    expect(wrapper.find('.bh-header__brand svg.bh-logo__mark').exists()).toBe(true)
+    await wrapper.find('.bh-header__brand img.bh-logo__img').trigger('error')
+    expect(wrapper.find('.bh-header__brand img.bh-logo__img').exists()).toBe(false)
+    expect(wrapper.find('.bh-header__brand img.bh-logo__mark').attributes('src')).toBe('/logo.svg')
+    wrapper.unmount()
+  })
+
+  it('hero moon carries the pale star-fox silhouette, not a coloured logo', () => {
+    const wrapper = mountHome({ site_logo: 'data:image/png;base64,AAAA' })
+    const moon = wrapper.find('.bh-hs__moon')
+    expect(moon.find('svg.bh-hs__moon-fox path').attributes('fill')).toBe('#CDD9EE')
+    // Scene art: independent of the uploaded site logo, and no gold inside the moon.
+    expect(moon.find('img').exists()).toBe(false)
+    expect(moon.html()).not.toMatch(/D4A84B/i)
     wrapper.unmount()
   })
 

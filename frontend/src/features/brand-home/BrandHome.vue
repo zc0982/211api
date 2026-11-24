@@ -56,7 +56,7 @@ const authStore = useAuthStore()
 
 const settings = computed(() => appStore.cachedPublicSettings)
 const siteName = computed(() => (settings.value?.site_name || '').trim() || DEFAULT_SITE_NAME)
-/** 后台「站点 Logo」为准（与控制台、登录页同一来源）；未上传时用内置学士帽。 */
+/** 后台「站点 Logo」为准（与控制台、登录页同一来源）；未上传时用内置星狐头像 /logo.svg。 */
 const siteLogo = computed(() =>
   sanitizeUrl(settings.value?.site_logo || '', { allowRelative: true, allowDataUrl: true })
 )
