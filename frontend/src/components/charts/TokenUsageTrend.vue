@@ -35,7 +35,7 @@ import {
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { TrendDataPoint } from '@/types'
-import { cacheHitRate } from '@/utils/usageCacheHitRate'
+import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 
 ChartJS.register(
   CategoryScale,
@@ -109,7 +109,7 @@ const chartData = computed(() => {
       },
       {
         label: 'Cache Hit Rate',
-        data: props.trendData.map((d) => (cacheHitRate(d) ?? 0) * 100),
+        data: props.trendData.map((d) => d.cache_hit_rate == null ? null : d.cache_hit_rate * 100),
         borderColor: chartColors.value.cacheHitRate,
         backgroundColor: `${chartColors.value.cacheHitRate}20`,
         borderDash: [5, 5],
@@ -145,7 +145,7 @@ const lineOptions = computed(() => ({
       callbacks: {
         label: (context: any) => {
           if (context.dataset.yAxisID === 'yPercent') {
-            return `${context.dataset.label}: ${context.raw.toFixed(1)}%`
+            return `${context.dataset.label}: ${formatCacheHitRate(props.trendData[context.dataIndex]?.cache_hit_rate)}`
           }
           return `${context.dataset.label}: ${formatTokens(context.raw)}`
         },

@@ -712,7 +712,7 @@ const exportToCSV = async () => {
       log.total_cost.toFixed(8),
       log.first_token_ms ?? '',
       log.duration_ms ?? '',
-      formatCacheHitRate(log, ''),
+      formatCacheHitRate(log.cache_hit_rate, ''),
     ].map(escapeCSVValue))
     const csvContent = [
       headers.map(escapeCSVValue).join(','),

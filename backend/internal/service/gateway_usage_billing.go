@@ -797,7 +797,11 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
+	upstreamCacheReads := result.Usage.CacheReadInputTokens
 	if input.ForceCacheBilling && result.Usage.InputTokens > 0 {
+		// Keep the forwarding result intact if billing is retried.
+		billedResult := *result
+		result = &billedResult
 		logger.LegacyPrintf("service.gateway", "force_cache_billing: %d input_tokens → cache_read_input_tokens (account=%d)",
 			result.Usage.InputTokens, account.ID)
 		result.Usage.CacheReadInputTokens += result.Usage.InputTokens
@@ -857,6 +861,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost)
+	usageLog.UpstreamCacheReadTokens = &upstreamCacheReads
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）。纯存储费不是一次模型请求，
 	// 账号统计成本回落 total_cost（官方存储价）。

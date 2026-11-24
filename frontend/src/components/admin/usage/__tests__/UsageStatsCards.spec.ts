@@ -37,6 +37,7 @@ const stats = {
   total_cache_tokens: 34,
   total_cache_creation_tokens: 12,
   total_cache_read_tokens: 22,
+  cache_hit_rate: 0.10,
   total_tokens: 184,
   total_cost: 0.001,
   total_actual_cost: 0.001,
@@ -59,7 +60,7 @@ describe('UsageStatsCards', () => {
 
     const text = wrapper.text()
     expect(text).toContain('Cache: 34')
-    expect(text).toMatch(/Cache hit rate\s*16.4%/)
+    expect(text).toMatch(/Cache hit rate\s*10.0%/)
     expect(text).toContain('Cache Token Breakdown')
     expect(text).toContain('Cache Creation')
     expect(text).toContain('12')

@@ -44776,90 +44776,92 @@ func (m *UsageCleanupTaskMutation) ResetEdge(name string) error {
 // UsageLogMutation represents an operation that mutates the UsageLog nodes in the graph.
 type UsageLogMutation struct {
 	config
-	op                           Op
-	typ                          string
-	id                           *int64
-	request_id                   *string
-	model                        *string
-	requested_model              *string
-	upstream_model               *string
-	upstream_response_model      *string
-	upstream_model_mismatch      *bool
-	channel_id                   *int64
-	addchannel_id                *int64
-	model_mapping_chain          *string
-	billing_tier                 *string
-	billing_mode                 *string
-	input_tokens                 *int
-	addinput_tokens              *int
-	output_tokens                *int
-	addoutput_tokens             *int
-	cache_creation_tokens        *int
-	addcache_creation_tokens     *int
-	cache_read_tokens            *int
-	addcache_read_tokens         *int
-	cache_creation_5m_tokens     *int
-	addcache_creation_5m_tokens  *int
-	cache_creation_1h_tokens     *int
-	addcache_creation_1h_tokens  *int
-	cache_creation_30m_tokens    *int
-	addcache_creation_30m_tokens *int
-	cache_creation_12h_tokens    *int
-	addcache_creation_12h_tokens *int
-	input_cost                   *float64
-	addinput_cost                *float64
-	output_cost                  *float64
-	addoutput_cost               *float64
-	cache_creation_cost          *float64
-	addcache_creation_cost       *float64
-	cache_read_cost              *float64
-	addcache_read_cost           *float64
-	total_cost                   *float64
-	addtotal_cost                *float64
-	actual_cost                  *float64
-	addactual_cost               *float64
-	rate_multiplier              *float64
-	addrate_multiplier           *float64
-	long_context_billing_applied *bool
-	account_rate_multiplier      *float64
-	addaccount_rate_multiplier   *float64
-	billing_type                 *int8
-	addbilling_type              *int8
-	stream                       *bool
-	duration_ms                  *int
-	addduration_ms               *int
-	first_token_ms               *int
-	addfirst_token_ms            *int
-	user_agent                   *string
-	ip_address                   *string
-	image_count                  *int
-	addimage_count               *int
-	image_size                   *string
-	image_input_size             *string
-	image_output_size            *string
-	image_size_source            *string
-	image_size_breakdown         *map[string]int
-	video_count                  *int
-	addvideo_count               *int
-	video_resolution             *string
-	video_duration_seconds       *int
-	addvideo_duration_seconds    *int
-	cache_ttl_overridden         *bool
-	created_at                   *time.Time
-	clearedFields                map[string]struct{}
-	user                         *int64
-	cleareduser                  bool
-	api_key                      *int64
-	clearedapi_key               bool
-	account                      *int64
-	clearedaccount               bool
-	group                        *int64
-	clearedgroup                 bool
-	subscription                 *int64
-	clearedsubscription          bool
-	done                         bool
-	oldValue                     func(context.Context) (*UsageLog, error)
-	predicates                   []predicate.UsageLog
+	op                            Op
+	typ                           string
+	id                            *int64
+	request_id                    *string
+	model                         *string
+	requested_model               *string
+	upstream_model                *string
+	upstream_response_model       *string
+	upstream_model_mismatch       *bool
+	channel_id                    *int64
+	addchannel_id                 *int64
+	model_mapping_chain           *string
+	billing_tier                  *string
+	billing_mode                  *string
+	input_tokens                  *int
+	addinput_tokens               *int
+	output_tokens                 *int
+	addoutput_tokens              *int
+	cache_creation_tokens         *int
+	addcache_creation_tokens      *int
+	cache_read_tokens             *int
+	addcache_read_tokens          *int
+	upstream_cache_read_tokens    *int
+	addupstream_cache_read_tokens *int
+	cache_creation_5m_tokens      *int
+	addcache_creation_5m_tokens   *int
+	cache_creation_1h_tokens      *int
+	addcache_creation_1h_tokens   *int
+	cache_creation_30m_tokens     *int
+	addcache_creation_30m_tokens  *int
+	cache_creation_12h_tokens     *int
+	addcache_creation_12h_tokens  *int
+	input_cost                    *float64
+	addinput_cost                 *float64
+	output_cost                   *float64
+	addoutput_cost                *float64
+	cache_creation_cost           *float64
+	addcache_creation_cost        *float64
+	cache_read_cost               *float64
+	addcache_read_cost            *float64
+	total_cost                    *float64
+	addtotal_cost                 *float64
+	actual_cost                   *float64
+	addactual_cost                *float64
+	rate_multiplier               *float64
+	addrate_multiplier            *float64
+	long_context_billing_applied  *bool
+	account_rate_multiplier       *float64
+	addaccount_rate_multiplier    *float64
+	billing_type                  *int8
+	addbilling_type               *int8
+	stream                        *bool
+	duration_ms                   *int
+	addduration_ms                *int
+	first_token_ms                *int
+	addfirst_token_ms             *int
+	user_agent                    *string
+	ip_address                    *string
+	image_count                   *int
+	addimage_count                *int
+	image_size                    *string
+	image_input_size              *string
+	image_output_size             *string
+	image_size_source             *string
+	image_size_breakdown          *map[string]int
+	video_count                   *int
+	addvideo_count                *int
+	video_resolution              *string
+	video_duration_seconds        *int
+	addvideo_duration_seconds     *int
+	cache_ttl_overridden          *bool
+	created_at                    *time.Time
+	clearedFields                 map[string]struct{}
+	user                          *int64
+	cleareduser                   bool
+	api_key                       *int64
+	clearedapi_key                bool
+	account                       *int64
+	clearedaccount                bool
+	group                         *int64
+	clearedgroup                  bool
+	subscription                  *int64
+	clearedsubscription           bool
+	done                          bool
+	oldValue                      func(context.Context) (*UsageLog, error)
+	predicates                    []predicate.UsageLog
 }
 
 var _ ent.Mutation = (*UsageLogMutation)(nil)
@@ -45873,6 +45875,76 @@ func (m *UsageLogMutation) AddedCacheReadTokens() (r int, exists bool) {
 func (m *UsageLogMutation) ResetCacheReadTokens() {
 	m.cache_read_tokens = nil
 	m.addcache_read_tokens = nil
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (m *UsageLogMutation) SetUpstreamCacheReadTokens(i int) {
+	m.upstream_cache_read_tokens = &i
+	m.addupstream_cache_read_tokens = nil
+}
+
+// UpstreamCacheReadTokens returns the value of the "upstream_cache_read_tokens" field in the mutation.
+func (m *UsageLogMutation) UpstreamCacheReadTokens() (r int, exists bool) {
+	v := m.upstream_cache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamCacheReadTokens returns the old "upstream_cache_read_tokens" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamCacheReadTokens(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamCacheReadTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamCacheReadTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamCacheReadTokens: %w", err)
+	}
+	return oldValue.UpstreamCacheReadTokens, nil
+}
+
+// AddUpstreamCacheReadTokens adds i to the "upstream_cache_read_tokens" field.
+func (m *UsageLogMutation) AddUpstreamCacheReadTokens(i int) {
+	if m.addupstream_cache_read_tokens != nil {
+		*m.addupstream_cache_read_tokens += i
+	} else {
+		m.addupstream_cache_read_tokens = &i
+	}
+}
+
+// AddedUpstreamCacheReadTokens returns the value that was added to the "upstream_cache_read_tokens" field in this mutation.
+func (m *UsageLogMutation) AddedUpstreamCacheReadTokens() (r int, exists bool) {
+	v := m.addupstream_cache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearUpstreamCacheReadTokens clears the value of the "upstream_cache_read_tokens" field.
+func (m *UsageLogMutation) ClearUpstreamCacheReadTokens() {
+	m.upstream_cache_read_tokens = nil
+	m.addupstream_cache_read_tokens = nil
+	m.clearedFields[usagelog.FieldUpstreamCacheReadTokens] = struct{}{}
+}
+
+// UpstreamCacheReadTokensCleared returns if the "upstream_cache_read_tokens" field was cleared in this mutation.
+func (m *UsageLogMutation) UpstreamCacheReadTokensCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldUpstreamCacheReadTokens]
+	return ok
+}
+
+// ResetUpstreamCacheReadTokens resets all changes to the "upstream_cache_read_tokens" field.
+func (m *UsageLogMutation) ResetUpstreamCacheReadTokens() {
+	m.upstream_cache_read_tokens = nil
+	m.addupstream_cache_read_tokens = nil
+	delete(m.clearedFields, usagelog.FieldUpstreamCacheReadTokens)
 }
 
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
@@ -47644,7 +47716,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 49)
+	fields := make([]string, 0, 50)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47701,6 +47773,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.cache_read_tokens != nil {
 		fields = append(fields, usagelog.FieldCacheReadTokens)
+	}
+	if m.upstream_cache_read_tokens != nil {
+		fields = append(fields, usagelog.FieldUpstreamCacheReadTokens)
 	}
 	if m.cache_creation_5m_tokens != nil {
 		fields = append(fields, usagelog.FieldCacheCreation5mTokens)
@@ -47838,6 +47913,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.CacheCreationTokens()
 	case usagelog.FieldCacheReadTokens:
 		return m.CacheReadTokens()
+	case usagelog.FieldUpstreamCacheReadTokens:
+		return m.UpstreamCacheReadTokens()
 	case usagelog.FieldCacheCreation5mTokens:
 		return m.CacheCreation5mTokens()
 	case usagelog.FieldCacheCreation1hTokens:
@@ -47945,6 +48022,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldCacheCreationTokens(ctx)
 	case usagelog.FieldCacheReadTokens:
 		return m.OldCacheReadTokens(ctx)
+	case usagelog.FieldUpstreamCacheReadTokens:
+		return m.OldUpstreamCacheReadTokens(ctx)
 	case usagelog.FieldCacheCreation5mTokens:
 		return m.OldCacheCreation5mTokens(ctx)
 	case usagelog.FieldCacheCreation1hTokens:
@@ -48146,6 +48225,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCacheReadTokens(v)
+		return nil
+	case usagelog.FieldUpstreamCacheReadTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamCacheReadTokens(v)
 		return nil
 	case usagelog.FieldCacheCreation5mTokens:
 		v, ok := value.(int)
@@ -48380,6 +48466,9 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addcache_read_tokens != nil {
 		fields = append(fields, usagelog.FieldCacheReadTokens)
 	}
+	if m.addupstream_cache_read_tokens != nil {
+		fields = append(fields, usagelog.FieldUpstreamCacheReadTokens)
+	}
 	if m.addcache_creation_5m_tokens != nil {
 		fields = append(fields, usagelog.FieldCacheCreation5mTokens)
 	}
@@ -48452,6 +48541,8 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedCacheCreationTokens()
 	case usagelog.FieldCacheReadTokens:
 		return m.AddedCacheReadTokens()
+	case usagelog.FieldUpstreamCacheReadTokens:
+		return m.AddedUpstreamCacheReadTokens()
 	case usagelog.FieldCacheCreation5mTokens:
 		return m.AddedCacheCreation5mTokens()
 	case usagelog.FieldCacheCreation1hTokens:
@@ -48531,6 +48622,13 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddCacheReadTokens(v)
+		return nil
+	case usagelog.FieldUpstreamCacheReadTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamCacheReadTokens(v)
 		return nil
 	case usagelog.FieldCacheCreation5mTokens:
 		v, ok := value.(int)
@@ -48696,6 +48794,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldSubscriptionID) {
 		fields = append(fields, usagelog.FieldSubscriptionID)
 	}
+	if m.FieldCleared(usagelog.FieldUpstreamCacheReadTokens) {
+		fields = append(fields, usagelog.FieldUpstreamCacheReadTokens)
+	}
 	if m.FieldCleared(usagelog.FieldAccountRateMultiplier) {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
 	}
@@ -48775,6 +48876,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ClearSubscriptionID()
+		return nil
+	case usagelog.FieldUpstreamCacheReadTokens:
+		m.ClearUpstreamCacheReadTokens()
 		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		m.ClearAccountRateMultiplier()
@@ -48876,6 +48980,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldCacheReadTokens:
 		m.ResetCacheReadTokens()
+		return nil
+	case usagelog.FieldUpstreamCacheReadTokens:
+		m.ResetUpstreamCacheReadTokens()
 		return nil
 	case usagelog.FieldCacheCreation5mTokens:
 		m.ResetCacheCreation5mTokens()

@@ -1826,6 +1826,7 @@ export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
 export interface UsageLog {
+  cache_hit_rate?: number | null
   id: number
   user_id: number
   api_key_id: number
@@ -2048,6 +2049,7 @@ export interface DashboardStats {
 }
 
 export interface UsageStatsResponse {
+  cache_hit_rate?: number | null
   period?: string
   total_requests: number
   total_input_tokens: number
@@ -2068,6 +2070,7 @@ export interface UsageStatsResponse {
 // ==================== Trend & Chart Types ====================
 
 export interface TrendDataPoint {
+  cache_hit_rate?: number | null
   date: string
   requests: number
   input_tokens: number

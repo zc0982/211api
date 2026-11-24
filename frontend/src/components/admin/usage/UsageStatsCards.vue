@@ -57,7 +57,7 @@
           </span>
         </p>
         <p class="mt-1 text-xs text-gray-500" :title="t('usage.cacheHitRateHint')">
-          {{ t('usage.cacheHitRate') }} <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ totalCacheHitRate }}</span>
+          {{ t('usage.cacheHitRate') }} <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatCacheHitRate(stats?.cache_hit_rate) }}</span>
         </p>
       </div>
     </div>
@@ -109,12 +109,6 @@ const props = withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
-
-const totalCacheHitRate = computed(() => props.stats ? formatCacheHitRate({
-  input_tokens: props.stats.total_input_tokens,
-  cache_read_tokens: props.stats.total_cache_read_tokens,
-  cache_creation_tokens: props.stats.total_cache_creation_tokens,
-}) : '—')
 
 const totalAccountCost = computed(() => {
   const stats = props.stats as (AdminUsageStatsResponse & { total_account_cost?: number }) | null

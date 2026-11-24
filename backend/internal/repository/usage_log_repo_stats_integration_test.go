@@ -144,3 +144,78 @@ func TestUsageLog_GetStatsWithFilters_AggregatesAndEndpoints(t *testing.T) {
 	require.NotEmpty(t, stats.UpstreamEndpoints)
 	require.NotEmpty(t, stats.EndpointPaths)
 }
+
+func TestUsageLog_UpstreamCacheHitRateAcrossRowsAndRollups(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	client := tx.Client()
+	repo := newUsageLogRepositoryWithSQL(client, tx)
+	rollups := newDashboardAggregationRepositoryWithSQL(tx)
+	user := mustCreateUser(t, client, &service.User{Email: "cache-rate@example.test"})
+	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "test-cache-rate", Name: "cache-rate"})
+	account := mustCreateAccount(t, client, &service.Account{Name: "cache-rate"})
+	start := time.Date(2040, 2, 3, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	filters := usagestats.UsageLogFilters{UserID: user.ID, StartTime: &start, EndTime: &end}
+	add := func(log service.UsageLog) *service.UsageLog {
+		log.UserID, log.APIKeyID, log.AccountID = user.ID, key.ID, account.ID
+		log.Model = "test-cache-rate"
+		_, err := repo.Create(ctx, &log)
+		require.NoError(t, err)
+		saved, err := repo.GetByID(ctx, log.ID)
+		require.NoError(t, err)
+		return saved
+	}
+	check := func(want *float64) {
+		t.Helper()
+		stats, err := repo.GetStatsWithFilters(ctx, filters)
+		require.NoError(t, err)
+		require.Equal(t, want, stats.CacheHitRate)
+		require.NoError(t, rollups.upsertHourlyAggregates(ctx, start, end))
+		require.NoError(t, rollups.upsertDailyAggregates(ctx, start, end))
+		for _, granularity := range []string{"hour", "day"} {
+			raw, err := repo.GetUsageTrendWithUsageFilters(ctx, start, end, granularity, filters)
+			require.NoError(t, err)
+			cached, err := repo.getUsageTrendFromAggregates(ctx, start, end, granularity)
+			require.NoError(t, err)
+			require.NotEmpty(t, raw)
+			require.Equal(t, raw, cached)
+			if granularity == "day" {
+				require.Len(t, raw, 1)
+				require.Equal(t, want, raw[0].CacheHitRate)
+			}
+		}
+	}
+	// TTL-only and positive totals coexist in one hour. A COALESCE after SUM
+	// would lose the first row's 250 writes or count the second row's twice.
+	ttlOnly := add(service.UsageLog{CacheReadTokens: 250, CacheCreation5mTokens: 50, CacheCreation1hTokens: 200, CreatedAt: start})
+	half := 0.5
+	require.Equal(t, &half, ttlOnly.CacheHitRate())
+	full := add(service.UsageLog{CacheReadTokens: 50, CacheCreationTokens: 50, CacheCreation5mTokens: 50, CreatedAt: start})
+	require.Equal(t, &half, full.CacheHitRate())
+	openAI := add(service.UsageLog{CacheReadTokens: 100, CacheCreation30mTokens: 40, CacheCreation12hTokens: 60, CreatedAt: start})
+	require.Equal(t, &half, openAI.CacheHitRate())
+	zero := 0
+	discounted := add(service.UsageLog{CacheReadTokens: 200, UpstreamCacheReadTokens: &zero, CreatedAt: start.Add(time.Hour)})
+	zeroRate := 0.0
+	require.Equal(t, &zeroRate, discounted.CacheHitRate())
+	weighted := 0.4 // 400 reads / 1000 prompt tokens
+	check(&weighted)
+	// Simulate a row from an older writer with indistinguishable true and billed hits.
+	_, err := tx.ExecContext(ctx, "UPDATE usage_logs SET upstream_cache_read_tokens = NULL WHERE id = $1", discounted.ID)
+	require.NoError(t, err)
+	legacy, err := repo.GetByID(ctx, discounted.ID)
+	require.NoError(t, err)
+	require.Nil(t, legacy.CacheHitRate())
+	check(nil)
+
+	// A positive uncached input proves this old row wasn't fully reclassified.
+	_, err = tx.ExecContext(ctx, "UPDATE usage_logs SET input_tokens = 50, cache_read_tokens = 150 WHERE id = $1", discounted.ID)
+	require.NoError(t, err)
+	legacy, err = repo.GetByID(ctx, discounted.ID)
+	require.NoError(t, err)
+	require.NotNil(t, legacy.CacheHitRate())
+	require.InDelta(t, 0.75, *legacy.CacheHitRate(), 1e-12)
+	recovered := 0.55
+	check(&recovered)
+}

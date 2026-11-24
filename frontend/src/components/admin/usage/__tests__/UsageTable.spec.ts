@@ -167,14 +167,14 @@ describe('admin UsageTable tooltip', () => {
   })
 
   it('shows each cache rate directly below output TPS in the latency cell', () => {
-    const row = { ...baseImageRow, input_tokens: 20, cache_creation_tokens: 20, cache_read_tokens: 60, output_tokens: 900 }
+    const row = { ...baseImageRow, input_tokens: 20, cache_creation_tokens: 20, cache_read_tokens: 60, output_tokens: 900, cache_hit_rate: 0.6 }
     const wrapper = mount(UsageTable, {
       props: {
         data: [
           row,
-          { ...row, request_id: 'miss', cache_read_tokens: 0 },
-          { ...row, request_id: 'empty', input_tokens: 0, cache_read_tokens: 0, cache_creation_tokens: 0 },
-          { ...row, request_id: 'cached', input_tokens: 0, cache_creation_tokens: 0 },
+          { ...row, request_id: 'miss', cache_hit_rate: 0 },
+          { ...row, request_id: 'empty', cache_hit_rate: null, input_tokens: 0, cache_read_tokens: 0, cache_creation_tokens: 0 },
+          { ...row, request_id: 'cached', cache_hit_rate: 1, input_tokens: 0, cache_creation_tokens: 0 },
         ],
         loading: false,
         columns: [{ key: 'latency', label: 'Latency' }],

@@ -147,10 +147,11 @@ type UsageLog struct {
 	GroupID        *int64
 	SubscriptionID *int64
 
-	InputTokens         int
-	OutputTokens        int
-	CacheCreationTokens int
-	CacheReadTokens     int
+	InputTokens             int
+	OutputTokens            int
+	CacheCreationTokens     int
+	CacheReadTokens         int
+	UpstreamCacheReadTokens *int
 
 	CacheCreation5mTokens  int `gorm:"column:cache_creation_5m_tokens"`
 	CacheCreation1hTokens  int `gorm:"column:cache_creation_1h_tokens"`
@@ -217,6 +218,27 @@ type UsageLog struct {
 	Account      *Account
 	Group        *Group
 	Subscription *UserSubscription
+}
+
+// CacheHitRate uses the upstream read count. Older all-cache-billed rows could
+// also have been sticky failovers, so their original read count is unknown.
+func (u *UsageLog) CacheHitRate() *float64 {
+	reads := u.CacheReadTokens
+	if u.UpstreamCacheReadTokens != nil {
+		reads = *u.UpstreamCacheReadTokens
+	} else if u.InputTokens == 0 && reads > 0 {
+		return nil
+	}
+	writes := int64(u.CacheCreationTokens)
+	if writes <= 0 {
+		writes = int64(u.CacheCreation5mTokens) + int64(u.CacheCreation1hTokens) + int64(u.CacheCreation30mTokens) + int64(u.CacheCreation12hTokens)
+	}
+	prompt := int64(u.InputTokens) + int64(u.CacheReadTokens) + writes
+	if prompt <= 0 {
+		return nil
+	}
+	rate := float64(reads) / float64(prompt)
+	return &rate
 }
 
 func (u *UsageLog) TotalTokens() int {

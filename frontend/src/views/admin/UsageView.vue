@@ -186,7 +186,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { cacheHitRate } from '@/utils/usageCacheHitRate'
 import { saveAs } from 'file-saver'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'; import { adminAPI } from '@/api/admin'; import { adminUsageAPI } from '@/api/admin/usage'
@@ -600,7 +599,7 @@ const exportToExcel = async () => {
       )
       if (c.signal.aborted) break; if (p === 1) { total = res.total; exportProgress.total = total }
       const rows = (res.items || []).map((log: AdminUsageLog) => {
-        const rate = cacheHitRate(log)
+        const rate = log.cache_hit_rate
         return [
           log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
           log.upstream_model || log.model, log.upstream_response_model || '', log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'), formatReasoningEffort(log.reasoning_effort), formatReasoningEffort(log.upstream_reasoning_effort || log.reasoning_effort), log.group?.name || '',
@@ -612,7 +611,7 @@ const exportToExcel = async () => {
           log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
           ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
           log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || '',
-          rate === null ? null : { t: 'n', v: rate, z: '0.0%' },
+          rate == null ? null : { t: 'n', v: rate, z: '0.0%' },
         ]
       })
       if (rows.length) {

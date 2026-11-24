@@ -26,7 +26,7 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('TokenUsageTrend', () => {
-  it('calculates cache hit rate against all prompt tokens', () => {
+  it('displays the token-weighted upstream rate', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {
         trendData: [
@@ -37,6 +37,7 @@ describe('TokenUsageTrend', () => {
             output_tokens: 100,
             cache_creation_tokens: 0,
             cache_read_tokens: 1500,
+            cache_hit_rate: 0.75,
             cost: 0.01,
             actual_cost: 0.005,
           },
@@ -57,7 +58,7 @@ describe('TokenUsageTrend', () => {
     expect(hitRateDataset.data[0]).toBe(75)
   })
 
-  it('returns 0 hit rate when all prompt tokens are zero', () => {
+  it('leaves a gap when the upstream rate is unavailable', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {
         trendData: [
@@ -84,20 +85,21 @@ describe('TokenUsageTrend', () => {
     const hitRateDataset = chartData.datasets.find(
       (ds: any) => ds.label === 'Cache Hit Rate'
     )
-    expect(hitRateDataset.data[0]).toBe(0)
+    expect(hitRateDataset.data[0]).toBeNull()
   })
 
-  it('includes cache_creation_tokens in denominator for Anthropic models', () => {
+  it('uses the upstream rate even when billing reports all inputs as cached', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {
         trendData: [
           {
             date: '2026-05-08',
             requests: 1,
-            input_tokens: 200,
+            input_tokens: 0,
             output_tokens: 50,
             cache_creation_tokens: 300,
-            cache_read_tokens: 500,
+            cache_read_tokens: 1000,
+            cache_hit_rate: 0.5,
             cost: 0.02,
             actual_cost: 0.01,
           },
@@ -114,7 +116,7 @@ describe('TokenUsageTrend', () => {
     const hitRateDataset = chartData.datasets.find(
       (ds: any) => ds.label === 'Cache Hit Rate'
     )
-    // Hit rate = 500 / (200 + 500 + 300) * 100 = 50%
+    // The backend supplies the actual rate independently of billing.
     expect(hitRateDataset.data[0]).toBe(50)
   })
 })

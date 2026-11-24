@@ -419,7 +419,7 @@ export default {
     cacheCreate: '缓存创建',
     cacheRate: '缓存率',
     cacheHitRate: '缓存命中率',
-    cacheHitRateHint: '缓存读取 Token ÷（未缓存输入 Token + 缓存读取 Token + 缓存写入 Token）',
+    cacheHitRateHint: '上游实际缓存读取 Token 占全部输入 Token 的比例。无法还原上游计数时显示 —。',
     inputTokenPrice: '输入单价',
     outputTokenPrice: '输出单价',
     perMillionTokens: '/ 1M Token',

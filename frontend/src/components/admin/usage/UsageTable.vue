@@ -252,7 +252,7 @@
               <span class="text-gray-400 dark:text-gray-500" :title="t('usage.outputTpsHint')">{{ t('usage.outputTps') }}</span>
               <span data-testid="output-tps" class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatUsageOutputRate(row) }}</span>
               <span class="text-gray-400 dark:text-gray-500" :title="t('usage.cacheHitRateHint')">{{ t('usage.cacheRate') }}</span>
-              <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatCacheHitRate(row) }}</span>
+              <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatCacheHitRate(row.cache_hit_rate) }}</span>
             </div>
           </div>
         </template>

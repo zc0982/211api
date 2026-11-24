@@ -654,6 +654,21 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 	return stats, nil
 }
 
+// These expressions operate per request, before aggregation. A positive write
+// total already includes its TTL buckets. Input + billed cache reads is
+// invariant under ForceCacheBilling; only the upstream numerator changes.
+const cachePromptTokensSQL = `input_tokens::bigint + cache_read_tokens +
+    CASE WHEN cache_creation_tokens > 0 THEN cache_creation_tokens::bigint
+         ELSE cache_creation_5m_tokens::bigint + cache_creation_1h_tokens + cache_creation_30m_tokens + cache_creation_12h_tokens END`
+
+// Old all-cache-billed rows may be failovers. A bucket containing one cannot
+// report an exact hit rate. Other legacy rows preserve their actual read count.
+const upstreamCacheReadSumSQL = `CASE WHEN COUNT(*) FILTER (
+    WHERE upstream_cache_read_tokens IS NULL AND input_tokens = 0 AND cache_read_tokens > 0
+) = 0 THEN SUM(COALESCE(upstream_cache_read_tokens, cache_read_tokens)) END`
+
+const upstreamCacheHitRateSQL = `(` + upstreamCacheReadSumSQL + `)::double precision / NULLIF(SUM(` + cachePromptTokensSQL + `), 0)`
+
 // GetStatsWithFilters gets usage statistics with optional filters
 func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters UsageLogFilters) (*UsageStats, error) {
 	conditions := make([]string, 0, 9)
@@ -704,6 +719,8 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 				output_tokens,
 				cache_creation_tokens,
 				cache_read_tokens,
+				upstream_cache_read_tokens,
+				`+cachePromptTokensSQL+` AS cache_prompt_tokens,
 				total_cost,
 				actual_cost,
 				COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1) AS account_cost,
@@ -724,7 +741,8 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			COALESCE(SUM(total_cost), 0) AS cost,
 			COALESCE(SUM(actual_cost), 0) AS actual_cost,
 			COALESCE(SUM(account_cost), 0) AS account_cost,
-			COALESCE(AVG(duration_ms), 0) AS avg_duration_ms
+			COALESCE(AVG(duration_ms), 0) AS avg_duration_ms,
+			(`+upstreamCacheReadSumSQL+`)::double precision / NULLIF(SUM(cache_prompt_tokens), 0) AS cache_hit_rate
 		FROM scoped
 		GROUP BY GROUPING SETS (
 			(),
@@ -744,6 +762,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 
 	for rows.Next() {
 		var (
+			cacheHitRate                                                         *float64
 			inboundGrouped, upstreamGrouped                                      int
 			inboundEndpoint, upstreamEndpoint                                    sql.NullString
 			requests, inputTokens, outputTokens, cacheCreationTokens, cacheReads int64
@@ -763,6 +782,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			&actualCost,
 			&accountCost,
 			&averageDurationMs,
+			&cacheHitRate,
 		); err != nil {
 			return nil, err
 		}
@@ -772,6 +792,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 		switch {
 		case inboundGrouped == 1 && upstreamGrouped == 1:
 			stats.TotalRequests = requests
+			stats.CacheHitRate = cacheHitRate
 			stats.TotalInputTokens = inputTokens
 			stats.TotalOutputTokens = outputTokens
 			stats.TotalCacheCreationTokens = cacheCreationTokens
