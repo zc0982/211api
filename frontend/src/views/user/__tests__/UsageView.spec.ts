@@ -221,7 +221,9 @@ describe('user UsageView', () => {
     const wrapper = mountUsageView()
     await flushPromises()
 
-    expect(wrapper.findComponent(UsageTable).props('columns').map((column: { key: string }) => column.key)).toEqual(expect.arrayContaining(['latency', 'cache_hit_rate']))
+    const columns = wrapper.findComponent(UsageTable).props('columns').map((column: { key: string }) => column.key)
+    expect(columns).toContain('latency')
+    expect(columns).not.toContain('cache_hit_rate')
     expect(query).toHaveBeenCalled()
     expect(getStats).toHaveBeenCalled()
     expect(getDashboardModels).toHaveBeenCalled()

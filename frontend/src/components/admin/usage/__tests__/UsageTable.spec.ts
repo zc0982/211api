@@ -34,6 +34,7 @@ const localizedMessages: Record<'en' | 'zh', Record<string, string>> = {
 
 const messages: Record<string, string> = {
   'usage.outputTps': 'Output TPS',
+  'usage.cacheRate': 'Cache rate',
   'admin.usage.userDeletedBadge': 'Deleted',
   'usage.costDetails': 'Cost Breakdown',
   'admin.usage.inputCost': 'Input Cost',
@@ -107,7 +108,6 @@ const DataTableStub = {
         <slot name="cell-reasoning_effort" :row="row" :value="row.reasoning_effort" />
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
-        <div class="cache-hit-rate"><slot name="cell-cache_hit_rate" :row="row" /></div>
         <slot name="cell-latency" :row="row" />
         <slot name="cell-cost" :row="row" />
         <slot name="cell-request_id" :row="row" />
@@ -166,7 +166,7 @@ describe('admin UsageTable tooltip', () => {
     }
   })
 
-  it('shows the prompt cache hit rate and distinguishes an empty denominator from zero hits', () => {
+  it('shows each cache rate directly below output TPS in the latency cell', () => {
     const row = { ...baseImageRow, input_tokens: 20, cache_creation_tokens: 20, cache_read_tokens: 60, output_tokens: 900 }
     const wrapper = mount(UsageTable, {
       props: {
@@ -177,11 +177,16 @@ describe('admin UsageTable tooltip', () => {
           { ...row, request_id: 'cached', input_tokens: 0, cache_creation_tokens: 0 },
         ],
         loading: false,
-        columns: [{ key: 'cache_hit_rate', label: 'Cache hit rate' }],
+        columns: [{ key: 'latency', label: 'Latency' }],
       },
       global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
     })
-    expect(wrapper.findAll('.cache-hit-rate').map(cell => cell.text())).toEqual(['60.0%', '0.0%', '—', '100.0%'])
+    const rates = wrapper.findAll('[data-testid="output-tps"]').map(tps => {
+      const label = tps.element.nextElementSibling
+      expect(label?.textContent).toBe('Cache rate')
+      return label?.nextElementSibling?.textContent
+    })
+    expect(rates).toEqual(['60.0%', '0.0%', '—', '100.0%'])
   })
 
   it('shows output TPS in the latency cell using total duration', () => {

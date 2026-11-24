@@ -417,6 +417,7 @@ export default {
     out: '输出',
     cacheHit: '缓存命中',
     cacheCreate: '缓存创建',
+    cacheRate: '缓存率',
     cacheHitRate: '缓存命中率',
     cacheHitRateHint: '缓存读取 Token ÷（未缓存输入 Token + 缓存读取 Token + 缓存写入 Token）',
     inputTokenPrice: '输入单价',

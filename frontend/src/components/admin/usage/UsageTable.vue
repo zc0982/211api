@@ -206,10 +206,6 @@
           </div>
         </template>
 
-        <template #cell-cache_hit_rate="{ row }">
-          <span class="whitespace-nowrap text-sm tabular-nums" :title="t('usage.cacheHitRateHint')">{{ formatCacheHitRate(row) }}</span>
-        </template>
-
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
@@ -255,6 +251,8 @@
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
               <span class="text-gray-400 dark:text-gray-500" :title="t('usage.outputTpsHint')">{{ t('usage.outputTps') }}</span>
               <span data-testid="output-tps" class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatUsageOutputRate(row) }}</span>
+              <span class="text-gray-400 dark:text-gray-500" :title="t('usage.cacheHitRateHint')">{{ t('usage.cacheRate') }}</span>
+              <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatCacheHitRate(row) }}</span>
             </div>
           </div>
         </template>
