@@ -1889,6 +1889,8 @@ func sleepGeminiBackoff(attempt int) {
 }
 
 var (
+	// Match net/url's userinfo characters through the last @ in the authority.
+	httpURLUserinfoRegex     = regexp.MustCompile(`(?i)(https?://)[a-z0-9._~!$&'()*+,;=:%@-]*@`)
 	sensitiveQueryParamRegex = regexp.MustCompile(`(?i)([?&](?:key|client_secret|access_token|refresh_token)=)[^&"\s]+`)
 	retryInRegex             = regexp.MustCompile(`Please retry in ([0-9.]+)s`)
 )
@@ -1896,6 +1898,10 @@ var (
 func sanitizeUpstreamErrorMessage(msg string) string {
 	if msg == "" {
 		return msg
+	}
+	// A literal "&key=" is valid in userinfo. Strip it before masking query values.
+	if strings.Contains(msg, "@") {
+		msg = httpURLUserinfoRegex.ReplaceAllString(msg, "$1")
 	}
 	return sensitiveQueryParamRegex.ReplaceAllString(msg, `$1***`)
 }

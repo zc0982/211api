@@ -6,6 +6,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/payment/__tests__/PaymentProviderDialog.spec.ts \
 	src/utils/__tests__/intervalPrices.spec.ts \
 	src/api/__tests__/admin.emailBlacklist.spec.ts \
+	src/api/__tests__/admin.accounts.upstreamBillingProbe.spec.ts \
 	src/components/account/__tests__/OpenAIImageSizeTiersField.spec.ts \
 	src/components/admin/settings/__tests__/AdminAccessKeysSettings.i18n.spec.ts \
 	src/components/admin/settings/__tests__/RegistrationEmailBlacklistEditor.spec.ts \
@@ -39,6 +40,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/BulkEditAccountModal.spec.ts \
 	src/components/account/__tests__/CNProviderQuotaCell.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.spec.ts \
+	src/components/account/__tests__/HeaderOverrideEditor.spec.ts \
 	src/components/payment/__tests__/AmountInput.spec.ts \
 	src/components/payment/__tests__/SubscriptionPlanCard.spec.ts \
 	src/components/user/__tests__/UserPlatformQuotaCell.spec.ts \
@@ -47,6 +49,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/i18n/__tests__/opsLocaleKeys.spec.ts \
 	src/utils/__tests__/rechargeBonus.spec.ts \
 	src/views/admin/__tests__/AccountsView.lite.spec.ts \
+	src/views/admin/__tests__/AccountsView.sparkShadow.spec.ts \
 	src/components/account/__tests__/UpstreamRequestIdHeaderField.spec.ts \
 	src/components/admin/group/__tests__/CodexManifestAccountsField.spec.ts \
 	src/features/channel-monitor-v2/__tests__/designSystem.structure.spec.ts \
@@ -103,6 +106,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/admin/ops/components/__tests__/OpsAlertEventsCard.pagination.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsAlertRulesCard.duration.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsDashboardHeader.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsErrorDetailModal.spec.ts \
+	src/views/admin/ops/utils/__tests__/errorDetailResponse.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsSettingsDialog.loading.spec.ts \
 	src/views/user/__tests__/AirwallexPaymentView.lifecycle.spec.ts \
 	src/views/user/__tests__/CustomPageView.race.spec.ts \

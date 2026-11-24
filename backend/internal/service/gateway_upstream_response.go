@@ -285,7 +285,7 @@ func ExtractUpstreamErrorMessage(body []byte) string {
 	return extractUpstreamErrorMessage(body)
 }
 
-// SanitizeUpstreamErrorMessage redacts sensitive query parameter values before
+// SanitizeUpstreamErrorMessage redacts HTTP(S) URL userinfo and sensitive query values before
 // an upstream error message is recorded or returned to a client.
 func SanitizeUpstreamErrorMessage(message string) string {
 	return sanitizeUpstreamErrorMessage(message)
