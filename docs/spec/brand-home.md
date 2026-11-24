@@ -34,11 +34,11 @@
 | `frontend/public/logo.svg` | 换成星狐通用头像（透明底、白色贴纸描边、两耳间一颗金星） | 未上传站点 Logo 时，首页导航与页脚、控制台侧栏、登录页、公开页和 favicon 共用这一张回退图，见「标志」 |
 | `AppSidebar.vue`、`AuthLayout.vue`、`PlazaNavBar.vue`、`LegalDocumentView.vue`、`KeyUsageView.vue`、`HomeView.vue` | 标志容器/图片追加 `dark:bg-white dark:p-*`（`PlazaNavBar.vue`、`LegalDocumentView.vue` 原有的 `dark:bg-dark-800` 换成 `dark:bg-white`） | 透明底藏青标志在深色模式下需浅色底，见「标志」 |
 
-除上表外，不改后端、其他页面和全局样式（`style.css`、`main.ts`）。
+除上表外，品牌首页不改后端、其他页面和全局样式（`style.css`、`main.ts`）。用户后台 v3 对全局调色板和 `style.css` 的改动见 `docs/spec/console-v3.md`。
 
 ## 主题（跟随系统 + 手动切换）
 
-- **状态复用上游，不新增存储键。** 上游 `main.ts` 的 `initThemeClass()` 在挂载前按 `localStorage.theme`（`'dark'` / `'light'`，没有值 = 跟随系统）写 `html.dark`；控制台 `AppSidebar.vue` 的切换按钮读写同一个键。品牌首页的 `composables/useBrandTheme.ts` 用同一个键和同一个类，首页和控制台的选择互相同步。没有改上游文件。
+- **状态复用上游，不新增存储键。** 上游 `main.ts` 的 `initThemeClass()` 在挂载前按 `localStorage.theme`（`'dark'` / `'light'`，没有值 = 跟随系统）写 `html.dark`；控制台顶栏 `AppHeader.vue` 的切换按钮读写同一个键（v3 起从侧栏移到顶栏）。品牌首页的 `composables/useBrandTheme.ts` 用同一个键和同一个类，首页和控制台的选择互相同步。没有改上游文件。
 - 默认跟随系统：监听 `matchMedia('(prefers-color-scheme: dark)')` 的 `change` 实时跟随。点导航里的主题按钮手动切换后写入 `theme`，以手动选择为准，刷新后保留；其他标签页改了 `theme` 时通过 `storage` 事件同步。`setPreference('system')` 会删除手动值（v3 的按钮只在浅 / 深之间切换，没有「跟随系统」选项；清除手动值后自动恢复跟随系统）。
 - **首次绘制前确定主题**：靠上游 `main.ts` 在 `app.mount` 前写好 `html.dark`，品牌首页挂载时只复核一次。没有改 `index.html`；JS 加载前的空白帧是全站已有行为。
 - **按钮**（`components/ThemeToggle.vue`，DESIGN.md「Navigation」）：在「登录」左侧 12px，36px 圆形，月白 6% 底、白 22% 描边，16px、1.5px 描边的月白线条图标；浅色显示太阳、深色显示月亮；`aria-label` 写明切到哪个主题。窄屏也保留。

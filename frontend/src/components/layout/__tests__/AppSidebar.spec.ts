@@ -90,3 +90,29 @@ describe('AppSidebar MCP entry', () => {
     expect(componentSource).not.toMatch(/path: '\/settings\/mcp'[^\n]*PluginIcon/)
   })
 })
+
+describe('AppSidebar v3 night sidebar', () => {
+  it('groups the user menu as 概览 / 调用 / 账户 / 设置 in that order', () => {
+    expect(componentSource).toContain("const NAV_GROUP_ORDER: NavGroupKey[] = ['overview', 'calls', 'account', 'settings']")
+    expect(componentSource).toMatch(/path: '\/dashboard'[^\n]*group: 'overview'/)
+    expect(componentSource).toMatch(/path: '\/keys'[^\n]*group: 'calls'/)
+    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*group: 'account'/)
+    expect(componentSource).toMatch(/path: '\/profile'[^\n]*group: 'settings'/)
+  })
+
+  it('marks the current item with a moon bar and blue glow, never gold', () => {
+    const active = componentSource.match(/\.sidebar-link-active::before\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(active).toContain('background: #dbe6fb;')
+    expect(active).toContain('rgb(122 162 255 / 0.85)')
+    expect(componentSource).not.toMatch(/#d4a84b|#e3b95e/i)
+  })
+
+  it('collapses to the icon rail on tablets and in the collapsed desktop state', () => {
+    expect(componentSource).toContain('const isRail = computed(() => (isTablet.value && !mobileOpen.value) || (isDesktop.value && sidebarCollapsed.value))')
+    expect(componentSource).toContain('const isHidden = computed(() => isPhone.value && !mobileOpen.value)')
+  })
+
+  it('no longer owns the theme toggle (it lives in the top bar)', () => {
+    expect(componentSource).not.toContain('toggleTheme')
+  })
+})

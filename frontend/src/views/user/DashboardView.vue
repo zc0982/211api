@@ -1,13 +1,39 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="space-y-5">
+      <!-- Page header：问候 + 今日概况（Figma C1「Page header」） -->
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="min-w-0 flex-1">
+          <h1 class="page-title">{{ greeting }}</h1>
+          <p v-if="stats" class="page-description">{{ todaySummary }}</p>
+        </div>
+        <div v-if="!authStore.isSimpleMode" class="flex flex-wrap gap-2">
+          <router-link to="/redeem" class="btn btn-secondary">
+            <Icon name="gift" size="sm" />
+            {{ t('dashboard.redeemCode') }}
+          </router-link>
+          <router-link to="/keys" class="btn btn-primary">
+            <Icon name="plus" size="sm" />
+            {{ t('dashboard.createApiKey') }}
+          </router-link>
+        </div>
+      </div>
+
       <div v-if="loading" class="flex items-center justify-center py-12"><LoadingSpinner /></div>
       <template v-else-if="stats">
+        <UserDashboardOverview
+          :balance="user?.balance || 0"
+          :stats="stats"
+          :platform-quotas="platformQuotas"
+          :last-call="recentUsage[0] ?? null"
+          :is-simple="authStore.isSimpleMode"
+          :payment-enabled="paymentEnabled"
+        />
         <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" :platform-quotas="platformQuotas" />
         <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="loadCharts" @granularityChange="loadCharts" @refresh="refreshAll" />
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div class="lg:col-span-2"><UserDashboardRecentUsage :data="recentUsage" :loading="loadingUsage" /></div>
-          <div class="lg:col-span-1"><UserDashboardQuickActions /></div>
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <UserDashboardRecentUsage :data="recentUsage" :loading="loadingUsage" />
+          <UserDashboardQuickActions />
         </div>
       </template>
     </div>
@@ -19,11 +45,30 @@ import { ref, computed, onMounted } from 'vue'; import { useAuthStore } from '@/
 import AppLayout from '@/components/layout/AppLayout.vue'; import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'; import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
 import UserDashboardRecentUsage from '@/components/user/dashboard/UserDashboardRecentUsage.vue'; import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
+import UserDashboardOverview from '@/components/user/dashboard/UserDashboardOverview.vue'
+import Icon from '@/components/icons/Icon.vue'
+import { useI18n } from 'vue-i18n'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import type { UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
 import { getMyPlatformQuotas } from '@/api/user'
 import { formatDateLocalInput } from '@/utils/format'
 
 const authStore = useAuthStore(); const user = computed(() => authStore.user)
+const { t } = useI18n()
+const paymentEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.payment))
+// 问候语按本地时间：5–12 早上、12–18 下午、其余晚上
+const greeting = computed(() => {
+  const name = user.value?.username || user.value?.email?.split('@')[0] || ''
+  const hour = new Date().getHours()
+  const key = hour >= 5 && hour < 12 ? 'greetingMorning' : hour >= 12 && hour < 18 ? 'greetingAfternoon' : 'greetingEvening'
+  return t(`dashboard.${key}`, { name })
+})
+const todaySummary = computed(() =>
+  t('dashboard.todaySummary', {
+    requests: (stats.value?.today_requests || 0).toLocaleString('en-US'),
+    cost: '$' + (stats.value?.today_actual_cost || 0).toFixed(2)
+  })
+)
 const stats = ref<UserStatsType | null>(null); const loading = ref(false); const loadingUsage = ref(false); const loadingCharts = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const modelStats = ref<ModelStat[]>([]); const recentUsage = ref<UsageLog[]>([])
 const platformQuotas = ref<PlatformQuotaItem[] | null>(null)

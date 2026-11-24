@@ -1,218 +1,95 @@
 <template>
-  <!-- Row 1: Core Stats -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <!-- Balance -->
-    <div v-if="!isSimple" class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
-          <svg class="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-          </svg>
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.balance') }}</p>
-          <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">${{ formatBalance(balance) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('common.available') }}</p>
-        </div>
+  <!--
+    v3 指标卡（Figma C1「KPI tiles」）：一行四块，图标瓷砖 28 + 等宽数字 28px。
+    余额与 API 密钥数量移到上方夜空数据卡。
+  -->
+  <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+    <div v-for="tile in kpiTiles" :key="tile.key" class="card kpi-tile" :data-kpi="tile.key">
+      <div class="flex items-center gap-2.5">
+        <span class="kpi-tile__icon"><Icon :name="tile.icon" size="sm" /></span>
+        <span class="truncate text-[13px] text-gray-600 dark:text-dark-300">{{ tile.label }}</span>
       </div>
-    </div>
-
-    <!-- API Keys -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-          <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.apiKeys') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ stats?.total_api_keys || 0 }}</p>
-          <p class="text-xs text-green-600 dark:text-green-400">{{ stats?.active_api_keys || 0 }} {{ t('common.active') }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Today Requests -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-          <Icon name="chart" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayRequests') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ stats?.today_requests || 0 }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('common.total') }}: {{ formatNumber(stats?.total_requests || 0) }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Today Cost -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-          <Icon name="dollar" size="md" class="text-purple-600 dark:text-purple-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayCost') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">
-            <span class="text-purple-600 dark:text-purple-400" :title="t('dashboard.actual')">${{ formatCost(stats?.today_actual_cost || 0) }}</span>
-            <span class="text-sm font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / ${{ formatCost(stats?.today_cost || 0) }}</span>
-          </p>
-          <p class="text-xs">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('common.total') }}: </span>
-            <span class="text-purple-600 dark:text-purple-400" :title="t('dashboard.actual')">${{ formatCost(stats?.total_actual_cost || 0) }}</span>
-            <span class="text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / ${{ formatCost(stats?.total_cost || 0) }}</span>
-          </p>
-        </div>
-      </div>
+      <p class="kpi-tile__value" :title="tile.title">{{ tile.value }}</p>
+      <p class="truncate font-mono text-xs text-gray-500 dark:text-dark-400" :title="tile.sub">{{ tile.sub }}</p>
     </div>
   </div>
 
-  <!-- Row 2: Token Stats -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <!-- Today Tokens -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
-          <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.todayTokens') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatTokens(stats?.today_tokens || 0) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('dashboard.input') }}: {{ formatTokens(stats?.today_input_tokens || 0) }} / {{ t('dashboard.output') }}: {{ formatTokens(stats?.today_output_tokens || 0) }} / {{ t('dashboard.cache') }}: {{ formatTokens((stats?.today_cache_creation_tokens || 0) + (stats?.today_cache_read_tokens || 0)) }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Total Tokens -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
-          <Icon name="database" size="md" class="text-indigo-600 dark:text-indigo-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.totalTokens') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatTokens(stats?.total_tokens || 0) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('dashboard.input') }}: {{ formatTokens(stats?.total_input_tokens || 0) }} / {{ t('dashboard.output') }}: {{ formatTokens(stats?.total_output_tokens || 0) }} / {{ t('dashboard.cache') }}: {{ formatTokens((stats?.total_cache_creation_tokens || 0) + (stats?.total_cache_read_tokens || 0)) }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Performance (RPM/TPM) -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
-          <Icon name="bolt" size="md" class="text-violet-600 dark:text-violet-400" :stroke-width="2" />
-        </div>
-        <div class="flex-1">
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.performance') }}</p>
-          <div class="flex items-baseline gap-2">
-            <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatTokens(stats?.rpm || 0) }}</p>
-            <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">{{ formatTokens(stats?.tpm || 0) }}</p>
-            <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Avg Response Time -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-rose-100 p-2 dark:bg-rose-900/30">
-          <Icon name="clock" size="md" class="text-rose-600 dark:text-rose-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.avgResponse') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatDuration(stats?.average_duration_ms || 0) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('dashboard.averageTime') }}</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Row 3: Per-platform breakdown -->
-  <div v-if="!isSimple && platformCards.length > 0" class="card p-4">
-    <div class="mb-3 flex items-center justify-between">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.platformBreakdown') }}</h3>
-      <span class="text-xs text-gray-500 dark:text-gray-400">
+  <!-- 按平台拆分：一张卡，各平台用竖线分栏，不再卡片套卡片 -->
+  <div v-if="!isSimple && platformCards.length > 0" class="card overflow-hidden">
+    <div class="flex items-center justify-between px-5 pt-[18px]">
+      <h3 class="text-[15px] font-semibold text-gray-900 dark:text-dark-100">{{ t('dashboard.platformBreakdown') }}</h3>
+      <span class="text-xs text-gray-500 dark:text-dark-400">
         {{ t('dashboard.platformCount', { count: platformCount }) }}
       </span>
     </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="platform-grid">
       <div
         v-for="item in platformCards"
         :key="item.platform"
         data-testid="platform-card"
         :data-platform="item.platform"
-        :class="[
-          'rounded-lg border p-3',
-          item.isOther
-            ? 'border-dashed border-gray-300 bg-gray-50 dark:border-dark-500 dark:bg-dark-700/30'
-            : 'border-gray-200 dark:border-dark-600'
-        ]"
+        class="platform-col"
       >
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-semibold text-gray-900 dark:text-white">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm font-semibold" :class="item.isOther ? 'text-gray-500 dark:text-dark-400' : 'text-gray-900 dark:text-dark-100'">
             {{ item.isOther ? t('dashboard.platformOther') : platformLabel(item.platform) }}
           </span>
-          <span class="font-mono text-sm text-purple-600 dark:text-purple-400" :title="t('dashboard.actual')">
+          <span class="font-mono text-sm text-star-bronze dark:text-star-bronze-night" :title="t('dashboard.actual')">
             ${{ formatCost(item.total_actual_cost) }}
           </span>
         </div>
-        <div class="mt-2 space-y-1 text-xs">
+        <dl class="mt-2.5 space-y-1.5 text-xs">
           <div class="flex items-center justify-between">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('dashboard.todayCost') }}</span>
-            <span class="font-mono text-gray-900 dark:text-white">${{ formatCost(item.today_actual_cost) }}</span>
+            <dt class="text-gray-500 dark:text-dark-400">{{ t('dashboard.todayCost') }}</dt>
+            <dd class="font-mono text-gray-900 dark:text-dark-100">${{ formatCost(item.today_actual_cost) }}</dd>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('dashboard.requests') }}</span>
-            <span class="font-mono text-gray-700 dark:text-gray-300">
+            <dt class="text-gray-500 dark:text-dark-400">{{ t('dashboard.requests') }}</dt>
+            <dd class="font-mono text-gray-700 dark:text-gray-200">
               {{ item.total_requests > 0 ? formatNumber(item.total_requests) : '-' }}
-            </span>
+            </dd>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('dashboard.tokens') }}</span>
-            <span class="font-mono text-gray-700 dark:text-gray-300">
+            <dt class="text-gray-500 dark:text-dark-400">{{ t('dashboard.tokens') }}</dt>
+            <dd class="font-mono text-gray-700 dark:text-gray-200">
               {{ item.total_tokens > 0 ? formatTokens(item.total_tokens) : '-' }}
-            </span>
+            </dd>
           </div>
-        </div>
+        </dl>
 
         <!-- Quota 区：仅当 quota 配置存在、非 __other__ 且至少有一个窗口配了 limit 时显示 -->
-        <div v-if="hasAnyLimit(item.quota) && !item.isOther" class="mt-3 space-y-1.5 border-t border-gray-200 pt-2 dark:border-dark-700">
-          <p class="text-[10px] uppercase tracking-wide text-gray-400">
+        <div v-if="hasAnyLimit(item.quota) && !item.isOther" class="mt-3 space-y-2 border-t border-[color:var(--c-row-line)] pt-2.5">
+          <p class="text-[11px] font-medium text-gray-500 dark:text-dark-400">
             {{ t('dashboard.platformQuota.title') }}
           </p>
           <template v-for="w in (['daily', 'weekly', 'monthly'] as const)" :key="w">
-            <div v-if="quotaVal(item.quota, `${w}_limit_usd`) != null" class="space-y-0.5">
+            <div v-if="quotaVal(item.quota, `${w}_limit_usd`) != null" class="space-y-1">
               <!-- limit=0：完全禁用 -->
               <template v-if="(quotaVal(item.quota, `${w}_limit_usd`) as number) === 0">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-600 dark:text-gray-300">{{ t(`dashboard.platformQuota.${w}`) }}</span>
-                  <span class="font-mono text-red-500">{{ t('dashboard.platformQuota.disabled') }}</span>
+                  <span class="text-gray-600 dark:text-dark-300">{{ t(`dashboard.platformQuota.${w}`) }}</span>
+                  <span class="font-mono text-star-bronze dark:text-star-bronze-night">{{ t('dashboard.platformQuota.disabled') }}</span>
                 </div>
-                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
-                  <div class="h-full w-full rounded-full bg-red-500" />
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+                  <div class="h-full w-full rounded-full bg-star-bronze dark:bg-star-bronze-night" />
                 </div>
               </template>
               <!-- limit>0：正常用量进度条 -->
               <template v-else>
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-600 dark:text-gray-300">{{ t(`dashboard.platformQuota.${w}`) }}</span>
+                  <span class="text-gray-600 dark:text-dark-300">{{ t(`dashboard.platformQuota.${w}`) }}</span>
                   <span class="font-mono text-gray-700 dark:text-gray-200">
                     ${{ formatUsd((quotaVal(item.quota, `${w}_usage_usd`) as number) ?? 0) }} / ${{ formatUsd(quotaVal(item.quota, `${w}_limit_usd`) as number) }}
                   </span>
                 </div>
-                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
                   <div
                     class="h-full rounded-full transition-all"
                     :class="quotaBarClass(calcPercent((quotaVal(item.quota, `${w}_usage_usd`) as number) ?? 0, quotaVal(item.quota, `${w}_limit_usd`) as number))"
                     :style="{ width: calcPercent((quotaVal(item.quota, `${w}_usage_usd`) as number) ?? 0, quotaVal(item.quota, `${w}_limit_usd`) as number) + '%' }"
                   />
                 </div>
-                <p v-if="quotaVal(item.quota, `${w}_window_resets_at`)" class="text-[10px] text-gray-400">
+                <p v-if="quotaVal(item.quota, `${w}_window_resets_at`)" class="font-mono text-[10px] text-gray-400 dark:text-dark-400">
                   {{ t('dashboard.platformQuota.resetsAt', { time: formatResetTime(quotaVal(item.quota, `${w}_window_resets_at`) as string) }) }}
                 </p>
               </template>
@@ -228,6 +105,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { PLATFORM_LABELS } from './platformLabels'
 import type { PlatformDashboardStats, UserDashboardStats as UserStatsType } from '@/api/usage'
 import type { PlatformQuotaItem } from '@/types'
 
@@ -248,19 +126,6 @@ const props = defineProps<{
   platformQuotas?: PlatformQuotaItem[] | null
 }>()
 const { t } = useI18n()
-
-const PLATFORM_LABELS: Record<string, string> = {
-  anthropic: 'Claude',
-  openai: 'OpenAI',
-  gemini: 'Gemini',
-  antigravity: 'Antigravity',
-  grok: 'Grok',
-  kimi: 'Kimi',
-  zhipu: 'Zhipu GLM',
-  deepseek: 'DeepSeek',
-  minimax: 'MiniMax',
-  typesafe: 'TypeSafe / Jev',
-}
 
 const platformLabel = (p: string) => PLATFORM_LABELS[p] ?? p
 
@@ -355,10 +220,10 @@ function calcPercent(usage: number, limit: number): number {
   return Math.min(100, Math.max(0, Math.round((usage / limit) * 100)))
 }
 
+// 额度 ≥ 90% 用古铜提示，不引入红色（DESIGN.md · Console「数字与颜色」）
 function quotaBarClass(p: number): string {
-  if (p >= 95) return 'bg-red-500'
-  if (p >= 75) return 'bg-amber-500'
-  return 'bg-green-500'
+  if (p >= 90) return 'bg-star-bronze dark:bg-star-bronze-night'
+  return 'bg-primary-800 dark:bg-primary-400'
 }
 
 // 与 formatBalance 一致使用 Intl.NumberFormat 做半偶舍入，避免 toFixed 在不同 JS 引擎
@@ -385,12 +250,6 @@ function formatResetTime(iso: string | null | undefined): string {
   })
 }
 
-const formatBalance = (b: number) =>
-  new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(b)
-
 const formatNumber = (n: number) => n.toLocaleString()
 const formatCost = (c: number) => c.toFixed(4)
 const formatTokens = (t: number) => {
@@ -399,4 +258,129 @@ const formatTokens = (t: number) => {
   return t.toString()
 }
 const formatDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms.toFixed(0)}ms`
+const formatMoney = (n: number) => usdFormatter.format(Number.isFinite(n) ? n : 0)
+
+const kpiTiles = computed(() => {
+  const s = props.stats
+  const actual = s?.today_actual_cost ?? 0
+  const standard = s?.today_cost ?? 0
+  const saved = standard > 0 && actual < standard ? Math.round((1 - actual / standard) * 100) : 0
+  const costSub = [
+    t('dashboard.kpi.costStandard', { standard: `$${formatMoney(standard)}` }),
+    saved > 0 ? t('dashboard.kpi.costSaved', { pct: saved }) : ''
+  ].filter(Boolean).join(' · ')
+  return [
+    {
+      key: 'requests',
+      icon: 'chart' as const,
+      label: t('dashboard.todayRequests'),
+      value: formatNumber(s?.today_requests || 0),
+      sub: t('dashboard.kpi.requestsTotal', { count: formatNumber(s?.total_requests || 0) }),
+      title: undefined as string | undefined
+    },
+    {
+      key: 'cost',
+      icon: 'dollar' as const,
+      label: t('dashboard.todayCost'),
+      value: `$${actual >= 1 ? formatMoney(actual) : formatCost(actual)}`,
+      sub: costSub,
+      title: `${t('dashboard.actual')} $${formatCost(actual)} / ${t('dashboard.standard')} $${formatCost(standard)}`
+    },
+    {
+      key: 'tokens',
+      icon: 'cube' as const,
+      label: t('dashboard.todayTokens'),
+      value: formatTokens(s?.today_tokens || 0),
+      sub: t('dashboard.kpi.tokensSplit', { input: formatTokens(s?.today_input_tokens || 0), output: formatTokens(s?.today_output_tokens || 0) }),
+      title: `${t('dashboard.totalTokens')}: ${formatTokens(s?.total_tokens || 0)}`
+    },
+    {
+      key: 'latency',
+      icon: 'bolt' as const,
+      label: t('dashboard.avgResponse'),
+      value: formatDuration(s?.average_duration_ms || 0),
+      sub: t('dashboard.kpi.rpmTpm', { rpm: formatTokens(s?.rpm || 0), tpm: formatTokens(s?.tpm || 0) }),
+      title: undefined
+    }
+  ]
+})
 </script>
+
+<style scoped>
+.kpi-tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.kpi-tile__icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #e8f0fc;
+  color: #14306b;
+}
+
+.kpi-tile__value {
+  overflow: hidden;
+  color: rgb(12 24 48);
+  font-family: theme('fontFamily.mono');
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 34px;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .kpi-tile {
+    gap: 8px;
+    padding: 14px 16px;
+  }
+
+  .kpi-tile__value {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  padding: 4px 0 6px;
+}
+
+.platform-col {
+  padding: 12px 20px 14px;
+  border-bottom: 1px solid var(--c-row-line);
+}
+
+@media (min-width: 640px) {
+  .platform-col {
+    border-bottom: 0;
+    border-right: 1px solid var(--c-row-line);
+  }
+
+  .platform-col:last-child {
+    border-right: 0;
+  }
+}
+</style>
+
+<style>
+.dark .kpi-tile__icon {
+  background: #15223f;
+  color: #7aa2ff;
+}
+
+.dark .kpi-tile__value {
+  color: #e9eef8;
+}
+</style>

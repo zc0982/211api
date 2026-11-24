@@ -1,116 +1,131 @@
 <template>
-  <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
-    <div class="flex h-16 items-center justify-between gap-2 px-2 sm:px-4 md:px-6">
-      <!-- Left: Mobile Menu Toggle + Page Title -->
-      <div class="flex shrink-0 items-center gap-2 sm:gap-4">
+  <!--
+    v3 顶栏（Figma「211API · Console v3」L.topbar / L.mpage）：
+    平板、桌面 64px 暖纸底 + 底部细线；手机是夜空顶栏（菜单、星狐横版、余额、头像）。
+  -->
+  <header class="console-topbar" :class="{ 'console-topbar--night': isPhone }">
+    <div class="console-topbar__row">
+      <!-- Left: phone menu + brand / page title -->
+      <div class="flex min-w-0 shrink items-center gap-2">
         <button
+          v-if="isPhone"
           @click="toggleMobileSidebar"
-          class="btn-ghost btn-icon lg:hidden"
+          class="console-topbar__menu"
           :aria-label="t('common.toggleMenu')"
         >
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="hidden lg:block">
-          <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <router-link v-if="isPhone" :to="homePath" class="console-topbar__brand">
+          <img :src="siteLogo || '/logo.svg'" alt="" class="console-topbar__mark" :class="{ 'console-topbar__mark--uploaded': !!siteLogo }" />
+          <span class="truncate">{{ appStore.siteName }}</span>
+        </router-link>
+
+        <div v-else class="min-w-0">
+          <h1 class="truncate text-base font-semibold text-gray-900 dark:text-dark-100">
             {{ pageTitle }}
           </h1>
-          <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
+          <p v-if="pageDescription" class="hidden truncate text-xs text-gray-500 dark:text-dark-400 xl:block">
             {{ pageDescription }}
           </p>
         </div>
       </div>
 
-      <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
-      <div class="flex min-w-0 items-center gap-1 sm:gap-3">
-        <!-- Announcement Bell -->
-        <AnnouncementBell v-if="user" />
+      <!-- Right: Announcements + Docs + Plaza + Language + Theme + Subscriptions + Balance + Account -->
+      <div class="flex min-w-0 items-center gap-1 sm:gap-2 xl:gap-3.5">
+        <!-- Announcement Bell（手机夜空顶栏里隐藏入口，公告弹窗不受影响） -->
+        <div v-if="user" class="hidden md:flex">
+          <AnnouncementBell />
+        </div>
 
         <!-- Docs Link -->
         <a
-          v-if="docUrl"
+          v-if="docUrl && !isPhone"
           :href="docUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white sm:flex"
+          class="console-topbar__link hidden lg:flex"
         >
           <Icon name="book" size="sm" />
-          <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
+          <span>{{ t('nav.docs') }}</span>
         </a>
 
-        <!-- Model Plaza Entry (icon only below sm) -->
+        <!-- Model Plaza Entry -->
         <router-link
-          v-if="user && modelPlazaEnabled"
+          v-if="user && modelPlazaEnabled && !isPhone"
           :to="{ path: '/model-plaza', query: { embedded: '1' } }"
           :title="t('nav.modelPlaza')"
           :aria-label="t('nav.modelPlaza')"
-          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
+          class="console-topbar__link"
         >
           <Icon name="grid" size="sm" />
-          <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
+          <span class="hidden xl:inline">{{ t('nav.modelPlaza') }}</span>
         </router-link>
 
         <!-- Language Switcher -->
-        <LocaleSwitcher />
+        <div v-if="!isPhone" class="flex">
+          <LocaleSwitcher />
+        </div>
+
+        <!-- Theme -->
+        <button
+          v-if="!isPhone"
+          type="button"
+          class="console-topbar__theme"
+          :aria-label="isDark ? t('nav.lightMode') : t('nav.darkMode')"
+          :title="isDark ? t('nav.lightMode') : t('nav.darkMode')"
+          @click="toggleTheme"
+        >
+          <Icon :name="isDark ? 'moon' : 'sun'" size="sm" />
+        </button>
 
         <!-- Subscription Progress (for users with active subscriptions; not mounted at all when the feature is off) -->
-        <SubscriptionProgressMini v-if="user && subscriptionFeatureEnabled" />
+        <div v-if="user && subscriptionFeatureEnabled" class="hidden md:flex">
+          <SubscriptionProgressMini />
+        </div>
 
         <!-- Balance Display -->
-        <div
-          v-if="user"
-          class="group relative hidden items-center gap-2 rounded-xl bg-primary-50 px-3 py-1.5 dark:bg-primary-900/20 sm:flex"
-        >
-          <svg
-            class="h-4 w-4 text-primary-600 dark:text-primary-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"
-            />
-          </svg>
-          <span class="text-sm font-semibold text-primary-700 dark:text-primary-300">
-            {{ formatHeaderMoney(availableBalance) }}
-          </span>
+        <div v-if="user" class="console-balance group" :class="{ 'console-balance--night': isPhone }">
+          <Icon v-if="isPhone" name="creditCard" size="xs" class="opacity-90" />
+          <span v-else class="console-balance__label">{{ t('nav.balance') }}</span>
+          <span class="console-balance__value">{{ formatHeaderMoney(availableBalance) }}</span>
           <span
-            v-if="frozenBalance > 0"
-            class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+            v-if="frozenBalance > 0 && !isPhone"
+            class="badge badge-warning hidden lg:inline-flex"
           >
             {{ balanceFrozenLabel }}
           </span>
-          <div
-            class="pointer-events-none absolute right-0 top-full mt-2 hidden w-56 rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-lg group-hover:block dark:border-dark-700 dark:bg-dark-800"
-          >
+          <router-link v-if="showRechargeButton && !isPhone" to="/purchase" class="console-balance__cta">
+            {{ t('nav.recharge') }}
+          </router-link>
+          <div class="console-balance__tip">
             <div class="flex items-center justify-between">
               <span class="text-gray-500 dark:text-dark-400">{{ balanceAvailableText }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ formatHeaderMoney(availableBalance) }}</span>
+              <span class="font-mono font-medium text-gray-900 dark:text-dark-100">{{ formatHeaderMoney(availableBalance) }}</span>
             </div>
             <div class="mt-2 flex items-center justify-between">
               <span class="text-gray-500 dark:text-dark-400">{{ balanceFrozenText }}</span>
-              <span class="font-medium text-amber-700 dark:text-amber-200">{{ formatHeaderMoney(frozenBalance) }}</span>
+              <span class="font-mono font-medium text-star-bronze dark:text-star-bronze-night">{{ formatHeaderMoney(frozenBalance) }}</span>
             </div>
             <div class="mt-2 border-t border-gray-100 pt-2 dark:border-dark-700">
               <div class="flex items-center justify-between">
                 <span class="text-gray-500 dark:text-dark-400">{{ balanceTotalText }}</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ formatHeaderMoney(totalBalance) }}</span>
+                <span class="font-mono font-semibold text-gray-900 dark:text-dark-100">{{ formatHeaderMoney(totalBalance) }}</span>
               </div>
             </div>
           </div>
         </div>
 
+        <span v-if="user && !isPhone" class="hidden h-5 w-px bg-gray-200 dark:bg-dark-700 md:block" aria-hidden="true"></span>
+
         <!-- User Dropdown -->
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             @click="toggleDropdown"
-            class="flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-800"
+            class="console-account"
             :aria-label="t('common.userMenu')"
           >
-            <div class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
+            <div class="console-account__avatar" :class="{ 'console-account__avatar--night': isPhone }">
               <img
                 v-if="avatarUrl"
                 :src="avatarUrl"
@@ -119,15 +134,10 @@
               >
               <span v-else>{{ userInitials }}</span>
             </div>
-            <div class="hidden text-left md:block">
-              <div class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ displayName }}
-              </div>
-              <div class="text-xs text-gray-500 dark:text-dark-400">
-                {{ t('admin.users.roles.' + user.role) }}
-              </div>
-            </div>
-            <Icon name="chevronDown" size="sm" class="hidden text-gray-400 md:block" />
+            <span v-if="!isPhone" class="hidden max-w-[10rem] truncate text-sm font-medium text-gray-900 dark:text-dark-100 lg:block">
+              {{ displayName }}
+            </span>
+            <Icon v-if="!isPhone" name="chevronDown" size="sm" class="hidden text-gray-500 dark:text-dark-400 lg:block" />
           </button>
 
           <!-- Dropdown Menu -->
@@ -142,11 +152,11 @@
               </div>
 
               <!-- Balance (mobile only) -->
-              <div class="border-b border-gray-100 px-4 py-2 dark:border-dark-700 sm:hidden">
+              <div class="border-b border-gray-100 px-4 py-2 dark:border-dark-700 md:hidden">
                 <div class="text-xs text-gray-500 dark:text-dark-400">
                   {{ t('common.balance') }}
                 </div>
-                <div class="text-sm font-semibold text-primary-600 dark:text-primary-400">
+                <div class="font-mono text-sm font-medium text-gray-900 dark:text-dark-100">
                   {{ formatHeaderMoney(availableBalance) }}
                 </div>
                 <div v-if="frozenBalance > 0" class="mt-1 text-xs text-amber-600 dark:text-amber-300">
@@ -265,6 +275,7 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { useConsoleViewport } from '@/composables/useConsoleViewport'
 
 const router = useRouter()
 const route = useRoute()
@@ -275,6 +286,19 @@ const adminSettingsStore = useAdminSettingsStore()
 const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)
+const { isPhone } = useConsoleViewport()
+const homePath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
+const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
+// 顶栏余额旁的「充值」：开启支付、非简易模式才显示
+const showRechargeButton = computed(() => isFeatureFlagEnabled(FeatureFlags.payment) && !authStore.isSimpleMode)
+
+// 主题切换（原在侧栏底部，v3 移到顶栏）；启动时的主题由 main.ts initThemeClass 决定
+const isDark = ref(typeof document !== 'undefined' && document.documentElement.classList.contains('dark'))
+function toggleTheme() {
+  isDark.value = !isDark.value
+  document.documentElement.classList.toggle('dark', isDark.value)
+  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+}
 const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
@@ -392,6 +416,293 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
+
+<style>
+/* v3 顶栏。不用 scoped：scoped 里的 :global(.dark) x 会被编译成光秃的 .dark {}；类名都带 console- 前缀。 */
+/* ---- v3 top bar ---- */
+.console-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid rgb(var(--c-gray-200));
+  background: rgb(var(--c-gray-50) / 0.88);
+  backdrop-filter: blur(16px);
+}
+
+.dark .console-topbar {
+  border-bottom-color: #1f2d48;
+  background: rgb(7 14 29 / 0.88);
+}
+
+.console-topbar__row {
+  display: flex;
+  height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 32px;
+}
+
+@media (min-width: 1280px) {
+  .console-topbar__row {
+    padding: 0 40px;
+  }
+}
+
+/* 手机：夜空顶栏，高 52 */
+.console-topbar--night,
+.dark .console-topbar--night {
+  border-bottom-color: transparent;
+  background-color: #091430;
+  background-image:
+    url('./assets/appbar-stars.svg'),
+    linear-gradient(180deg, #050b18 0%, #091430 100%);
+  background-repeat: no-repeat;
+  background-size: 390px 140px, 100% 100%;
+  backdrop-filter: none;
+}
+
+.console-topbar--night .console-topbar__row {
+  height: 52px;
+  padding: 0 14px 0 6px;
+}
+
+.console-topbar__menu {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #dbe6fb;
+}
+
+.console-topbar__menu:hover {
+  background: rgb(219 230 251 / 0.08);
+}
+
+.console-topbar__brand {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.console-topbar__mark {
+  width: 26px;
+  height: 29px;
+  flex: none;
+  object-fit: contain;
+}
+
+.console-topbar__mark--uploaded {
+  width: 29px;
+  height: 29px;
+  padding: 2px;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.console-topbar__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #45536e;
+  font-size: 14px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.console-topbar__link:hover {
+  background: rgb(var(--c-gray-100));
+  color: #0c1830;
+}
+
+.dark .console-topbar__link {
+  color: #aab6cb;
+}
+
+.dark .console-topbar__link:hover {
+  background: #0b1427;
+  color: #e9eef8;
+}
+
+.console-topbar__theme {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 999px;
+  background: #fff;
+  color: #45536e;
+  transition: background-color 0.15s ease;
+}
+
+.console-topbar__theme:hover {
+  background: rgb(var(--c-gray-50));
+}
+
+.dark .console-topbar__theme {
+  border-color: #1f2d48;
+  background: #0e1830;
+  color: #aab6cb;
+}
+
+/* 余额胶囊：余额 + 等宽金额 + 充值 */
+.console-balance {
+  position: relative;
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 14px;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 999px;
+  background: #fff;
+}
+
+.console-balance:not(:has(.console-balance__cta)) {
+  padding-right: 14px;
+}
+
+.dark .console-balance {
+  border-color: #1f2d48;
+  background: #0e1830;
+}
+
+.console-balance__label {
+  color: #66738c;
+  font-size: 12px;
+}
+
+.dark .console-balance__label {
+  color: #7f8ca5;
+}
+
+.console-balance__value {
+  color: #0c1830;
+  font-family: theme('fontFamily.mono');
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dark .console-balance__value {
+  color: #e9eef8;
+}
+
+.console-balance__cta {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #14306b;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+
+.console-balance__cta:hover {
+  background: #0f2452;
+}
+
+.dark .console-balance__cta {
+  background: #dbe6fb;
+  color: #0e1830;
+}
+
+.console-balance__tip {
+  pointer-events: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 40;
+  display: none;
+  width: 14rem;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--c-shadow-pop);
+  font-size: 12px;
+}
+
+.console-balance:hover .console-balance__tip {
+  display: block;
+}
+
+.dark .console-balance__tip {
+  border-color: #1f2d48;
+  background: #0e1830;
+}
+
+/* 手机夜空顶栏里的余额：月白 6% 底、白 22% 描边 */
+.console-balance--night,
+.dark .console-balance--night {
+  height: 30px;
+  gap: 6px;
+  padding: 0 10px;
+  border-color: rgb(255 255 255 / 0.22);
+  background: rgb(219 230 251 / 0.06);
+  color: #dbe6fb;
+}
+
+.console-balance--night .console-balance__value,
+.dark .console-balance--night .console-balance__value {
+  color: #e9eef8;
+  font-size: 12px;
+}
+
+.console-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.console-account__avatar {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #14306b;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dark .console-account__avatar {
+  background: #dbe6fb;
+  color: #0e1830;
+}
+
+.console-account__avatar--night,
+.dark .console-account__avatar--night {
+  width: 30px;
+  height: 30px;
+  background: #dbe6fb;
+  color: #0e1830;
+  font-size: 13px;
+}
+
+</style>
 
 <style scoped>
 .dropdown-enter-active,
