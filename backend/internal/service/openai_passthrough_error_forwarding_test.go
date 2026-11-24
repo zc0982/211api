@@ -84,7 +84,8 @@ func TestOpenAIGatewayService_APIKeyPassthrough_InvalidEncryptedContentPreserves
 func TestOpenAIGatewayService_APIKeyPassthrough_InvalidEncryptedContentRedactsUpstreamHostAndGuardsNon400(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	t.Run("redacts configured base_url host inside allowlisted 400", func(t *testing.T) {
+	t.Run("redacts configured base_url credentials and host inside allowlisted 400", func(t *testing.T) {
+		const relayURL = "https://relay-user:p%40ss&key=fixture@secret-upstream.example"
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
@@ -95,13 +96,13 @@ func TestOpenAIGatewayService_APIKeyPassthrough_InvalidEncryptedContentRedactsUp
 				StatusCode: http.StatusBadRequest,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body: io.NopCloser(strings.NewReader(
-					`{"error":{"message":"https://secret-upstream.example/v1?key=secret123 rejected encrypted content for sk-test-secret-key","type":"invalid_request_error","code":"invalid_encrypted_content","param":"input"}}`,
+					`{"error":{"message":"` + relayURL + `/v1?key=secret123 rejected encrypted content for sk-test-secret-key","type":"invalid_request_error","code":"invalid_encrypted_content","param":"input"}}`,
 				)),
 			}},
 		}
 		account := &Account{
 			ID: 202, Name: "azure-redact", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
-			Credentials: map[string]any{"api_key": "sk-test-secret-key", "base_url": "https://secret-upstream.example/openai/v1"},
+			Credentials: map[string]any{"api_key": "sk-test-secret-key", "base_url": relayURL + "/openai/v1"},
 			Extra:       map[string]any{"openai_passthrough": true}, Status: StatusActive, Schedulable: true,
 		}
 
@@ -113,8 +114,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_InvalidEncryptedContentRedactsUp
 		require.NotContains(t, body, "secret-upstream.example")
 		require.NotContains(t, body, "secret123")
 		require.NotContains(t, body, "sk-test-secret-key")
-		require.Contains(t, gjson.Get(body, "error.message").String(), "[upstream]")
-		require.Contains(t, gjson.Get(body, "error.message").String(), "[redacted]")
+		require.Equal(t, "https://[upstream]/v1?key=*** rejected encrypted content for [redacted]", gjson.Get(body, "error.message").String())
 	})
 
 	t.Run("non-400 status with invalid_encrypted_content stays sanitized", func(t *testing.T) {
@@ -298,6 +298,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindowPreservesCodeAndCom
 	})
 
 	t.Run("invalid_encrypted_content after compact keepalive emits response.failed SSE", func(t *testing.T) {
+		const relayURL = "https://compact-reader@relay.example"
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", bytes.NewReader(nil))
@@ -312,13 +313,13 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindowPreservesCodeAndCom
 				StatusCode: http.StatusBadRequest,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body: io.NopCloser(strings.NewReader(
-					`{"error":{"message":"The encrypted content could not be verified.","type":"invalid_request_error","code":"invalid_encrypted_content"}}`,
+					`{"error":{"message":"The encrypted content could not be verified at ` + relayURL + `/v1/team@east","type":"invalid_request_error","code":"invalid_encrypted_content"}}`,
 				)),
 			}},
 		}
 		account := &Account{
 			ID: 207, Name: "openai-pt-compact", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
-			Credentials: map[string]any{"api_key": "sk-test"},
+			Credentials: map[string]any{"api_key": "sk-test", "base_url": relayURL},
 			Extra:       map[string]any{"openai_passthrough": true}, Status: StatusActive, Schedulable: true,
 		}
 
@@ -329,7 +330,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindowPreservesCodeAndCom
 		events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
 		require.Len(t, events, 1)
 		require.Equal(t, "response.failed", events[0][0])
-		require.Contains(t, gjson.Get(events[0][1], "response.error.message").String(), "could not be verified")
+		require.Equal(t, "The encrypted content could not be verified at https://[upstream]/v1/team@east", gjson.Get(events[0][1], "response.error.message").String())
 		// 心跳已提交时 error.code 也必须保留，否则 compact 流上客户端仍无法识别该错误。
 		require.Equal(t, "invalid_encrypted_content", gjson.Get(events[0][1], "response.error.code").String())
 	})
@@ -360,6 +361,12 @@ func newOpenAIPassthroughErrorTestContext() (*httptest.ResponseRecorder, *gin.Co
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 	return rec, c
+}
+
+func TestSanitizeUpstreamErrorMessageURLUserinfo(t *testing.T) {
+	const message = "GET HTTP://relay:p@ss@[::1]:8080/v1?owner=a@b.test via https://reader@relay.test/#team@east"
+	const want = "GET HTTP://[::1]:8080/v1?owner=a@b.test via https://relay.test/#team@east"
+	require.Equal(t, want, SanitizeUpstreamErrorMessage(message))
 }
 
 // 大小写折叠会改变字节长度的字符（Ⱥ 变长、Kelvin 符号变短、非法 UTF-8 变长）
