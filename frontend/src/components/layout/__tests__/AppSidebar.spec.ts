@@ -130,3 +130,25 @@ describe('AppSidebar content-sized width', () => {
     expect(componentSource).toContain('new ResizeObserver(')
   })
 })
+
+describe('AppSidebar pixel student vignette', () => {
+  const vignetteBlock = componentSource.match(/\.sidebar-vignette \{[\s\S]*?\n\}/)?.[0] ?? ''
+
+  it('drops the static whole-picture PNG for an SVG backdrop plus the async student stage', () => {
+    expect(componentSource).not.toContain('sidebar-vignette.png')
+    expect(componentSource).toContain("defineAsyncComponent(() => import('./SidebarStudent.vue'))")
+    expect(vignetteBlock).toContain("url('./assets/sidebar-scenery.svg')")
+    expect(vignetteBlock).toContain('height: 122px;')
+  })
+
+  it('unmounts the student in the icon rail and pauses it while the phone drawer is closed', () => {
+    expect(componentSource).toMatch(/<div v-if="!isRail" class="sidebar-vignette"[^>]*>\s*<SidebarStudent :active="!isHidden" \/>/)
+  })
+
+  it('keeps every vignette layer at fixed pixels so it never stretches with the sidebar width', () => {
+    expect(vignetteBlock).toContain('144px 106px')
+    expect(vignetteBlock).not.toMatch(/object-fit|background-size:\s*(cover|contain)/)
+    // 抽屉不再单独改 vignette 宽度（原来是 width: 100%）
+    expect(componentSource).not.toMatch(/\.sidebar--overlay \.sidebar-vignette/)
+  })
+})

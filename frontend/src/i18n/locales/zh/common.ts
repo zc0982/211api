@@ -196,6 +196,8 @@ export default {
     collapseSidebar: '收起侧栏',
     expandSidebar: '展开侧栏',
     closeMenu: '关闭菜单',
+    sidebarStudentLabel: '像素学子 {name}，在 {tool} 工位。点击换下一位',
+    sidebarStudentTitle: '{name} · 在 {tool} 工位',
     balance: '余额',
     lightMode: '浅色模式',
     darkMode: '深色模式',

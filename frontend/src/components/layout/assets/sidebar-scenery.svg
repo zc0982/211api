@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="106" viewBox="0 0 288 212" shape-rendering="crispEdges">
+<!-- 侧栏「学院一角」背景：图书馆、松树（月亮和地面线由 CSS 画）。由原整图 sidebar-vignette.png（496×244 @2x，已删除，见 git 历史）x≥208 区域逐像素矢量化，左缘被书桌挡住的部分按同行颜色补齐，52 个矩形。 -->
+<path fill="#162a55" d="M8 116h224v10h-224zM8 130h224v4h-224zM8 134h18v72h-18zM36 134h28v72h-28zM74 134h28v72h-28zM112 134h28v48h-28zM150 134h28v72h-28zM188 134h28v72h-28zM226 134h6v72h-6zM130 182h10v24h-10zM26 200h10v6h-10zM64 200h10v6h-10zM102 200h8v6h-8zM140 200h10v6h-10zM178 200h10v6h-10zM216 200h10v6h-10z"/>
+<path fill="#1a3060" d="M98 84h44v28h-44zM84 88h14v24h-14zM142 88h14v24h-14zM70 92h14v20h-14zM156 92h14v20h-14zM56 96h14v16h-14zM170 96h14v16h-14zM42 100h14v12h-14zM184 100h14v12h-14zM28 104h14v8h-14zM198 104h14v8h-14zM14 108h14v4h-14zM212 108h14v4h-14z"/>
+<path fill="#153158" d="M258 122h12v72h-12zM252 134h6v60h-6zM270 134h6v60h-6zM246 146h6v12h-6zM276 146h6v12h-6zM246 170h6v24h-6zM276 170h6v24h-6zM240 182h6v12h-6zM282 182h6v12h-6z"/>
+<path fill="#22386a" d="M26 134h10v66h-10zM64 134h10v66h-10zM102 134h10v48h-10zM140 134h10v66h-10zM178 134h10v66h-10zM216 134h10v66h-10zM102 182h8v18h-8z"/>
+<path fill="#395490" d="M112 182h18v24h-18zM110 200h2v6h-2z"/>
+<path fill="#2a4176" d="M0 112h240v4h-240z"/>
+<path fill="#24396b" d="M8 126h224v4h-224z"/>
+<path fill="#415d9e" d="M110 182h2v18h-2z"/>
+<path fill="#0d1a33" d="M261 194h6v18h-6z"/>
+<path fill="#1d3262" d="M5 206h233v6h-233z"/>
+</svg>

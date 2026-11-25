@@ -49,6 +49,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/user/dashboard/__tests__/UserDashboardCharts.spec.ts \
 	src/composables/__tests__/useConsoleViewport.spec.ts \
 	src/components/layout/__tests__/AppSidebar.spec.ts \
+	src/components/layout/__tests__/SidebarStudent.spec.ts \
 	src/components/layout/__tests__/AppSidebar.interaction.spec.ts \
 	src/components/layout/__tests__/AppHeader.spec.ts \
 	src/components/user/dashboard/__tests__/UserDashboardRecentUsage.spec.ts \
