@@ -112,10 +112,17 @@ export default {
 
   // API Keys
   keys: {
+    use: 'Use',
+    unlimitedQuota: 'Unlimited',
+    moreActions: 'More actions',
+    selectAllOnPage: 'Select all on this page',
+    quotaOverview: 'Key quotas · Current page',
+    quotaOverviewHint: 'Top 4 by lifetime quota usage',
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',
     endpoints: {
+      description: "Set your client's base URL to this address and call it with a key below",
       title: 'API Endpoints',
       default: 'Default',
       copied: 'Copied',
@@ -377,6 +384,12 @@ export default {
 
   // Usage
   usage: {
+    inputOutput: 'Input / Output',
+    latencyCompact: 'First token / Duration',
+    filtersScrollHint: 'Swipe sideways for more filters',
+    requestId: 'Request ID',
+    moreFilters: 'More filters',
+    analytics: 'Usage analytics and trends',
     title: 'Usage Records',
     description: 'View and analyze your API usage history',
     costDetails: 'Cost Breakdown',

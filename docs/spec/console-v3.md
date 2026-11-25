@@ -36,7 +36,7 @@
 | 手机 < 768 | 304px 抽屉（`mobileOpen`），带遮罩和关闭按钮 | 52px 夜空顶栏：菜单、星狐横版、余额、头像 | 20 16 36 |
 
 - **侧栏**（`AppSidebar.vue`）：夜空渐变 `#050b18 → #091430 → #13244b` + 种子星空（`components/layout/assets/*-stars.svg`，与 Figma 同一种子）；顶部星狐 + 白色站点名（后台上传了标志则垫白底）；用户菜单按 概览 / 调用 / 账户 / 设置 分组（`NavItem.group`），图标栏里组之间用短横线；当前项月白 8% 底 + 左侧 3px 月白竖条、蓝色外发光，不用金色；底部像素「学院一角」（`assets/sidebar-vignette.png`，从 Figma 节点导出 @2x）和收起按钮。管理员菜单不分组，样式相同。
-- **顶栏**（`AppHeader.vue`）：左侧页面标题；右侧公告、文档、模型广场、语言、主题切换（从侧栏移来，仍读写 `localStorage.theme`）、订阅进度、余额胶囊（余额 + 等宽金额 + 「充值」）、账户菜单。手机夜空顶栏也保留公告铃铛：后端默认公告是 `silent`，不自动弹出，铃铛是唯一入口。
+- **顶栏**（`AppHeader.vue`）：左侧页面标题（路由 `meta.pageHeading: true` 的页面自带 h1 页头，顶栏不再重复标题和描述；目前是 `/keys`、`/usage`，仪表盘不受影响）；右侧公告、文档、模型广场、语言、主题切换（从侧栏移来，仍读写 `localStorage.theme`）、订阅进度、余额胶囊（余额 + 等宽金额 + 「充值」）、账户菜单。手机夜空顶栏也保留公告铃铛：后端默认公告是 `silent`，不自动弹出，铃铛是唯一入口。
 - **余额旁的购买入口**统一用 `utils/siteBillingMode.ts` 的 `resolveBalancePurchaseAction`：支付关闭或简易模式不给；关了余额充值（`payment_balance_disabled`，仅订阅站点）时 `/purchase` 没有充值标签，顶栏不显示「充值」，仪表盘余额卡改成「订阅」；订阅也关了就都不给。
 - **侧栏宽度**：展开态 `.sidebar--full` 为 `width: max-content`，`min-width: 200px`、`max-width: 288px`，取最长菜单项 / 品牌区（Logo + 站点名 + 版本号）/ 底栏所需，中英文、管理员 / 用户菜单各自贴合；收起的分组子菜单仍留在 DOM（折叠 + `inert`），所以宽度按全部菜单算，展开分组不跳宽。像素插画 `width: 0; min-width: 100%` 不参与宽度。`.sidebar--rail` 72、`.sidebar--overlay` `min(304px, 86vw)` 不变。
 - **主内容区左边距**跟随侧栏实测宽度：`AppSidebar` 用 `ResizeObserver` 写 `consoleSidebarWidth`（`useConsoleViewport.ts`），`AppLayout` 经 `resolveConsoleMainOffset` 取值（桌面 = 实测宽，收起 / 展开动画逐帧跟随；平板 72；手机 0；未量到回退 248 / 72），不再写死 248。
@@ -63,6 +63,50 @@
 4. 本地开发环境截图核对 1440 / 1024 / 390 和深色，再提 PR。
 
 ## 本地查看
+
+### API 密钥与使用记录：设计核对（2026-11-24）
+
+实现起点为 `7799c09dab5aedc618f26bf4d8ff57bffb6734d2`。设计仓库只读核对的最新 `origin/main` 为 `8858ee76cd3c2f84c462b7460d23101ba75d0884`；Figma 使用 connector 读取节点，并经 Desktop Bridge 导出参考截图。
+
+| 页面 | 桌面浅 / 深 | 手机浅 / 深 |
+|---|---|---|
+| API 密钥 `/keys` | [C2 Light](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-14261) / [C2 Dark](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-17217) | [C13 Light](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-34003) / [C13 Dark](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-35611) |
+| 使用记录 `/usage` | [C3 Light](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-15061) / [C3 Dark](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-18017) | [C13 Light](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-34237) / [C13 Dark](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-35845) |
+
+共用参考：[C0 组件与规则](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=100-50061)、[C15 平板浅](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-36200) / [深](https://www.figma.com/design/5ZuuXYB3ZCw4RFHh8sYFTj/?node-id=99-36669)。C14 是其余页面，当前两页的手机稿都在 C13；C15 只有仪表盘，沿用其 72px 图标栏及 32px 页边距。
+
+- 两页均沿用已有 `font-sans`、`font-mono`，标题 `.page-title`，暖纸 / 夜空主题、表头和行线变量、16px 表格圆角、胶囊控件；页内主要区块间距 20px，夜空额度卡圆角 20px，手机双列。
+- 密钥：增加页头和单层夜空额度概览；端点、筛选、表格、分页及原有创建 / 编辑 / 状态 / 复制 / 批量操作保持接口与规则不变。
+- 使用记录：页头、四项统计合为单层分隔条，筛选和记录前置；既有图表保留在记录后的可展开区。金额为美元，不添加成功状态码。
+- 响应式沿用外壳三档。新增用户专用 `ConsoleRecordList.vue`：手机用原生 `details/summary` 分隔列表，摘要显示名称、状态、金额等主要数据，展开后由页面的 `#detail` 插槽直接渲染带标签字段（`dl`）和文字按钮，**不再每行渲染一张 DataTable**；`selectable` 时每行左侧有复选框，顶部「全选本页」，与桌面表格共用 `selectedIds`，批量编辑在手机可用。桌面保留原语义表格。命名区域可聚焦，左右方向键转交现有表格滚动容器；内容宽度不足时仅表格或手机筛选条局部横滚。
+- 记录卡片：`.console-records` 是唯一卡片（白底 / `#0e1830`、1px line、圆角 16），分页放在卡片底部 `.console-table-foot`（上边框 1px、padding 12px 20px，Figma Table foot），桌面和手机都不再是卡片外的单独白带；密钥页 `TablePageLayout` 的卡片外壳在 `.console-keys` 下去掉。
+- 表头一律不转大写（`text-transform: none`），列名用中文：使用记录 Token 列叫「输入 / 输出」，延迟列叫「首字 / 耗时」。
+- 视觉覆盖集中在 `styles/console-data-pages.css`，必须以 `.console-data-page` 限定；不修改管理员共用表格和统计组件。统计 / 额度卡按容器宽度切双列，触摸设备表格操作至少 44px；不在 `html/body` 隐藏横向溢出。
+
+### 本批能力与设计差异
+
+- 密钥概览明确为「当前页」中设置了额度的密钥，按累计 `quota_used / quota` 排名前四；接口分页且额度不按月重置，不能标为全账户或「本月」。没有设置额度的密钥不进入此卡，空列表时不显示卡片。
+- Figma 的每密钥 RPM、邮件告警阈值没有相应用户密钥接口；保留产品现有的 5h / 1d / 7d 美金额度窗口、并发数和到期规则，不用它们冒充 RPM。限流窗口、最近使用、IP、ID 仍由原列设置开启；不迁移或覆盖已有列偏好。
+- 用量列：设了额度显示 40px 额度条 + 金额（≥ 90% 古铜），未设额度显示「不限额」，不画空进度条、不写 $0.00；第二行直接显示今日 / 近 30 天实际花费（不放折叠区，加载中是骨架）。手机摘要同样处理。用量格是普通 `div`，不再用 `summary` 包块级内容。
+- 操作列：「使用」带文字，编辑保留图标，导入 CC Switch、启用 / 禁用、删除收进 `ConsoleRowMenu.vue`「更多」菜单（`role="menu"`，挂到 body 避免被表格滚动容器裁剪，方向键 / Home / End / Esc，点选后关闭）；每个操作保留 `aria-label`，站点隐藏 CCS 时菜单里也不出现。手机展开后全部操作都是文字按钮。
+- 1440 下整表不横滚：单元格左右 8px，用量格固定 188px，过期 / 创建时间两行日期 72px，名称最长 120px 截断（`title` 显示全名），状态徽章 `nowrap`。1024 以下表格在卡片内横滚，操作列按 DataTable 既有规则固定在右侧并带阴影。
+- 端点条改为用户专用 `ConsoleEndpointBar.vue`：图标 + 「API 端点」+ 说明文字，右侧地址胶囊（地址、「默认」、带文字的「测速」「复制」），自定义端点逐行列出；复制 / 测速行为与上游 `EndpointPopover` 相同，后者保留不改以便同步上游。
+- 使用记录默认时间前置，并展示已有 `request_id` 字段与复制；端点、IP、分组、计费模式默认折叠到列设置，推理强度继续默认展示。既有列偏好原样读取；全部筛选、导出字段与请求逻辑保留。
+- 筛选是一行 36px 胶囊：时间范围、密钥、模型、分组、类型（错误请求 tab 换成密钥 / 模型 / 分类 / 状态码），「更多筛选」按钮（带已生效数量）展开压缩 / 计费类型 / 计费模式；刷新、重置、列设置在同一行右侧，宽度不够时整组换到下一行。手机筛选条不折行、局部横滑，按滚动位置给左右边缘加 48px 渐隐（`console-filter-scroll--more-left/right`）提示还有内容。Figma 的请求 ID 搜索没有后端支持，未做。
+- 表格行单行约 56px：`UsageTable` 新增可选 `compact`（默认关，管理端不变），Token 显示「输入 / 输出」一行，缓存与图片 Token 在原浮层；延迟显示「首字 / 总耗时」一行、中性色，输出 TPS 和缓存率放 `title` 和读屏文本，不再用绿色和健康色条表示数值（绿只表示状态）；费用为古铜。用户页同时传 `flat`，表格不再自带卡片。
+- 「用量分析与趋势」默认折叠：折叠时筛选变化只标记过期，不请求 `/usage/dashboard/snapshot-v2`；展开时才请求并挂载图表（`v-if`），Chart.js 按真实容器尺寸绘制。模型统计仍随筛选加载（模型筛选项来自它）。
+- 用量接口不提供成功 HTTP 状态或鉴权 / 路由耗时，因此不显示 `200 OK`，不制作示意调用链，不增加无接口支持的请求 ID 查询；真实错误仍走原「错误请求」标签。手机请求类型复用 `resolveUsageRequestType`，保持 WS / Live / 安全策略语义，不能由 `stream` 布尔值覆盖显式类型。
+- 1024 下使用记录表在卡片内横滚；手机展开记录用金色左线标记，展开内容是请求 ID（可复制）、推理强度、输入 / 输出、缓存、费用 / 标准价、首字 / 耗时、输出 TPS、缓存率、端点、计费方式；金额使用古铜，币种始终为美元。模型、分组、端点分布和用量趋势继续可用，放入列表后的「用量分析与趋势」。
+
+### 本批本地验证
+
+- 使用正常前端 `pnpm dev --host 127.0.0.1 --port <空闲端口> --strictPort`，`VITE_DEV_PROXY_TARGET` 指向仅监听回环地址的独立合成数据服务；两页真实路由是 `/keys`、`/usage`。mock、启动脚本、日志、Playwright 取证脚本和 PNG 均放工作区外，不进入 PR，不读取生产数据或真实凭据。
+- Jev 验证密钥创建、编辑、禁用和复制反馈，并用独立 mock API 回读写后字段；使用记录筛选经可见文字和请求日志核对列表 / 统计 / 图表同一密钥条件。Playwright 仅补充确定性视口、截图、尺寸、手机展开 / 批量选择和表格键盘滚动取证。
+- 两页各有 1440 浅、1440 深、1024 浅、390 浅 PNG。390 下根节点 `clientWidth = scrollWidth = 390`，内容 `clientWidth = scrollWidth = 358`；密钥展开和两行选择、使用记录展开及高级筛选同样通过。手机筛选条有意局部横滚，不属于页面溢出。注意：手机下 `.console-filter-bar` 必须 `flex-wrap: nowrap`，多行纵向 flex 会按最宽子项拉伸，横滑条会撑破页面。
+- 全页截图里侧栏在约 1 个视口高度处截止是截图伪影：侧栏 `position: fixed`、高度等于视口，真实浏览器滚到底部时仍覆盖整个视口。
+- 使用项目命令 `pnpm --dir frontend test:run`、`typecheck`、`lint:check`、`build`；回归测试覆盖：手机请求类型不误标流式 / 成功；图表折叠时不请求快照、展开后用最新筛选加载；使用记录紧凑行 / 中文列名 / 分页在卡片内 / 一行筛选；手机字段直接渲染且无表格；密钥不限额、花费直接可见、用量格无 details、「更多」菜单项与 CCS 开关、端点条、手机批量选择；`UsageTable` 紧凑模式与管理端默认布局；`ConsoleRowMenu` 键盘操作；顶栏 `pageHeading`。详细命令结果、8 张 PNG 路径、预览端口及服务重启方式在本批工作区外交付报告中。
+- mock 覆盖的是前端路由、API 参数和展示 / 交互；不代表真实鉴权、网关调用或计费验收。日期跨日边界、错误详情、删除、批量提交、真实 CCS 外部唤起、IP 地理批查和生产端点测速未做浏览器验收。
+
 
 mock 后端需要响应 `/api/v1/settings/public`、`/api/v1/auth/me`、`/api/v1/usage/dashboard/{stats,trend,models}`、`/api/v1/usage`、`/api/v1/user/platform-quotas`；启动 `VITE_DEV_PROXY_TARGET=http://127.0.0.1:<mock 端口> pnpm --dir frontend exec vite --port <端口>`，在 `/login` 页往 `localStorage` 写 `auth_token`、`auth_user`、`token_expires_at` 后打开 `/dashboard`。
 

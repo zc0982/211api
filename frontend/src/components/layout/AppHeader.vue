@@ -21,7 +21,8 @@
           <span class="truncate">{{ appStore.siteName }}</span>
         </router-link>
 
-        <div v-else class="min-w-0">
+        <!-- 页面自带页头（meta.pageHeading）时顶栏不再重复标题和描述；仪表盘等其他页面不变。 -->
+        <div v-else-if="!route.meta.pageHeading" class="min-w-0" data-test="topbar-page-title">
           <h1 class="truncate text-base font-semibold text-gray-900 dark:text-dark-100">
             {{ pageTitle }}
           </h1>

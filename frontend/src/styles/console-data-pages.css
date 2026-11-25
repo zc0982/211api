@@ -1,0 +1,490 @@
+/* User Keys / Usage only. Keep shared table and admin behavior owned by upstream. */
+.console-data-page {
+  min-width: 0;
+  container: console-data / inline-size;
+}
+.console-data-page.console-keys.table-page-layout { height: auto; gap: 20px; }
+.console-data-page .console-page-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.console-data-page .page-title { text-wrap: balance; }
+.console-data-page .page-description { margin-top: 8px; }
+.console-data-page .layout-section-fixed { min-width: 0; }
+.console-data-page .badge { white-space: nowrap; }
+
+/* ---------- 记录卡片：表格 + Table foot 分页同在一张卡片里 ---------- */
+/* TablePageLayout 自带的卡片外壳让给 .console-records，避免双层描边、分页落在卡片外。 */
+.console-data-page.console-keys .table-scroll-container {
+  height: auto;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.console-data-page .console-records {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: white;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 16px;
+  box-shadow: var(--c-shadow-card);
+}
+.dark .console-data-page .console-records { background: #0e1830; border-color: #1f2d48; }
+.console-data-page .console-record-list:focus-visible { outline: 2px solid #2f5fd0; outline-offset: -2px; }
+.console-data-page .console-table-foot > div,
+.dark .console-data-page .console-table-foot > div {
+  border-top: 1px solid var(--c-row-line);
+  padding: 12px 20px;
+  background: transparent;
+}
+.console-data-page .console-records .table-wrapper { max-height: none; }
+.console-data-page .console-records table { min-width: max-content; }
+.console-data-page .console-records th,
+.dark .console-data-page .console-records th,
+.console-data-page .table-scroll-container .console-records th {
+  height: 40px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  background: var(--c-thead);
+  border-color: var(--c-row-line);
+}
+.console-data-page .console-records td,
+.console-data-page .table-scroll-container .console-records td {
+  padding: 10px 8px;
+  font-size: 12px;
+  border-color: var(--c-row-line);
+  font-variant-numeric: tabular-nums;
+}
+.console-data-page .console-records tbody,
+.console-data-page .console-records tbody .sticky-col { background: white; }
+.dark .console-data-page .console-records tbody,
+.dark .console-data-page .console-records tbody .sticky-col { background: #0e1830; }
+.console-data-page .console-records tbody tr { border-color: var(--c-row-line); }
+.console-data-page .console-records td .text-sm { font-size: 12px; }
+.console-data-page .console-records .code { background: none; padding: 0; }
+.console-data-page .console-records .tabular-nums { font-family: 'Brand Geist Mono', monospace; }
+.console-data-page .console-records td .font-medium { font-weight: 400; }
+.console-data-page .console-record-date { display: block; width: 72px; white-space: normal; font: 11px/1.6 'Brand Geist Mono', monospace; }
+
+/* ---------- 使用记录表：单行 56px（Figma C3） ---------- */
+.console-data-page .console-usage-records td,
+.console-data-page .table-scroll-container .console-usage-records td {
+  height: 56px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-family: 'Brand Geist Mono', monospace;
+}
+.console-data-page .console-usage-records .text-red-800 { color: #8a6420; }
+.console-data-page .console-usage-records .bg-red-100 { background: transparent; border: 1px solid #d9d1c1; }
+.dark .console-data-page .console-usage-records .dark\:text-red-200 { color: #ecc978; }
+.dark .console-data-page .console-usage-records .dark\:bg-red-900 { background: transparent; border-color: #625337; }
+
+/* ---------- API 密钥表 ---------- */
+.console-data-page .console-key-group { background: #e8f0fc; color: #14306b; border-radius: 999px; }
+.console-data-page .console-key-group > span { color: inherit; background: transparent; }
+.dark .console-data-page .console-key-group { background: #15223f; color: #bfd6f6; }
+.console-data-page .console-key-name { max-width: 120px; }
+.console-data-page .console-key-records td code.code { font-size: 11px; }
+/* 额度条 + 金额一行，今日 / 近30天花费一行；固定宽度让 1440 下整表不横滚 */
+.console-data-page .console-key-usage { width: 188px; }
+.console-data-page .console-key-usage-quota { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 11px; }
+.console-data-page .console-key-usage-track,
+.console-data-page .console-mobile-quota-track {
+  display: block;
+  flex-shrink: 0;
+  width: 48px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgb(var(--c-gray-100));
+}
+.dark .console-data-page .console-key-usage-track,
+.dark .console-data-page .console-mobile-quota-track { background: #26344f; }
+.console-data-page .console-key-usage-track { width: 40px; }
+.console-data-page .console-key-usage-track > span,
+.console-data-page .console-mobile-quota-track > span { display: block; height: 100%; border-radius: inherit; }
+.console-data-page .console-mobile-quota-track { width: 90px; }
+.console-data-page .console-mobile-quota-track > span { background: #14306b; }
+.dark .console-data-page .console-mobile-quota-track > span { background: #7aa2ff; }
+.console-data-page .console-mobile-quota-track > span.is-warning { background: #8a6420; }
+.dark .console-data-page .console-mobile-quota-track > span.is-warning { background: #ecc978; }
+.console-data-page .console-key-unlimited { font-size: 12px; color: #66738c; }
+.dark .console-data-page .console-key-unlimited { color: #aab6cb; }
+.console-data-page .console-key-spend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #66738c;
+}
+.console-data-page .console-key-spend > * { white-space: nowrap; }
+.dark .console-data-page .console-key-spend { color: #aab6cb; }
+.console-data-page .console-key-spend b { font-weight: 500; color: #8a6420; }
+.dark .console-data-page .console-key-spend b { color: #ecc978; }
+
+.console-data-page .console-key-actions { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
+.console-data-page .console-key-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #2f5fd0;
+  white-space: nowrap;
+}
+.console-data-page .console-key-use:hover { background: #e8f0fc; }
+.dark .console-data-page .console-key-use { color: #7aa2ff; }
+.dark .console-data-page .console-key-use:hover { background: #15223f; }
+.console-data-page .console-key-icon-action,
+.console-row-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: #45536e;
+}
+.dark .console-data-page .console-key-icon-action,
+.dark .console-row-menu-trigger { color: #aab6cb; }
+.console-data-page .console-key-icon-action:hover,
+.console-row-menu-trigger:hover,
+.console-row-menu-trigger[aria-expanded='true'] { color: #2f5fd0; background: #e8f0fc; }
+.dark .console-data-page .console-key-icon-action:hover,
+.dark .console-row-menu-trigger:hover,
+.dark .console-row-menu-trigger[aria-expanded='true'] { color: #bfd6f6; background: #15223f; }
+
+/* 「更多」菜单挂在 body 上，不能用 .console-data-page 限定 */
+.console-row-menu {
+  position: fixed;
+  z-index: 60;
+  padding: 4px;
+  background: white;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 12px;
+  box-shadow: var(--c-shadow-pop);
+}
+.dark .console-row-menu { background: #0e1830; border-color: #1f2d48; }
+.console-row-menu > [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: left;
+  color: #0c1830;
+}
+.dark .console-row-menu > [role='menuitem'] { color: #e9eef8; }
+.console-row-menu > [role='menuitem']:hover,
+.console-row-menu > [role='menuitem']:focus-visible { background: #f2f6fd; outline: none; }
+.dark .console-row-menu > [role='menuitem']:hover,
+.dark .console-row-menu > [role='menuitem']:focus-visible { background: #15223f; }
+.console-row-menu > .console-row-menu-danger { border-top: 1px solid var(--c-row-line); border-radius: 0 0 8px 8px; margin-top: 4px; }
+
+/* ---------- 端点条（Figma C2「API 端点」） ---------- */
+.console-endpoint-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+  padding: 14px 16px 14px 20px;
+  background: white;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 16px;
+  box-shadow: var(--c-shadow-card);
+}
+.dark .console-endpoint-bar { background: #0e1830; border-color: #1f2d48; }
+.console-endpoint-intro { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.console-endpoint-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e8f0fc;
+  color: #14306b;
+}
+.dark .console-endpoint-icon { background: #15223f; color: #bfd6f6; }
+.console-endpoint-title { font-size: 14px; font-weight: 600; color: #0c1830; }
+.dark .console-endpoint-title { color: #e9eef8; }
+.console-endpoint-desc { margin-top: 2px; font-size: 12px; color: #66738c; }
+.dark .console-endpoint-desc { color: #aab6cb; }
+.console-endpoint-list { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.console-endpoint-pill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  padding: 4px 4px 4px 14px;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 999px;
+  background: rgb(var(--c-gray-50));
+}
+.dark .console-endpoint-pill { background: #0b1427; border-color: #2b3a58; }
+.console-endpoint-name { font-size: 12px; color: #45536e; }
+.dark .console-endpoint-name { color: #aab6cb; }
+.console-endpoint-url { min-width: 0; font: 13px/1.6 'Brand Geist Mono', monospace; color: #0c1830; overflow-wrap: anywhere; }
+.dark .console-endpoint-url { color: #e9eef8; }
+.console-endpoint-default { padding: 1px 6px; border-radius: 6px; font-size: 11px; background: #e8f0fc; color: #2f5fd0; }
+.dark .console-endpoint-default { background: #15223f; color: #7aa2ff; }
+.console-endpoint-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #2f5fd0;
+  white-space: nowrap;
+}
+.console-endpoint-action:hover { background: #e8f0fc; }
+.dark .console-endpoint-action { color: #7aa2ff; }
+.dark .console-endpoint-action:hover { background: #15223f; }
+.console-endpoint-copy { background: white; border: 1px solid #d9d1c1; color: #0c1830; }
+.console-endpoint-copy:hover { background: white; border-color: #2f5fd0; }
+.dark .console-endpoint-copy { background: #0e1830; border-color: #2b3a58; color: #e9eef8; }
+
+/* ---------- 密钥额度夜空卡 ---------- */
+.console-data-page .console-key-quota {
+  padding: 24px 26px;
+  margin-bottom: 20px;
+  border-radius: 20px;
+  background: #0e1830;
+  color: #e9eef8;
+  box-shadow: var(--c-shadow-float);
+  border: 1px solid #1f2d48;
+}
+.console-data-page .console-quota-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #aab6cb;
+  font-size: 12px;
+  margin-bottom: 22px;
+}
+.console-data-page .console-quota-heading > span { color: #7f8ca5; }
+.console-data-page .console-quota-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+.console-data-page .console-quota-name { font-size: 13px; overflow-wrap: anywhere; }
+.console-data-page .console-quota-name::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; background: #7aa2ff; }
+.console-data-page .console-quota-value { font: 500 30px/1.4 'Brand Geist Mono', monospace; margin: 10px 0 6px; }
+.console-data-page .console-quota-value > span { font-size: 23px; }
+.console-data-page .console-quota-warning { color: #ecc978; }
+.console-data-page .console-quota-track { height: 4px; border-radius: 4px; background: #26344f; overflow: hidden; }
+.console-data-page .console-quota-track > span { display: block; height: 100%; border-radius: inherit; background: #7aa2ff; }
+.console-data-page .console-quota-amount { margin-top: 10px; color: #aab6cb; font: 11px/1.6 'Brand Geist Mono', monospace; }
+
+/* ---------- 使用记录：统计条 ---------- */
+.console-data-page.console-usage { display: flex; flex-direction: column; gap: 20px; }
+.console-data-page.console-usage > * + * { margin-top: 0; }
+.console-data-page .console-usage-stats { gap: 0; border: 1px solid rgb(var(--c-gray-200)); border-radius: 16px; background: white; padding: 20px 0; box-shadow: var(--c-shadow-card); }
+.dark .console-data-page .console-usage-stats { background: #0e1830; border-color: #1f2d48; }
+.console-data-page .console-usage-stats > .card {
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0 24px;
+  border: 0;
+  border-right: 1px solid var(--c-row-line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.console-data-page .console-usage-stats > .card:last-child { border-right: 0; }
+.console-data-page .console-usage-stats > .card > .rounded-lg { display: none; }
+.console-data-page .console-usage-stats .text-xl { font: 500 24px/1.5 'Brand Geist Mono', monospace; margin: 5px 0; font-variant-numeric: tabular-nums; }
+.console-data-page .console-usage-stats .text-green-600 { color: #8a6420; }
+.dark .console-data-page .console-usage-stats .text-green-600 { color: #ecc978; }
+
+/* ---------- 使用记录：一行胶囊筛选 ---------- */
+.console-data-page .console-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.console-data-page .console-filter-scroll { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.console-data-page .console-filter-pill { flex: 0 0 auto; width: 128px; }
+.console-data-page .console-filter-pill--wide { width: 160px; }
+.console-data-page .console-filter-date { width: auto; }
+.console-data-page .console-filter-pill .select-trigger {
+  height: 36px;
+  padding: 0 10px 0 14px;
+  gap: 4px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.console-data-page .console-filter-pill .date-picker-trigger {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.console-data-page .console-filter-more {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d9d1c1;
+  border-radius: 999px;
+  background: white;
+  font-size: 13px;
+  color: #45536e;
+  white-space: nowrap;
+}
+.dark .console-data-page .console-filter-more { background: #0e1830; border-color: #2b3a58; color: #aab6cb; }
+.console-data-page .console-filter-more[aria-expanded='true'] { background: #e8f0fc; border-color: #bfd6f6; color: #14306b; }
+.dark .console-data-page .console-filter-more[aria-expanded='true'] { background: #15223f; border-color: #2f5fd0; color: #bfd6f6; }
+.console-data-page .console-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #14306b;
+  color: white;
+  font: 500 11px/1 'Brand Geist Mono', monospace;
+}
+.console-data-page .console-filter-tools { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: auto; }
+.console-data-page .console-filter-tools .btn { height: 36px; padding-top: 0; padding-bottom: 0; font-size: 13px; }
+.console-data-page .console-extra-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 220px));
+  gap: 12px;
+  padding: 14px 16px;
+  background: white;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 16px;
+}
+.dark .console-data-page .console-extra-filter-fields { background: #0e1830; border-color: #1f2d48; }
+.console-data-page .console-extra-filter-fields > div { min-width: 0; }
+.console-data-page .console-extra-filter-fields .input-label { font-size: 11px; margin-bottom: 5px; }
+.console-data-page .console-usage-charts { border-top: 1px solid var(--c-row-line); padding-top: 18px; }
+.console-data-page .console-usage-charts > summary { cursor: pointer; font-size: 14px; font-weight: 600; padding: 6px 0; }
+
+/* ---------- 手机记录列表：摘要 + 直接渲染的字段 ---------- */
+.console-data-page .console-mobile-select-all { padding: 10px 16px; border-bottom: 1px solid var(--c-row-line); font-size: 12px; color: #45536e; }
+.dark .console-data-page .console-mobile-select-all { color: #aab6cb; }
+.console-data-page .console-mobile-select-all label { display: inline-flex; align-items: center; gap: 10px; min-height: 32px; cursor: pointer; }
+.console-data-page .console-mobile-records { margin: 0; padding: 0; list-style: none; }
+.console-data-page .console-mobile-record { display: flex; align-items: flex-start; border-bottom: 1px solid var(--c-row-line); }
+.console-data-page .console-mobile-record:last-child { border-bottom: 0; }
+.console-data-page .console-mobile-select { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 52px; padding-left: 4px; cursor: pointer; }
+.console-data-page .console-mobile-select input,
+.console-data-page .console-mobile-select-all input { width: 18px; height: 18px; accent-color: #14306b; }
+.console-data-page .console-mobile-record-body { flex: 1; min-width: 0; }
+.console-data-page .console-mobile-record-body > summary { display: block; list-style: none; padding: 16px; cursor: pointer; }
+.console-data-page .console-mobile-select + .console-mobile-record-body > summary { padding-left: 4px; }
+.console-data-page .console-mobile-record-body > summary::-webkit-details-marker { display: none; }
+.console-data-page .console-mobile-record-body > summary > span { display: flex; }
+.console-data-page .console-mobile-record--selected { background: #f2f6fd; }
+.dark .console-data-page .console-mobile-record--selected { background: #15223f; }
+.console-data-page .console-mobile-record:has(> .console-mobile-record-body[open]) { background: rgb(var(--c-gray-100)); }
+.dark .console-data-page .console-mobile-record:has(> .console-mobile-record-body[open]) { background: #15223f; }
+.console-data-page .console-usage-records .console-mobile-record:has(> .console-mobile-record-body[open]) { box-shadow: inset 3px 0 #d4a84b; }
+.console-data-page .console-mobile-record-title { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.console-data-page .console-mobile-record-title > strong { min-width: 0; overflow-wrap: anywhere; }
+.console-data-page .console-mobile-record-title > svg { margin-left: auto; flex-shrink: 0; transition: transform 0.15s; }
+.console-data-page .console-mobile-record-body[open] .console-mobile-record-title > svg { transform: rotate(180deg); }
+.console-data-page .console-mobile-record-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 11px; color: #66738c; }
+.dark .console-data-page .console-mobile-record-meta { color: #aab6cb; }
+.console-data-page .console-mobile-record-meta > * { min-width: 0; overflow-wrap: anywhere; }
+.console-data-page .console-mobile-record-meta.console-key-spend { justify-content: flex-start; gap: 16px; margin-top: 8px; }
+.console-data-page .console-mobile-record-detail { border-top: 1px solid var(--c-row-line); }
+.console-data-page .console-mobile-fields { margin: 0; padding: 0 16px; }
+.console-data-page .console-mobile-fields > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--c-row-line);
+  font-size: 12px;
+}
+.console-data-page .console-mobile-fields > div:first-child { border-top: 0; }
+.console-data-page .console-mobile-fields dt { flex-shrink: 0; font-size: 11px; color: #66738c; }
+.dark .console-data-page .console-mobile-fields dt { color: #aab6cb; }
+.console-data-page .console-mobile-fields dd { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.console-data-page .console-mobile-copy { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.console-data-page .console-mobile-copy code { font: 11px/1.6 'Brand Geist Mono', monospace; overflow-wrap: anywhere; }
+.console-data-page .console-mobile-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 16px; }
+.console-data-page .console-inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d9d1c1;
+  border-radius: 999px;
+  background: white;
+  font-size: 12px;
+  color: #0c1830;
+  white-space: nowrap;
+}
+.dark .console-data-page .console-inline-action { border-color: #2b3a58; background: #0e1830; color: #e9eef8; }
+
+@container console-data (width < 700px) {
+  .console-data-page .console-quota-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 22px; }
+  .console-data-page .console-quota-heading { flex-direction: column; gap: 4px; margin-bottom: 18px; }
+  .console-data-page .console-quota-value { font-size: 25px; margin-top: 6px; }
+  .console-data-page .console-key-quota { padding: 20px; }
+  .console-data-page .console-usage-stats { padding: 0; }
+  .console-data-page .console-usage-stats > .card { padding: 16px; border-bottom: 1px solid var(--c-row-line); }
+  .console-data-page .console-usage-stats > .card:nth-child(even) { border-right: 0; }
+  .console-data-page .console-usage-stats > .card:nth-child(n+3) { border-bottom: 0; }
+  .console-endpoint-bar { padding: 14px; }
+  .console-endpoint-list { align-items: stretch; width: 100%; }
+  .console-endpoint-pill { border-radius: 16px; padding: 8px 8px 8px 12px; }
+  .console-endpoint-url { flex: 1 1 160px; font-size: 12px; }
+}
+@media (max-width: 767px) {
+  .console-data-page .console-page-actions { width: 100%; gap: 8px; }
+  .console-data-page .console-page-actions > .btn-primary { flex: 1; justify-content: center; }
+  .console-data-page .console-key-filters { gap: 8px; }
+  .console-data-page .console-key-filters > .w-40 { flex: 1; min-width: 0; }
+  /* 单行纵向排列：多行 flex 容器会按最宽子项拉伸，横滑条就撑破页面 */
+  .console-data-page .console-filter-bar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  /* 手机横滑：不折行，边缘按滚动位置渐隐，提示左右还有筛选项 */
+  .console-data-page .console-filter-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+  .console-data-page .console-filter-scroll::-webkit-scrollbar { display: none; }
+  .console-data-page .console-filter-scroll--more-right { mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+  .console-data-page .console-filter-scroll--more-left { mask-image: linear-gradient(to right, transparent, #000 48px); }
+  .console-data-page .console-filter-scroll--more-left.console-filter-scroll--more-right { mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+  .console-data-page .console-filter-tools { margin-left: 0; }
+  .console-data-page .console-extra-filter-fields { grid-template-columns: 1fr; }
+  .console-data-page .console-usage-records .console-mobile-record-title > span { margin-left: auto; white-space: nowrap; }
+  .console-data-page .console-usage-records .console-mobile-record-title > svg { margin-left: 0; }
+  .console-data-page .console-date-controls .ml-auto { margin-left: 0; }
+}
+@media (pointer: coarse) {
+  .console-data-page .console-records button,
+  .console-data-page .console-inline-action,
+  .console-endpoint-action { min-height: 44px; min-width: 44px; }
+  .console-row-menu > [role='menuitem'] { min-height: 44px; }
+}

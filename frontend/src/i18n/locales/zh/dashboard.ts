@@ -112,10 +112,17 @@ export default {
 
   // API Keys
   keys: {
+    use: '使用',
+    unlimitedQuota: '不限额',
+    moreActions: '更多操作',
+    selectAllOnPage: '全选本页',
+    quotaOverview: '密钥额度 · 当前页',
+    quotaOverviewHint: '按累计已用比例排序 · 前 4 项',
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',
     endpoints: {
+      description: '把客户端的 Base URL 设为此地址，配合下方密钥调用',
       title: 'API 端点',
       default: '默认',
       copied: '已复制',
@@ -382,6 +389,12 @@ export default {
 
   // Usage
   usage: {
+    inputOutput: '输入 / 输出',
+    latencyCompact: '首字 / 耗时',
+    filtersScrollHint: '左右滑动查看更多筛选',
+    requestId: '请求 ID',
+    moreFilters: '更多筛选',
+    analytics: '用量分析与趋势',
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',

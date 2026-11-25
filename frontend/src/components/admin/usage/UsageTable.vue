@@ -154,6 +154,19 @@
             <span class="font-medium text-gray-900 dark:text-white">{{ row.image_count }}{{ t('usage.imageUnit') }}</span>
             <span class="text-gray-400">({{ formatImageBillingSize(row, t) }})</span>
           </div>
+          <!-- 紧凑单行（用户使用记录 v3）：输入 / 输出，缓存与图片 token 放进同一浮层 -->
+          <div v-else-if="compact" class="flex items-center gap-1.5 whitespace-nowrap" data-testid="compact-tokens">
+            <span class="tabular-nums text-gray-900 dark:text-white">{{ row.input_tokens?.toLocaleString() || 0 }} / {{ row.output_tokens?.toLocaleString() || 0 }}</span>
+            <div
+              class="group relative"
+              @mouseenter="showTokenTooltip($event, row)"
+              @mouseleave="hideTokenTooltip"
+            >
+              <div class="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-blue-100 dark:bg-gray-700 dark:group-hover:bg-blue-900/50">
+                <Icon name="infoCircle" size="xs" class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400" />
+              </div>
+            </div>
+          </div>
           <!-- Token 请求 -->
           <div v-else class="flex items-center gap-1.5">
             <div class="space-y-1 text-sm">
@@ -209,7 +222,7 @@
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
-              <span class="font-medium text-green-600 dark:text-green-400">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
+              <span class="font-medium" :class="compact ? 'text-star-bronze dark:text-star-bronze-night' : 'text-green-600 dark:text-green-400'">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
               <span
                 v-if="row.long_context_billing_applied"
                 data-testid="long-context-billing-marker"
@@ -235,7 +248,17 @@
 
         <!-- 合并首字/总耗时的健康度列：左侧色条上端随首字档、下端随总耗时档，中段(40%-60%)短渐变过渡，便于纵向扫视整体健康状况 -->
         <template #cell-latency="{ row }">
-          <div class="flex items-stretch gap-2">
+          <!-- 紧凑单行：首字 / 总耗时，中性色；输出 TPS、缓存率进浮层和读屏文本（绿色只表示状态）。 -->
+          <span
+            v-if="compact"
+            data-testid="compact-latency"
+            class="whitespace-nowrap tabular-nums text-gray-700 dark:text-gray-300"
+            :title="latencySummary(row)"
+          >
+            <span aria-hidden="true">{{ row.first_token_ms != null ? formatDuration(row.first_token_ms) : '-' }} / {{ formatDuration(row.duration_ms) }}</span>
+            <span class="sr-only">{{ latencySummary(row) }}</span>
+          </span>
+          <div v-else class="flex items-stretch gap-2">
             <span
               class="w-1 shrink-0 rounded-full"
               :class="row.first_token_ms != null
@@ -614,6 +637,8 @@ interface Props {
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  /** 用户使用记录 v3：Token / 延迟单行，明细放浮层；默认关闭，管理端不变 */
+  compact?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -623,7 +648,8 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   showAccountBilling: true,
   showUpstreamEndpoint: true,
-  flat: false
+  flat: false,
+  compact: false
 })
 const emit = defineEmits<{
   userClick: [userID: number, email?: string]
@@ -750,6 +776,14 @@ const formatDuration = (ms: number | null | undefined): string => {
   if (totalSec < 3600) return `${Math.floor(totalSec / 60)}m ${totalSec % 60}s`
   return `${Math.floor(totalSec / 3600)}h ${Math.floor((totalSec % 3600) / 60)}m`
 }
+
+// 紧凑延迟单元格的完整说明：同时用作悬停提示和读屏文本。
+const latencySummary = (row: AdminUsageLog): string => [
+  `${t('usage.latencyFirstToken')} ${formatDuration(row.first_token_ms)}`,
+  `${t('usage.latencyDuration')} ${formatDuration(row.duration_ms)}`,
+  `${t('usage.outputTps')} ${formatUsageOutputRate(row)}`,
+  `${t('usage.cacheRate')} ${formatCacheHitRate(row.cache_hit_rate)}`,
+].join(' · ')
 
 // Cost tooltip functions
 const showTooltip = (event: MouseEvent, row: AdminUsageLog) => {

@@ -687,4 +687,116 @@ describe('user KeysView column settings', () => {
       consoleError.mockRestore()
     })
   })
+  describe('console v3 layout', () => {
+    const setPhone = (phone: boolean) => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 })
+    }
+
+    it('shows unlimited keys as 不限额 and keeps today / 30-day spend visible without a disclosure', async () => {
+      listKeys.mockResolvedValue({
+        items: [createApiKey(), { ...createApiKey(), id: 2, name: 'capped', quota: 50, quota_used: 45 }],
+        total: 2, page: 1, page_size: 20, pages: 1,
+      })
+      getDashboardApiKeysUsage.mockResolvedValue({
+        stats: { 1: { api_key_id: 1, today_actual_cost: 0.5, total_actual_cost: 12.25 } },
+      })
+      const wrapper = await mountView()
+      const [unlimited, capped] = wrapper.findAll('[data-test="usage"]')
+
+      expect(unlimited.find('[data-test="usage-unlimited"]').text()).toBe('keys.unlimitedQuota')
+      expect(unlimited.find('[role="meter"]').exists()).toBe(false)
+      expect(unlimited.text()).toContain('keys.today')
+      expect(unlimited.text()).toContain('$0.5000')
+      expect(unlimited.text()).toContain('$12.2500')
+      // 用量格是合法结构：不再用 details/summary 包块级内容
+      expect(unlimited.find('details').exists()).toBe(false)
+      expect(unlimited.find('summary').exists()).toBe(false)
+
+      expect(capped.find('[data-test="usage-unlimited"]').exists()).toBe(false)
+      expect(capped.get('[role="meter"]').attributes('aria-valuetext')).toBe('$45.00 / $50.00')
+    })
+
+    it('keeps 使用 as a labelled button and moves the other row actions into the 更多 menu', async () => {
+      getPublicSettings.mockResolvedValue({ hide_ccs_import_button: false })
+      const wrapper = await mountView()
+
+      const use = wrapper.get('.console-key-use')
+      expect(use.text()).toContain('keys.use')
+      expect(use.attributes('aria-label')).toBe('keys.useKey')
+      expect(wrapper.get('button[aria-label="common.edit"]').exists()).toBe(true)
+      expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+
+      const trigger = wrapper.get('[data-test="row-menu-trigger"]')
+      expect(trigger.attributes('aria-label')).toBe('keys.moreActions: test-key')
+      await trigger.trigger('click')
+      expect(trigger.attributes('aria-expanded')).toBe('true')
+      const items = wrapper.findAll('[role="menuitem"]').map((item) => item.attributes('aria-label'))
+      expect(items).toEqual(['keys.importToCcSwitch', 'keys.disable', 'common.delete'])
+
+      await wrapper.findAll('[role="menuitem"]')[2].trigger('click')
+      expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    })
+
+    it('hides the CC Switch menu item when the site hides the import button', async () => {
+      getPublicSettings.mockResolvedValue({ hide_ccs_import_button: true })
+      const wrapper = await mountView()
+      await wrapper.get('[data-test="row-menu-trigger"]').trigger('click')
+      expect(wrapper.findAll('[role="menuitem"]').map((item) => item.attributes('aria-label')))
+        .toEqual(['keys.disable', 'common.delete'])
+    })
+
+    it('renders pagination as the record card foot', async () => {
+      const wrapper = await mountView()
+      expect(wrapper.get('section.console-records').find('.console-table-foot [data-test="page-2"]').exists()).toBe(true)
+    })
+
+    it('shows the endpoint bar with description and labelled speed-test / copy actions', async () => {
+      getPublicSettings.mockResolvedValue({ api_base_url: 'https://api.example.test/v1' })
+      copyToClipboard.mockResolvedValue(true)
+      const wrapper = await mountView()
+
+      const bar = wrapper.get('.console-endpoint-bar')
+      expect(bar.text()).toContain('keys.endpoints.description')
+      expect(bar.get('[data-test="endpoint-speed-test"]').text()).toContain('keys.endpoints.speedTest')
+      const copy = bar.get('[data-test="endpoint-copy"]')
+      expect(copy.text()).toContain('common.copy')
+      await copy.trigger('click')
+      await flushPromises()
+      expect(copyToClipboard).toHaveBeenCalledWith('https://api.example.test/v1', 'keys.endpoints.copied')
+      expect(copy.text()).toContain('keys.endpoints.copied')
+    })
+
+    it('renders phone rows as fields (no per-row table) and keeps bulk selection usable', async () => {
+      const width = window.innerWidth
+      setPhone(true)
+      listKeys.mockResolvedValue({
+        items: [createApiKey(), { ...createApiKey(), id: 2, name: 'capped', quota: 50, quota_used: 10 }],
+        total: 2, page: 1, page_size: 20, pages: 1,
+      })
+      try {
+        const wrapper = await mountView()
+        expect(wrapper.findComponent({ name: 'DataTable' }).exists()).toBe(false)
+        expect(wrapper.findAll('[data-test="key-mobile-fields"]')).toHaveLength(2)
+        const summaries = wrapper.findAll('.console-mobile-record-body > summary')
+        expect(summaries[0].find('[data-test="mobile-unlimited"]').text()).toBe('keys.unlimitedQuota')
+        expect(summaries[0].find('.console-mobile-quota-track').exists()).toBe(false)
+        expect(summaries[1].text()).toContain('$10.00 / $50.00')
+        expect(summaries[0].text()).toContain('keys.today')
+
+        const rowBoxes = wrapper.findAll('[data-test="mobile-select-row"]')
+        await rowBoxes[1].setValue(true)
+        expect(wrapper.get('[data-test="bulk-edit-keys"]').exists()).toBe(true)
+
+        await wrapper.get('[data-test="mobile-select-all"]').setValue(true)
+        await wrapper.get('[data-test="bulk-edit-keys"]').trigger('click')
+        expect(wrapper.findComponent({ name: 'BulkEditKeysModal' }).props('selectedKeys').map((key: ApiKey) => key.id)).toEqual([1, 2])
+
+        await wrapper.get('[data-test="mobile-select-all"]').setValue(false)
+        expect(wrapper.find('[data-test="bulk-edit-keys"]').exists()).toBe(false)
+      } finally {
+        setPhone(false)
+        Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+      }
+    })
+  })
 })

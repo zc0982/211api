@@ -213,7 +213,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'API Keys',
       titleKey: 'keys.title',
-      descriptionKey: 'keys.description'
+      descriptionKey: 'keys.description',
+      pageHeading: true
     }
   },
   {
@@ -238,7 +239,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Usage Records',
       titleKey: 'usage.title',
-      descriptionKey: 'usage.description'
+      descriptionKey: 'usage.description',
+      pageHeading: true
     }
   },
   {
