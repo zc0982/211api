@@ -930,6 +930,8 @@ export default {
     totp: {
       title: '双因素认证 (2FA)',
       description: '使用 Google Authenticator 等应用增强账户安全',
+      loadFailed: '双因素认证状态读取失败，请重试。',
+      retry: '重试',
       enabled: '已启用',
       enabledAt: '启用时间',
       notEnabled: '未启用',

@@ -71,6 +71,30 @@ function createUser(overrides: Partial<User> = {}): User {
 }
 
 describe('ProfileInfoCard', () => {
+  it('opts into the Console layout while retaining real form and identity controls', () => {
+    const wrapper = mount(ProfileInfoCard, {
+      props: { user: createUser(), console: true, linuxdoEnabled: true },
+      slots: { settings: '<section data-testid="settings-slot">Existing security forms</section>' },
+      global: { stubs: { Icon: true } },
+    })
+    expect(wrapper.classes()).toContain('console-profile-info')
+    expect(wrapper.get('[data-testid="profile-overview-hero"]').text()).toContain('$10.00')
+    expect(wrapper.get('#username').element).toHaveProperty('value', 'alice')
+    expect(wrapper.find('[data-testid="profile-avatar-file-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="profile-binding-email-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="profile-binding-linuxdo-action"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="profile-main-column"]').text()).toContain('Existing security forms')
+    expect(wrapper.get('[data-testid="profile-overview-hero"]').findAll('dl > div')).toHaveLength(3)
+    wrapper.unmount()
+  })
+
+  it('leaves the original layout enabled by default for other callers', () => {
+    const wrapper = mount(ProfileInfoCard, { props: { user: createUser() }, global: { stubs: { Icon: true } } })
+    expect(wrapper.classes()).toContain('space-y-6')
+    expect(wrapper.classes()).not.toContain('console-profile-info')
+    expect(wrapper.get('[data-testid="profile-overview-hero"]').classes()).toContain('bg-gradient-to-br')
+    wrapper.unmount()
+  })
   it.each([
     { avatar_source: 'dingtalk', username_source: 'dingtalk' },
     { profile_sources: { avatar: { provider: 'dingtalk' }, username: { provider: 'dingtalk' } } },

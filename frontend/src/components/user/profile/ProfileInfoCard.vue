@@ -1,6 +1,28 @@
 <template>
-  <div class="space-y-6">
+  <div :class="props.console ? 'console-profile-info' : 'space-y-6'">
+    <section v-if="props.console" data-testid="profile-overview-hero" class="card console-profile-overview">
+      <div class="console-profile-identity">
+        <div class="console-profile-avatar">
+          <img v-if="avatarUrl" :src="avatarUrl" :alt="displayName" />
+          <span v-else>{{ avatarInitial }}</span>
+        </div>
+        <div class="min-w-0">
+          <h2>{{ displayName }}</h2>
+          <p class="console-profile-email">{{ primaryEmailDisplay }}</p>
+          <div class="flex flex-wrap gap-2">
+            <span :class="['badge', user?.role === 'admin' ? 'badge-primary' : 'badge-gray']">{{ user?.role === 'admin' ? t('profile.administrator') : t('profile.user') }}</span>
+            <span :class="['badge', user?.status === 'active' ? 'badge-success' : 'badge-danger']">{{ user?.status === 'active' ? t('common.active') : t('common.disabled') }}</span>
+          </div>
+        </div>
+      </div>
+      <dl class="console-profile-facts">
+        <div data-testid="profile-overview-metric-balance"><dt>{{ t('profile.accountBalance') }}</dt><dd class="console-account-money">{{ formatCurrency(user?.balance || 0) }}</dd></div>
+        <div data-testid="profile-overview-metric-concurrency"><dt>{{ t('profile.concurrencyLimit') }}</dt><dd>{{ user?.concurrency || 0 }}</dd></div>
+        <div data-testid="profile-overview-metric-member-since"><dt>{{ t('profile.memberSince') }}</dt><dd>{{ memberSinceLabel }}</dd></div>
+      </dl>
+    </section>
     <section
+      v-else
       data-testid="profile-overview-hero"
       class="card overflow-hidden border border-primary-100/80 bg-gradient-to-br from-primary-50 via-white to-amber-50/70 dark:border-primary-900/40 dark:from-primary-950/40 dark:via-dark-900 dark:to-dark-950"
     >
@@ -98,8 +120,8 @@
       </div>
     </section>
 
-    <div class="space-y-6">
-      <div data-testid="profile-main-column" class="space-y-6">
+    <div :class="props.console ? 'console-profile-sections' : 'space-y-6'">
+      <div data-testid="profile-main-column" :class="props.console ? 'console-profile-main' : 'space-y-6'">
         <section
           data-testid="profile-basics-panel"
           class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
@@ -115,15 +137,15 @@
             </div>
           </div>
 
-          <div class="grid gap-6 sm:grid-cols-1 md:grid-cols-2">
-            <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
+          <div :class="props.console ? 'console-profile-basics' : 'grid gap-6 sm:grid-cols-1 md:grid-cols-2'">
+            <div :class="props.console ? 'console-profile-basics-section' : 'rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30'">
               <ProfileAvatarCard
                 :user="user"
                 embedded
               />
             </div>
 
-            <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
+            <div :class="props.console ? 'console-profile-basics-section' : 'rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30'">
               <ProfileEditForm
                 :initial-username="user?.username || ''"
                 embedded
@@ -131,6 +153,8 @@
             </div>
           </div>
         </section>
+
+        <slot name="settings" />
 
         <section
           data-testid="profile-auth-bindings-panel"
@@ -189,6 +213,7 @@ import ProfileIdentityBindingsSection from '@/components/user/profile/ProfileIde
 import type { User, UserAuthBindingStatus, UserAuthProvider, UserProfileSourceContext } from '@/types'
 
 const props = withDefaults(defineProps<{
+  console?: boolean
   user: User | null
   linuxdoEnabled?: boolean
   dingtalkEnabled?: boolean
@@ -198,6 +223,7 @@ const props = withDefaults(defineProps<{
   wechatOpenEnabled?: boolean
   wechatMpEnabled?: boolean
 }>(), {
+  console: false,
   linuxdoEnabled: false,
   dingtalkEnabled: false,
   oidcEnabled: false,
