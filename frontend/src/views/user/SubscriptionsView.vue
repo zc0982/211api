@@ -143,7 +143,7 @@ function platformText(platform: string): string {
 }
 
 function statusBadgeClass(status: UserSubscription['status']): string {
-  return status === 'active' ? 'badge-success' : 'badge-secondary'
+  return status === 'active' ? 'badge-success' : 'badge-gray'
 }
 
 function remainingText(subscription: UserSubscription): string {

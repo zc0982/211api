@@ -448,7 +448,13 @@ export default {
       colStatus: '状态',
       colCreated: '创建时间',
       typeBalance: '余额充值',
-      typeSubscription: '订阅套餐'
+      typeSubscription: '订阅套餐',
+      ordersDescription: '充值和订阅订单都在这里，可以取消待支付订单或申请退款。',
+      goRecharge: '去充值',
+      orderFilters: '订单筛选，可左右滑动',
+      allTypes: '全部类型',
+      ordersLoadFailed: '订单读取失败。',
+      ordersEmptyFiltered: '没有符合条件的订单'
     },
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
