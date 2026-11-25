@@ -94,4 +94,20 @@ describe('SubscriptionsView console v3', () => {
     await rebuy.trigger('click')
     expect(push).toHaveBeenCalledWith({ path: '/purchase', query: { tab: 'subscription', group: '9' } })
   })
+
+  it('counts down an unstarted one-time daily quota by its expiry instead of awaiting first use', async () => {
+    const now = Date.now()
+    const wrapper = await mountView([
+      sub({
+        starts_at: new Date(now - 2 * 3600000).toISOString(),
+        expires_at: new Date(now + 22 * 3600000).toISOString(),
+        daily_window_start: null,
+        group: { name: 'Day pass', platform: 'anthropic', rate_multiplier: 1, daily_limit_usd: 10 },
+      }),
+    ])
+    const daily = wrapper.get('[data-testid="usage-daily"]')
+    expect(daily.text()).toContain('userSubscriptions.quotaEndsIn')
+    expect(daily.text()).not.toContain('userSubscriptions.windowNotActive')
+  })
 })
+

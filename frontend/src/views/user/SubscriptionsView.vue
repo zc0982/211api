@@ -209,12 +209,13 @@ function formatDurationParts(parts: RemainingDurationParts): string {
 }
 
 function formatDailyUsageWindow(subscription: UserSubscription): string {
-  if (!subscription.daily_window_start) return t('userSubscriptions.windowNotActive')
+  // 一次性日额度（有效期 ≤ 1 天）按到期时间倒计时，即使还没开始用也已经在走
   if (isOneTimeDailyQuota(subscription) && subscription.expires_at) {
     const parts = getRemainingDurationParts(subscription.expires_at)
     if (!parts) return t('userSubscriptions.windowNotActive')
     return t('userSubscriptions.quotaEndsIn', { time: formatDurationParts(parts) })
   }
+  if (!subscription.daily_window_start) return t('userSubscriptions.windowNotActive')
 
   return t('userSubscriptions.resetIn', {
     time: formatResetTime(subscription.daily_window_start, 24)
