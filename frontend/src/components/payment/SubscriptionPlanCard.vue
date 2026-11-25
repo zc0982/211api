@@ -124,7 +124,7 @@ import {
   platformLabel,
 } from '@/utils/platformColors'
 
-const props = defineProps<{ plan: SubscriptionPlan; activeSubscriptions?: UserSubscription[] }>()
+const props = defineProps<{ plan: SubscriptionPlan; activeSubscriptions?: UserSubscription[]; console?: boolean }>()
 const emit = defineEmits<{ select: [plan: SubscriptionPlan] }>()
 const { t } = useI18n()
 
@@ -134,12 +134,17 @@ const isRenewal = computed(() =>
 )
 
 // Derived color classes from central config
-const accentClass = computed(() => platformAccentBarClass(platform.value))
-const borderClass = computed(() => platformBorderClass(platform.value))
-const badgeLightClass = computed(() => platformBadgeLightClass(platform.value))
-const textClass = computed(() => platformTextClass(platform.value))
+const accentClass = computed(() => (props.console ? 'bg-primary-800 dark:bg-primary-400' : platformAccentBarClass(platform.value)))
+const borderClass = computed(() => (props.console ? 'border-gray-200 dark:border-dark-700' : platformBorderClass(platform.value)))
+const badgeLightClass = computed(() => (props.console ? 'bg-primary-100 text-primary-800 dark:bg-dark-700 dark:text-primary-300' : platformBadgeLightClass(platform.value)))
+const textClass = computed(() => (props.console ? 'text-gray-900 dark:text-white' : platformTextClass(platform.value)))
 const iconClass = computed(() => platformIconClass(platform.value))
-const btnClass = computed(() => platformButtonClass(platform.value))
+// 用户后台 v3（console）：统一深蓝主按钮，不再按平台换色
+const btnClass = computed(() =>
+  props.console
+    ? 'bg-primary-800 text-white hover:bg-primary-900 dark:bg-[#e8f0fc] dark:text-primary-800 dark:hover:bg-white'
+    : platformButtonClass(platform.value)
+)
 const discountClass = computed(() => platformDiscountClass(platform.value))
 const pLabel = computed(() => platformLabel(platform.value))
 

@@ -1,15 +1,25 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-6">
+    <div class="console-purchase">
+      <div class="console-page-heading">
+        <div>
+          <h1 class="page-title">{{ t('payment.console.title') }}</h1>
+          <p class="page-description">{{ t('payment.console.description') }}</p>
+        </div>
+        <router-link v-if="tabs.length > 0" to="/orders" class="console-link" data-testid="purchase-orders-link">
+          {{ t('payment.console.myOrders') }} <span aria-hidden="true">→</span>
+        </router-link>
+      </div>
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
-        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="tabs console-purchase-tabs self-start" role="tablist">
           <button v-for="tab in tabs" :key="tab.key"
-            class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-            :class="activeTab === tab.key ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            type="button" role="tab" :aria-selected="activeTab === tab.key"
+            class="tab"
+            :class="{ 'tab-active': activeTab === tab.key }"
             @click="activeTab = tab.key">{{ tab.label }}</button>
         </div>
         <!-- Payment in progress (shared by recharge and subscription) -->
@@ -39,82 +49,98 @@
           </div>
           <!-- Top-up Tab -->
           <template v-else-if="activeTab === 'recharge'">
-            <!-- Recharge Account Card -->
-            <div class="card p-5">
-              <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
-              <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
-            </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
-            <template v-else>
-            <div class="card p-6">
-              <!-- 充值赠送活动文案（后台 Markdown 配置，空则不渲染） -->
-              <div
-                v-if="renderedBonusNotice"
-                class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 [&_a]:font-medium [&_a]:underline [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:ml-5 [&_ul]:list-disc"
-                data-testid="recharge-bonus-notice"
-                v-html="renderedBonusNotice"
-              ></div>
-              <AmountInput
-                v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                :min="globalMinAmount"
-                :max="globalMaxAmount"
-                :bonus-tiers="rechargeBonusTiers"
-                :bonus-mode="rechargeBonusMode"
-                :multiplier="balanceRechargeMultiplier"
-                :currency="selectedCurrency"
-              />
-              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
-            </div>
-            <div v-if="enabledMethods.length >= 1" class="card p-6">
-              <PaymentMethodSelector
-                :methods="methodOptions"
-                :selected="selectedMethod"
-                @select="selectedMethod = $event"
-              />
-            </div>
-            <div v-if="validAmount > 0" class="card p-6">
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                  <span :class="discountAmount > 0 ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-white'">{{ formatSelectedPaymentAmount(validAmount) }}</span>
-                </div>
-                <div v-if="discountAmount > 0" class="flex justify-between" data-testid="recharge-discount-row">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rechargeBonus.discountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</span>
-                  <span class="font-medium text-red-600 dark:text-red-400">-{{ formatSelectedPaymentAmount(discountAmount) }}</span>
-                </div>
-                <div v-if="feeRate > 0" class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(feeAmount) }}</span>
-                </div>
-                <div v-if="showActualPay" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
-                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
-                </div>
-                <div v-if="showBonusRow" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': !showActualPay }" data-testid="recharge-bonus-row">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rechargeBonus.amountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</span>
-                  <span class="font-medium text-red-600 dark:text-red-400">+${{ bonusQuote.bonus.toFixed(2) }}</span>
-                </div>
-                <div v-if="showCreditedBalance" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': !showActualPay && !showBonusRow }" data-testid="recharge-credited-row">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                  <span :class="bonusQuote.percent > 0 ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-900 dark:text-white'">${{ creditedAmount.toFixed(2) }}</span>
-                </div>
-                <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
+            <div v-else class="console-purchase-grid">
+              <div class="console-purchase-main">
+                <!-- 充值赠送活动文案（后台 Markdown 配置，空则不渲染） -->
+                <div
+                  v-if="renderedBonusNotice"
+                  class="rounded-xl border border-star-bronze/30 bg-star-gold/10 px-4 py-3 text-sm leading-relaxed text-gray-800 dark:text-gray-100 [&_a]:font-medium [&_a]:underline [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:ml-5 [&_ul]:list-disc"
+                  data-testid="recharge-bonus-notice"
+                  v-html="renderedBonusNotice"
+                ></div>
+                <section>
+                  <h2 class="console-section-title">{{ t('payment.console.chooseAmount') }}</h2>
+                  <AmountInput
+                    v-model="amount"
+                    console
+                    :amounts="[50, 100, 200, 500, 1000]"
+                    :min="globalMinAmount"
+                    :max="globalMaxAmount"
+                    :bonus-tiers="rechargeBonusTiers"
+                    :bonus-mode="rechargeBonusMode"
+                    :multiplier="balanceRechargeMultiplier"
+                    :currency="selectedCurrency"
+                  />
+                  <p v-if="amountError" class="mt-2 text-xs text-star-bronze dark:text-star-bronze-night">{{ amountError }}</p>
+                </section>
+                <section v-if="enabledMethods.length >= 1">
+                  <h2 class="console-section-title">{{ t('payment.paymentMethod') }}</h2>
+                  <PaymentMethodSelector
+                    console
+                    :methods="methodOptions"
+                    :selected="selectedMethod"
+                    @select="selectedMethod = $event"
+                  />
+                </section>
+              </div>
+              <aside class="console-summary" :aria-label="t('payment.console.summary')">
+                <h2 class="console-summary__title">{{ t('payment.console.summary') }}</h2>
+                <dl class="console-summary__rows">
+                  <div>
+                    <dt>{{ t('payment.rechargeAccount') }}</dt>
+                    <dd>{{ user?.username || '' }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('payment.currentBalance') }}</dt>
+                    <dd class="font-mono">${{ currentBalance.toFixed(2) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('payment.paymentAmount') }}</dt>
+                    <dd class="font-mono" :class="{ 'is-struck': discountAmount > 0 }">{{ validAmount > 0 ? formatSelectedPaymentAmount(validAmount) : '—' }}</dd>
+                  </div>
+                  <div v-if="validAmount > 0 && discountAmount > 0" data-testid="recharge-discount-row">
+                    <dt>{{ t('payment.rechargeBonus.discountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
+                    <dd class="font-mono">-{{ formatSelectedPaymentAmount(discountAmount) }}</dd>
+                  </div>
+                  <div v-if="validAmount > 0 && feeRate > 0">
+                    <dt>{{ t('payment.fee') }} ({{ feeRate }}%)</dt>
+                    <dd class="font-mono">{{ formatSelectedPaymentAmount(feeAmount) }}</dd>
+                  </div>
+                  <div v-if="validAmount > 0 && showActualPay" class="console-summary__rule">
+                    <dt>{{ t('payment.actualPay') }}</dt>
+                    <dd class="font-mono">{{ formatSelectedPaymentAmount(totalAmount) }}</dd>
+                  </div>
+                  <div v-if="validAmount > 0 && showBonusRow" data-testid="recharge-bonus-row">
+                    <dt>{{ t('payment.rechargeBonus.amountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
+                    <dd class="font-mono">+${{ bonusQuote.bonus.toFixed(2) }}</dd>
+                  </div>
+                  <div v-if="validAmount > 0 && showCreditedBalance" data-testid="recharge-credited-row">
+                    <dt>{{ t('payment.creditedBalance') }}</dt>
+                    <dd class="font-mono">${{ creditedAmount.toFixed(2) }}</dd>
+                  </div>
+                  <div class="console-summary__rule">
+                    <dt>{{ t('payment.console.method') }}</dt>
+                    <dd>{{ selectedMethodLabel }}</dd>
+                  </div>
+                </dl>
+                <p class="console-summary__label">{{ t('payment.console.balanceAfter') }}</p>
+                <p class="console-summary__total font-mono" data-testid="balance-after">${{ balanceAfter.toFixed(2) }}</p>
+                <p v-if="balanceRechargeMultiplier !== 1" class="console-summary__note">
                   {{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatBalanceRechargeMultiplier(balanceRechargeMultiplier) }) }}
                 </p>
-              </div>
+                <button type="button" class="console-summary__pay" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+                  <span v-if="submitting" class="flex items-center justify-center gap-2">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                    {{ t('common.processing') }}
+                  </span>
+                  <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
+                </button>
+                <p class="console-summary__note">{{ t('payment.console.payHint') }}</p>
+              </aside>
             </div>
-            <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-              <span v-if="submitting" class="flex items-center justify-center gap-2">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                {{ t('common.processing') }}
-              </span>
-              <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
-            </button>
-            </template>
           </template>
           <!-- Subscribe Tab -->
           <template v-else-if="activeTab === 'subscription'">
@@ -211,19 +237,19 @@
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noPlans') }}</p>
               </div>
               <div v-else :class="planGridClass">
-                <SubscriptionPlanCard v-for="plan in checkout.plans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlan" />
+                <SubscriptionPlanCard console v-for="plan in checkout.plans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlan" />
               </div>
               <!-- Active subscriptions (compact, below plan list) -->
               <div v-if="activeSubscriptions.length > 0">
                 <p class="mb-2 text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.activeSubscription') }}</p>
                 <div class="space-y-2">
                   <div v-for="sub in activeSubscriptions" :key="sub.id"
-                    class="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2 dark:border-dark-700 dark:bg-dark-800">
-                    <div :class="['h-6 w-1 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
+                    class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 dark:border-dark-700 dark:bg-dark-800"
+                    data-testid="active-subscription-row">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
                         <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
-                        <span :class="['shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium', platformBadgeLightClass(sub.group?.platform || '')]">{{ platformLabel(sub.group?.platform || '') }}</span>
+                        <span class="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-medium text-primary-800 dark:bg-dark-700 dark:text-primary-300">{{ platformLabel(sub.group?.platform || '') }}</span>
                       </div>
                       <div class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500">
                         <span>{{ t('payment.planCard.rate') }}: ×{{ sub.group?.rate_multiplier ?? 1 }}</span>
@@ -240,6 +266,69 @@
             </template>
           </template>
         </template>
+        <section
+          v-if="tabs.length > 0 && paymentPhase === 'select' && !selectedPlan && recentOrders.length > 0"
+          class="console-orders console-data-page"
+          data-testid="recent-orders"
+        >
+          <header class="console-orders__head">
+            <h2>{{ t('payment.console.recentOrders') }}</h2>
+            <router-link to="/orders" class="console-link">{{ t('payment.console.viewAll') }} <span aria-hidden="true">→</span></router-link>
+          </header>
+          <ConsoleRecordList :data="recentOrders" :loading="false" :label="t('payment.console.recentOrders')" class="console-orders__list">
+            <template #summary="{ row }">
+              <span class="console-mobile-record-title">
+                <strong class="font-mono" data-testid="order-no">{{ row.out_trade_no }}</strong>
+                <span class="font-mono console-orders__amount">{{ orderCurrencySymbol(row.currency) }}{{ row.pay_amount.toFixed(2) }}</span>
+                <Icon name="chevronDown" size="sm" />
+              </span>
+              <span class="console-mobile-record-meta">
+                <span class="font-mono">{{ formatDateTimeToMinute(row.created_at) }}</span>
+                <span :class="['badge', statusBadgeClass(row.status)]">{{ t('payment.status.' + row.status.toLowerCase(), row.status) }}</span>
+              </span>
+            </template>
+            <template #detail="{ row }">
+              <dl class="console-mobile-fields" data-testid="order-mobile-fields">
+                <div>
+                  <dt>{{ t('payment.console.colOrderNo') }}</dt>
+                  <dd class="console-mobile-copy">
+                    <code>{{ row.out_trade_no }}</code>
+                    <button type="button" class="console-inline-action" :aria-label="`${t('common.copy')} ${row.out_trade_no}`" data-testid="copy-order-no" @click="copyOrderNo(row.out_trade_no)">
+                      <Icon :name="copiedOrderNo === row.out_trade_no ? 'check' : 'copy'" size="xs" />
+                      <span>{{ copiedOrderNo === row.out_trade_no ? t('common.copied') : t('common.copy') }}</span>
+                    </button>
+                  </dd>
+                </div>
+                <div><dt>{{ t('payment.console.colType') }}</dt><dd>{{ row.order_type === 'subscription' ? t('payment.console.typeSubscription') : t('payment.console.typeBalance') }}</dd></div>
+                <div><dt>{{ t('payment.console.colMethod') }}</dt><dd>{{ t('payment.methods.' + row.payment_type, row.payment_type) }}</dd></div>
+              </dl>
+            </template>
+            <div class="console-orders__scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{{ t('payment.console.colOrderNo') }}</th>
+                    <th>{{ t('payment.console.colType') }}</th>
+                    <th>{{ t('payment.console.colAmount') }}</th>
+                    <th>{{ t('payment.console.colMethod') }}</th>
+                    <th>{{ t('payment.console.colStatus') }}</th>
+                    <th>{{ t('payment.console.colCreated') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="order in recentOrders" :key="order.id">
+                    <td class="font-mono">{{ order.out_trade_no }}</td>
+                    <td>{{ order.order_type === 'subscription' ? t('payment.console.typeSubscription') : t('payment.console.typeBalance') }}</td>
+                    <td class="font-mono console-orders__amount">{{ orderCurrencySymbol(order.currency) }}{{ order.pay_amount.toFixed(2) }}</td>
+                    <td>{{ t('payment.methods.' + order.payment_type, order.payment_type) }}</td>
+                    <td><span :class="['badge', statusBadgeClass(order.status)]">{{ t('payment.status.' + order.status.toLowerCase(), order.status) }}</span></td>
+                    <td class="font-mono">{{ formatDateTimeToMinute(order.created_at) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </ConsoleRecordList>
+        </section>
         <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
           <div class="flex flex-col items-center gap-3">
             <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
@@ -261,7 +350,7 @@
             </button>
             <h3 class="mb-4 shrink-0 text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
             <div class="min-h-0 space-y-4 overflow-y-auto">
-              <SubscriptionPlanCard v-for="plan in renewalPlans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlanFromModal" />
+              <SubscriptionPlanCard console v-for="plan in renewalPlans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlanFromModal" />
             </div>
           </div>
         </div>
@@ -311,11 +400,18 @@ import {
   type PaymentRecoverySnapshot,
   writePaymentRecoverySnapshot,
 } from '@/components/payment/paymentFlow'
-import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, platformTextClass, platformLabel } from '@/utils/platformColors'
+import { platformBadgeClass, platformTextClass, platformLabel } from '@/utils/platformColors'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { DEFAULT_PAYMENT_CURRENCY, currencySymbol as orderCurrencySymbol, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { statusBadgeClass } from '@/components/payment/orderUtils'
+import { formatDateTimeToMinute } from '@/utils/format'
+import type { PaymentOrder } from '@/types/payment'
+import '@/styles/console-data-pages.css'
+import '@/styles/console-purchase-pages.css'
+import ConsoleRecordList from '@/components/user/ConsoleRecordList.vue'
+import { useClipboard } from '@/composables/useClipboard'
 import { planValiditySuffix as validitySuffixOf } from '@/components/payment/validity'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
@@ -696,6 +792,34 @@ const totalAmount = computed(() =>
     ? Math.round((payBaseAmount.value + feeAmount.value) * 100) / 100
     : payBaseAmount.value
 )
+const currentBalance = computed(() => user.value?.balance ?? 0)
+const balanceAfter = computed(() => currentBalance.value + (validAmount.value > 0 ? creditedAmount.value : 0))
+const selectedMethodLabel = computed(() => {
+  const type = selectedMethod.value
+  if (!type) return '—'
+  return visibleMethods.value[type]?.display_name || t(`payment.methods.${type}`, type)
+})
+
+const { copyToClipboard } = useClipboard()
+const copiedOrderNo = ref<string | null>(null)
+let copiedOrderTimer: number | undefined
+async function copyOrderNo(orderNo: string) {
+  if (!(await copyToClipboard(orderNo, t('common.copied')))) return
+  copiedOrderNo.value = orderNo
+  window.clearTimeout(copiedOrderTimer)
+  copiedOrderTimer = window.setTimeout(() => { copiedOrderNo.value = null }, 1800)
+}
+
+// 最近订单：只读展示，失败时静默隐藏，不影响下单
+const recentOrders = ref<PaymentOrder[]>([])
+async function loadRecentOrders() {
+  try {
+    const res = await paymentAPI.getMyOrders({ page: 1, page_size: 5 })
+    recentOrders.value = res.data?.items ?? []
+  } catch {
+    recentOrders.value = []
+  }
+}
 const showActualPay = computed(() => feeRate.value > 0 || discountAmount.value > 0)
 
 const amountError = computed(() => {
@@ -1218,6 +1342,7 @@ onMounted(async () => {
     }
   } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
   finally { loading.value = false }
+  void loadRecentOrders()
   // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
   if (subscriptionEnabled.value) {
     subscriptionStore.fetchActiveSubscriptions().catch(() => {})

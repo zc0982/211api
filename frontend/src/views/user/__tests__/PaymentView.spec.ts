@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { RouterLinkStub, flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
@@ -24,6 +24,8 @@ const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
+const subscriptionState = vi.hoisted(() => ({ active: [] as unknown[] }))
+const getMyOrders = vi.hoisted(() => vi.fn().mockResolvedValue({ data: { items: [] } }))
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(() => vi.fn((key: string) => key))
 // Public settings live in a reactive holder so tests can flip feature flags after mount
@@ -73,7 +75,9 @@ vi.mock('@/stores/payment', () => ({
 
 vi.mock('@/stores/subscriptions', () => ({
   useSubscriptionStore: () => ({
-    activeSubscriptions: [],
+    get activeSubscriptions() {
+      return subscriptionState.active
+    },
     fetchActiveSubscriptions,
   }),
 }))
@@ -96,9 +100,15 @@ vi.mock('@/stores', async () => {
   }
 })
 
+const copyToClipboard = vi.hoisted(() => vi.fn().mockResolvedValue(true))
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({ copyToClipboard }),
+}))
+
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     getCheckoutInfo,
+    getMyOrders,
   },
 }))
 
@@ -247,6 +257,7 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
           template: '<div><slot /></div>',
         },
         Teleport: true,
+        RouterLink: RouterLinkStub,
         Transition: false,
       },
     },
@@ -287,6 +298,7 @@ async function mountSubscriptionPlanList(planCount: number) {
           template: '<div><slot /></div>',
         },
         Teleport: true,
+        RouterLink: RouterLinkStub,
         Transition: false,
       },
     },
@@ -312,6 +324,7 @@ describe('PaymentView help text', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -394,6 +407,7 @@ describe('PaymentView recharge rate preview', () => {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -570,6 +584,7 @@ describe('PaymentView payment recovery', () => {
             template: '<div data-test="method-selector">{{ selected }}</div>',
           },
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -617,6 +632,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       global: {
         stubs: {
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -646,6 +662,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       global: {
         stubs: {
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -667,6 +684,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       global: {
         stubs: {
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -711,6 +729,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       global: {
         stubs: {
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -749,6 +768,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       global: {
         stubs: {
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -797,6 +817,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       global: {
         stubs: {
           Teleport: true,
+        RouterLink: RouterLinkStub,
           Transition: false,
         },
       },
@@ -885,5 +906,121 @@ describe('PaymentView subscription feature flag', () => {
     expect(wrapper.text()).not.toContain('payment.rechargeAccount')
     expect(wrapper.findAllComponents(SubscriptionPlanCard).length).toBeGreaterThan(0)
     wrapper.unmount()
+  })
+})
+
+describe('PaymentView console v3 layout', () => {
+  async function mountRecharge(orders: unknown[] | Error = []) {
+    vi.useRealTimers()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    createOrder.mockReset()
+    window.localStorage.clear()
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
+    if (orders instanceof Error) getMyOrders.mockReset().mockRejectedValue(orders)
+    else getMyOrders.mockReset().mockResolvedValue({ data: { items: orders } })
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+          RouterLink: RouterLinkStub,
+          ConsoleRecordList: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+    return wrapper
+  }
+
+  const order = {
+    id: 1,
+    out_trade_no: 'ord_20261124_8f2a',
+    order_type: 'balance',
+    pay_amount: 200,
+    amount: 200,
+    currency: 'CNY',
+    payment_type: 'alipay',
+    status: 'PENDING',
+    created_at: '2026-11-24T14:22:00Z',
+  }
+
+  it('renders the page heading, an order summary beside the amount cards and the console variants', async () => {
+    const wrapper = await mountRecharge()
+    expect(wrapper.get('h1.page-title').text()).toBe('payment.console.title')
+    expect(wrapper.find('.console-purchase-grid aside.console-summary').exists()).toBe(true)
+    expect(wrapper.getComponent(AmountInput).props('console')).toBe(true)
+    expect(wrapper.get('[data-testid="balance-after"]').text()).toBe('$0.00')
+    expect(wrapper.find('.max-w-4xl').exists()).toBe(false)
+  })
+
+  it('keeps the pay button disabled until an amount is chosen', async () => {
+    const wrapper = await mountRecharge()
+    expect(wrapper.get('.console-summary__pay').attributes('disabled')).toBeDefined()
+  })
+
+  it('lists recent orders with plain fields, bronze amounts and a localized status badge', async () => {
+    const wrapper = await mountRecharge([order])
+    const block = wrapper.get('[data-testid="recent-orders"]')
+    expect(block.findAll('tbody tr')).toHaveLength(1)
+    expect(block.text()).toContain('ord_20261124_8f2a')
+    expect(block.text()).toContain('¥200.00')
+    expect(block.get('.badge').classes()).toContain('badge-warning')
+    expect(block.text()).toContain('payment.status.pending')
+    expect(getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 5 })
+  })
+
+  it('hides the recent orders block when there are none or loading fails, without blocking checkout', async () => {
+    const empty = await mountRecharge([])
+    expect(empty.find('[data-testid="recent-orders"]').exists()).toBe(false)
+    const failed = await mountRecharge(new Error('boom'))
+    expect(failed.find('[data-testid="recent-orders"]').exists()).toBe(false)
+    expect(failed.find('.console-summary').exists()).toBe(true)
+    expect(showError).not.toHaveBeenCalled()
+  })
+
+  it('renders phone orders as a field list with the full order number and a copy button, not a table', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    try {
+      const wrapper = await mountRecharge([order, { ...order, id: 2, out_trade_no: 'ord_20261120_31c7_long_suffix', status: 'COMPLETED' }])
+      const block = wrapper.get('[data-testid="recent-orders"]')
+      expect(block.find('table').exists()).toBe(false)
+      const items = block.findAll('.console-mobile-record')
+      expect(items).toHaveLength(2)
+      expect(items[1].get('[data-testid="order-no"]').text()).toBe('ord_20261120_31c7_long_suffix')
+      const fields = items[0].get('[data-testid="order-mobile-fields"]')
+      expect(fields.find('table').exists()).toBe(false)
+      expect(fields.get('code').text()).toBe('ord_20261124_8f2a')
+      await fields.get('[data-testid="copy-order-no"]').trigger('click')
+      await flushPromises()
+      expect(copyToClipboard).toHaveBeenCalledWith('ord_20261124_8f2a', 'common.copied')
+      expect(fields.get('[data-testid="copy-order-no"]').text()).toContain('common.copied')
+      expect(fields.text()).toContain('payment.console.typeBalance')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    }
+  })
+
+  it('keeps the desktop table with full, untruncated order numbers', async () => {
+    const wrapper = await mountRecharge([order])
+    const cell = wrapper.get('[data-testid="recent-orders"] tbody td')
+    expect(cell.text()).toBe('ord_20261124_8f2a')
+    expect(cell.find('.console-orders__no').exists()).toBe(false)
+  })
+
+  it('lists current subscriptions without platform colour bars or green chips', async () => {
+    subscriptionState.active = [{ id: 7, group_id: 3, status: 'active', expires_at: null, group: { name: 'Claude 专线', platform: 'openai', rate_multiplier: 0.8 } }]
+    try {
+      const wrapper = await mountSubscriptionPlanList(1)
+      const row = wrapper.get('[data-testid="active-subscription-row"]')
+      expect(row.find('.h-6.w-1').exists()).toBe(false)
+      expect(row.html()).not.toMatch(/(bg|text)-(green|emerald|orange)-/)
+      expect(row.find('.badge-success').exists()).toBe(true)
+    } finally {
+      subscriptionState.active = []
+    }
   })
 })
