@@ -6,8 +6,8 @@
       :key="amt"
       type="button"
       class="console-amount"
-      :class="{ 'is-selected': modelValue === amt, 'has-bonus': quoteFor(amt).percent > 0 }"
-      :aria-pressed="modelValue === amt"
+      :class="{ 'is-selected': isQuickSelected(amt), 'has-bonus': quoteFor(amt).percent > 0 }"
+      :aria-pressed="isQuickSelected(amt)"
       :data-testid="`quick-amount-${amt}`"
       @click="selectAmount(amt)"
     >
@@ -188,7 +188,14 @@ const placeholderText = computed(() => {
 const AMOUNT_PATTERN = /^\d*(\.\d{0,2})?$/
 
 const symbol = computed(() => currencySymbol(props.currency))
-const isCustomSelected = computed(() => props.modelValue !== null && !filteredAmounts.value.includes(props.modelValue))
+// 正在自定义输入时（哪怕输到一半恰好等于某个快捷金额，例如 100.50 途经 100），草稿保持在自定义卡里，不被清空
+const customEditing = ref(false)
+const isCustomSelected = computed(() =>
+  customEditing.value || (props.modelValue !== null && !filteredAmounts.value.includes(props.modelValue))
+)
+function isQuickSelected(amt: number): boolean {
+  return props.modelValue === amt && !customEditing.value
+}
 
 function consoleSecondLine(amt: number): string {
   const quote = quoteFor(amt)
@@ -199,6 +206,7 @@ function consoleSecondLine(amt: number): string {
 }
 
 function selectAmount(amt: number) {
+  customEditing.value = false
   customText.value = String(amt)
   emit('update:modelValue', amt)
 }
@@ -211,6 +219,7 @@ function handleInput(e: Event) {
     return
   }
   customText.value = val
+  if (props.console) customEditing.value = true
   if (val === '') {
     emit('update:modelValue', null)
     return

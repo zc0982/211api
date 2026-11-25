@@ -49,6 +49,34 @@ describe('AmountInput console variant', () => {
   })
 })
 
+describe('AmountInput console custom draft', () => {
+  it('keeps typing a custom amount whose prefix equals a quick amount (100 → 100.50)', async () => {
+    const wrapper = mount(AmountInput, { props: { modelValue: null, amounts: [50, 100], console: true } })
+    const input = wrapper.get('input')
+    for (const value of ['1', '10', '100']) {
+      await input.setValue(value)
+      const last = wrapper.emitted('update:modelValue')!.at(-1)![0] as number
+      await wrapper.setProps({ modelValue: last })
+    }
+    expect((input.element as HTMLInputElement).value).toBe('100')
+    expect(wrapper.get('[data-testid="quick-amount-100"]').classes()).not.toContain('is-selected')
+    expect(wrapper.get('.console-amount--custom').classes()).toContain('is-selected')
+    await input.setValue('100.5')
+    expect(wrapper.emitted('update:modelValue')!.at(-1)).toEqual([100.5])
+    expect((input.element as HTMLInputElement).value).toBe('100.5')
+  })
+
+  it('leaves custom editing when a quick amount is clicked', async () => {
+    const wrapper = mount(AmountInput, { props: { modelValue: null, amounts: [50, 100], console: true } })
+    await wrapper.get('input').setValue('75')
+    await wrapper.get('[data-testid="quick-amount-50"]').trigger('click')
+    await wrapper.setProps({ modelValue: 50 })
+    expect(wrapper.get('[data-testid="quick-amount-50"]').classes()).toContain('is-selected')
+    expect(wrapper.get('.console-amount--custom').classes()).not.toContain('is-selected')
+    expect((wrapper.get('input').element as HTMLInputElement).value).toBe('')
+  })
+})
+
 describe('PaymentMethodSelector console variant', () => {
   const methods = [
     { type: 'alipay', fee_rate: 0, available: true },
