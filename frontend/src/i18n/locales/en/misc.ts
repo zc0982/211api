@@ -424,7 +424,13 @@ export default {
       colStatus: 'Status',
       colCreated: 'Created',
       typeBalance: 'Balance top-up',
-      typeSubscription: 'Subscription'
+      typeSubscription: 'Subscription',
+      ordersDescription: 'Top-up and subscription orders. Cancel a pending order or request a refund here.',
+      goRecharge: 'Top up',
+      orderFilters: 'Order filters, scroll sideways for more',
+      allTypes: 'All types',
+      ordersLoadFailed: 'Could not load orders.',
+      ordersEmptyFiltered: 'No orders match these filters'
     },
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',

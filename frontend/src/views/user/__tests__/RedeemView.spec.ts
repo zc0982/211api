@@ -74,7 +74,9 @@ describe('RedeemView refresh after redemption', () => {
       expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe('')
       expect((wrapper.get('input#code').element as HTMLInputElement).disabled).toBe(false)
       expect(getHistory).toHaveBeenCalledTimes(2)
-      expect(wrapper.text()).toContain('REDEEM-C...')
+      expect(wrapper.get('[data-testid="redeem-activity"]').text()).toContain('REDEEM-CODE')
+      // 余额没刷新成功时，不在旧余额旁标增量
+      expect(wrapper.get('[data-testid="redeem-balance"]').text()).not.toContain('+$')
       if (type === 'subscription') {
         expect(fetchActiveSubscriptions).toHaveBeenCalledWith(true)
       } else {
@@ -224,11 +226,12 @@ describe('RedeemView refresh after redemption', () => {
   })
 
   it('keeps the code and reports failure when the redemption request itself fails', async () => {
-    redeem.mockRejectedValue({ response: { data: { detail: 'Invalid code' } } })
+    redeem.mockRejectedValue({ status: 404, code: 404, reason: 'REDEEM_CODE_NOT_FOUND', message: 'redeem code not found' })
     const wrapper = await submitCode()
 
     expect(showError).toHaveBeenCalledWith('redeem.redeemFailed')
-    expect(wrapper.text()).toContain('Invalid code')
+    expect(wrapper.text()).toContain('redeem.errors.REDEEM_CODE_NOT_FOUND')
+    expect(wrapper.text()).not.toContain('redeem code not found')
     expect(wrapper.text()).not.toContain('Code applied')
     expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe(' REDEEM-CODE ')
     expect(refreshUser).not.toHaveBeenCalled()
@@ -237,5 +240,195 @@ describe('RedeemView refresh after redemption', () => {
     expect(showSuccess).not.toHaveBeenCalled()
     expect(showWarning).not.toHaveBeenCalled()
     wrapper.unmount()
+  })
+})
+
+describe('RedeemView console v3 layout', () => {
+  const mountView = async () => {
+    const wrapper = mount(RedeemView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getHistory.mockResolvedValue({ items: [], total: 0 })
+    refreshUser.mockResolvedValue({ balance: 30, concurrency: 2 })
+    fetchActiveSubscriptions.mockResolvedValue([])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('lists activity rows with full codes, readable sources and bronze only for credited balance', async () => {
+    getHistory.mockResolvedValue({ total: 5, items: [
+      { id: 1, code: 'SPRING-2026-XK7Q-LONG-CODE', type: 'balance', value: 50, used_at: '2026-11-24T06:30:00Z' },
+      { id: 2, code: 'AFF-INTERNAL', type: 'affiliate_balance', value: 36.8, used_at: '2026-10-28T12:12:00Z' },
+      { id: 3, code: 'ADMIN-INTERNAL', type: 'admin_balance', value: -5, notes: '手动扣回', used_at: '2026-10-20T01:00:00Z' },
+      { id: 4, code: 'TEAM-CC-2F8D', type: 'concurrency', value: 2, used_at: '2026-11-12T02:05:00Z' },
+      { id: 5, code: 'SUB-CODE', type: 'subscription', value: 30, validity_days: 30, group: { id: 1, name: 'Claude 专线' }, used_at: '2026-11-02T10:41:00Z' },
+    ] })
+    const wrapper = await mountView()
+    const rows = wrapper.findAll('[data-testid="redeem-activity"]')
+    expect(rows).toHaveLength(5)
+    expect(rows[0].text()).toContain('SPRING-2026-XK7Q-LONG-CODE')
+    expect(rows[0].get('.console-redeem-activity__value').classes()).toContain('is-credit')
+    expect(rows[0].text()).toContain('+$50.00')
+    expect(rows[1].text()).toContain('redeem.balanceAddedAffiliate')
+    expect(rows[1].text()).toContain('redeem.console.affiliateSource')
+    expect(rows[1].text()).not.toContain('AFF-INTERNAL')
+    expect(rows[1].text()).not.toContain('common.unknown')
+    expect(rows[2].text()).toContain('redeem.adminAdjustment · 手动扣回')
+    expect(rows[2].get('.console-redeem-activity__value').classes()).not.toContain('is-credit')
+    expect(rows[2].text()).toContain('-$5.00')
+    expect(rows[3].text()).toContain('+2 redeem.requests')
+    expect(rows[4].text()).toContain('Claude 专线')
+    expect(wrapper.html()).not.toMatch(/(bg|text)-(red|emerald|purple|orange)-/)
+  })
+
+  it('shows a loading state, then the empty state, with paging controls still in the card', async () => {
+    let resolveHistory!: (value: unknown) => void
+    getHistory.mockImplementationOnce(() => new Promise((resolve) => { resolveHistory = resolve }))
+    const wrapper = mount(RedeemView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+    })
+    await flushPromises()
+    expect(wrapper.get('.console-redeem-history .console-redeem-state').text()).toContain('common.loading')
+    resolveHistory({ items: [], total: 0 })
+    await flushPromises()
+    expect(wrapper.get('.console-redeem-history .console-redeem-state').text()).toContain('redeem.historyWillAppear')
+    expect(wrapper.find('.console-redeem-history .console-redeem-foot').exists()).toBe(true)
+  })
+
+  it('shows the success line and the balance delta once the account balance has refreshed', async () => {
+    redeem.mockResolvedValue({ type: 'balance', value: 50, message: 'Code applied', new_balance: 60 })
+    const wrapper = await mountView()
+    await wrapper.get('input#code').setValue('SPRING-2026')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const success = wrapper.get('[data-testid="redeem-success"]')
+    expect(success.attributes('role')).toBe('status')
+    expect(success.text()).toContain('redeem.added +$50.00 · redeem.newBalance $60.00')
+    expect(wrapper.get('[data-testid="redeem-balance"]').text()).toContain('+$50.00')
+    expect(wrapper.find('[data-testid="redeem-error"]').exists()).toBe(false)
+  })
+
+  it('shows a non-red alert for a used or expired code and keeps the input for correction', async () => {
+    redeem.mockRejectedValue({ status: 409, code: 409, reason: 'REDEEM_CODE_USED', message: 'redeem code already used' })
+    const wrapper = await mountView()
+    await wrapper.get('input#code').setValue('USED-CODE')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const alert = wrapper.get('[data-testid="redeem-error"]')
+    expect(alert.attributes('role')).toBe('alert')
+    expect(alert.text()).toContain('redeem.errors.REDEEM_CODE_USED')
+    expect(alert.html()).not.toMatch(/red-/)
+    expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe('USED-CODE')
+    expect(wrapper.find('[data-testid="redeem-success"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="redeem-balance"]').text()).not.toContain('+$')
+  })
+
+  it('disables the button for an empty code and while submitting', async () => {
+    let resolveRedeem!: (value: unknown) => void
+    redeem.mockImplementationOnce(() => new Promise((resolve) => { resolveRedeem = resolve }))
+    const wrapper = await mountView()
+    const submit = wrapper.get('button[type="submit"]')
+    expect(submit.attributes('disabled')).toBeDefined()
+    await wrapper.get('input#code').setValue('ABC')
+    expect(submit.attributes('disabled')).toBeUndefined()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(submit.attributes('disabled')).toBeDefined()
+    expect(submit.text()).toContain('redeem.redeeming')
+    expect(wrapper.get('input#code').attributes('disabled')).toBeDefined()
+    resolveRedeem({ type: 'concurrency', value: 2, message: 'ok' })
+    await flushPromises()
+    expect(submit.text()).toContain('redeem.redeemButton')
+  })
+})
+
+describe('RedeemView failure reasons and success notice', () => {
+  const submit = async (code = 'SOME-CODE') => {
+    const wrapper = mount(RedeemView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+    })
+    await flushPromises()
+    await wrapper.get('input#code').setValue(code)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    return wrapper
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getHistory.mockResolvedValue({ items: [], total: 0 })
+    refreshUser.mockResolvedValue({ balance: 30, concurrency: 2 })
+    fetchActiveSubscriptions.mockResolvedValue([])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // 与 backend/internal/service/redeem_service.go 的错误码一一对应（apiClient 把它放在 reason 上）
+  it.each([
+    ['REDEEM_CODE_NOT_FOUND', 404],
+    ['REDEEM_CODE_USED', 409],
+    ['REDEEM_CODE_EXPIRED', 409],
+    ['REDEEM_CODE_LOCKED', 409],
+    ['REDEEM_RATE_LIMITED', 429],
+    ['REDEEM_CODE_INVALID', 400],
+    ['REDEEM_CODE_UNSUPPORTED_TYPE', 400],
+  ])('shows the specific reason for %s', async (reason, status) => {
+    redeem.mockRejectedValue({ status, code: status, reason, message: 'english backend message' })
+    const wrapper = await submit()
+    const alert = wrapper.get('[data-testid="redeem-error"]')
+    expect(alert.text()).toContain(`redeem.errors.${reason}`)
+    expect(alert.text()).not.toContain('english backend message')
+    expect(alert.text()).not.toContain('redeem.failedToRedeem')
+    expect(showError).toHaveBeenCalledWith('redeem.redeemFailed')
+    expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe('SOME-CODE')
+  })
+
+  it.each([
+    ['an unknown reason', { status: 400, code: 400, reason: 'SOMETHING_NEW', message: 'boom' }],
+    ['a request without reason', { status: 400, code: 400, message: 'Invalid request: code required' }],
+    ['a network error', { status: 0, code: 'ERR_NETWORK', message: 'Network error. Please check your connection.' }],
+    ['a legacy response shape', { response: { data: { detail: 'Invalid code' } } }],
+    ['a non-object rejection', 'boom'],
+  ])('falls back to the generic message for %s', async (_label, error) => {
+    redeem.mockRejectedValue(error)
+    const wrapper = await submit()
+    const alert = wrapper.get('[data-testid="redeem-error"]')
+    expect(alert.text()).toContain('redeem.failedToRedeem')
+    expect(alert.text()).not.toMatch(/redeem\.errors\./)
+    expect(alert.text()).not.toContain('boom')
+    expect(alert.text()).not.toContain('Invalid code')
+  })
+
+  it.each([
+    ['missing (current backend shape)', undefined],
+    ['the same as the title', 'redeem.redeemSuccess'],
+    ['the same as the toast text with punctuation', ' redeem.codeRedeemSuccess！ '],
+  ])('does not repeat the title when the backend message is %s', async (_label, message) => {
+    redeem.mockResolvedValue({ type: 'balance', value: 5, ...(message === undefined ? {} : { message }) })
+    const wrapper = await submit()
+    const notice = wrapper.get('[data-testid="redeem-success"]')
+    expect(notice.text().match(/redeem\.redeemSuccess/g)).toHaveLength(1)
+    expect(notice.text()).not.toContain('redeem.codeRedeemSuccess')
+    expect(notice.text()).toContain('redeem.added +$5.00')
+  })
+
+  it('keeps a distinct backend message and reads the subscription group from the code record', async () => {
+    redeem.mockResolvedValue({ type: 'subscription', value: 30, validity_days: 30, group: { id: 3, name: 'Claude 专线' }, message: 'Welcome aboard' })
+    const wrapper = await submit()
+    const notice = wrapper.get('[data-testid="redeem-success"]')
+    expect(notice.text()).toContain('Welcome aboard')
+    expect(notice.text()).toContain('redeem.subscriptionAssigned Claude 专线 (redeem.subscriptionDays)')
   })
 })

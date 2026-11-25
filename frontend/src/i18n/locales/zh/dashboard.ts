@@ -868,7 +868,21 @@ export default {
     historyLoadFailed: '加载兑换记录失败，请重试。',
     userRefreshFailed: '兑换成功，但账户信息刷新失败。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
-    pleaseEnterCode: '请输入兑换码'
+    pleaseEnterCode: '请输入兑换码',
+    errors: {
+      REDEEM_CODE_NOT_FOUND: '兑换码不存在，请检查是否输入正确（区分大小写）。',
+      REDEEM_CODE_USED: '该兑换码已被使用。',
+      REDEEM_CODE_EXPIRED: '该兑换码已过期。',
+      REDEEM_CODE_LOCKED: '该兑换码正在处理中，请稍后再试。',
+      REDEEM_RATE_LIMITED: '失败次数过多，请稍后再试。',
+      REDEEM_CODE_INVALID: '该兑换码配置有误，请联系客服。',
+      REDEEM_CODE_UNSUPPORTED_TYPE: '该兑换码不能在这里使用（邀请码只能在注册时使用）。'
+    },
+    console: {
+      description: '输入兑换码，可以增加余额、并发数或获得订阅。',
+      enterCode: '输入兑换码',
+      affiliateSource: '邀请返利'
+    }
   },
 
   // Profile

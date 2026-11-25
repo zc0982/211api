@@ -357,3 +357,327 @@
   .console-subscriptions .console-page-heading > .btn { width: 100%; }
 }
 .console-orders .console-mobile-records { border-top: 1px solid var(--c-row-line); }
+
+/* ---------- 订单状态徽章（用户侧，见 components/payment/consoleOrderStatus.ts） ---------- */
+.console-orders .badge { white-space: nowrap; }
+.console-orders .console-badge-muted { background: transparent; color: #66738c; box-shadow: inset 0 0 0 1px #d9d1c1; }
+.dark .console-orders .console-badge-muted { color: #aab6cb; box-shadow: inset 0 0 0 1px #2b3a58; }
+.console-orders .console-badge-dot::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* ---------- 我的订单（/orders，Figma C6 / C14） ---------- */
+.console-orders-page { display: flex; flex-direction: column; gap: 20px; }
+.console-orders-page .console-page-heading { align-items: flex-end; }
+.console-orders-recharge { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding-top: 0; padding-bottom: 0; font-size: 14px; }
+.console-orders-page .console-orders-status { flex: 0 0 auto; }
+.console-orders-page .console-orders-status .tab { white-space: nowrap; }
+.console-orders--page td { height: 60px; padding-top: 8px; padding-bottom: 8px; }
+.console-orders--page td.font-mono { font-size: 13px; }
+.console-orders--page .console-orders__paid { color: rgb(var(--c-gray-900)); }
+.dark .console-orders--page .console-orders__paid { color: #e9eef8; }
+.console-orders-sub { display: block; margin-top: 2px; font: 11px/1.5 'Brand Geist Mono', monospace; color: #66738c; white-space: nowrap; }
+.dark .console-orders-sub { color: #aab6cb; }
+.console-orders-no { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.console-orders-no > .font-mono { color: #45536e; }
+.dark .console-orders-no > .font-mono { color: #aab6cb; }
+.console-orders-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #7f8ca5;
+}
+.console-orders-copy:hover { color: #2f5fd0; background: #e8f0fc; }
+.dark .console-orders-copy:hover { color: #bfd6f6; background: #15223f; }
+.console-orders-copy:focus-visible,
+.console-orders-action:focus-visible { outline: 2px solid #2f5fd0; outline-offset: 1px; }
+.console-orders .console-orders__actions-col { text-align: right; }
+.console-orders-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 14px; }
+.console-orders-action { font-size: 13px; font-weight: 500; color: #45536e; white-space: nowrap; }
+.console-orders-action:hover { color: #0c1830; text-decoration: underline; }
+.dark .console-orders-action { color: #aab6cb; }
+.dark .console-orders-action:hover { color: #e9eef8; }
+.console-orders-action--primary { color: #2f5fd0; }
+.dark .console-orders-action--primary { color: #7aa2ff; }
+.console-orders-none { color: #7f8ca5; }
+.console-orders-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 20px;
+  font-size: 13px;
+  color: #66738c;
+  border-top: 1px solid var(--c-row-line);
+}
+.dark .console-orders-state { color: #aab6cb; }
+.console-orders-spinner,
+.console-redeem-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+.console-orders--page .console-mobile-record-title > .badge { margin-left: auto; }
+.console-orders--page .console-mobile-record-title > svg { margin-left: 0; }
+.console-orders--page .console-orders-mobile-no { margin-top: 6px; }
+.console-orders--page .console-orders-mobile-no > .font-mono:first-child { font-size: 12px; color: #45536e; }
+.dark .console-orders--page .console-orders-mobile-no > .font-mono:first-child { color: #aab6cb; }
+.console-orders-mobile-pay { flex-shrink: 0; font-size: 15px; font-weight: 500; }
+.console-orders--page .console-mobile-fields dd .console-orders-sub { text-align: right; }
+.console-refund-summary { margin: 0; padding: 4px 16px; border-radius: 12px; background: rgb(var(--c-gray-100)); }
+.dark .console-refund-summary { background: #0b1427; }
+.console-refund-summary > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; }
+.console-refund-summary > div + div { border-top: 1px solid var(--c-row-line); }
+.console-refund-summary dt { color: #66738c; }
+.console-refund-summary dd { min-width: 0; overflow-wrap: anywhere; text-align: right; color: rgb(var(--c-gray-900)); }
+.dark .console-refund-summary dt { color: #aab6cb; }
+.dark .console-refund-summary dd { color: #e9eef8; }
+@media (max-width: 1279px) {
+  .console-orders--page th,
+  .console-orders--page td { padding-left: 8px; padding-right: 8px; }
+  .console-orders--page th:first-child,
+  .console-orders--page td:first-child { padding-left: 20px; }
+  .console-orders--page th:last-child,
+  .console-orders--page td:last-child { padding-right: 20px; }
+}
+@media (max-width: 767px) {
+  .console-orders-page .console-page-heading { align-items: flex-start; }
+  /* 手机筛选：分段 + 类型横滑，刷新固定在同一行右侧 */
+  .console-orders-page .console-filter-bar { flex-direction: row; align-items: center; gap: 8px; }
+  .console-orders-page .console-filter-scroll { flex: 1 1 auto; }
+}
+@media (pointer: coarse) {
+  .console-orders-copy { width: 44px; height: 44px; }
+  .console-orders-action { min-height: 44px; }
+}
+
+/* ---------- 兑换码（/redeem，Figma C7 / C14） ---------- */
+.console-redeem { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.console-redeem .console-page-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+.console-redeem .page-description { margin-top: 8px; }
+.console-redeem-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-areas: 'form balance' 'history about';
+  grid-template-rows: auto 1fr;
+  gap: 16px 24px;
+  align-items: start;
+}
+.console-redeem-form { grid-area: form; }
+.console-redeem-balance { grid-area: balance; }
+.console-redeem-history { grid-area: history; }
+.console-redeem-about { grid-area: about; }
+.console-redeem-card {
+  min-width: 0;
+  background: white;
+  border: 1px solid rgb(var(--c-gray-200));
+  border-radius: 16px;
+  box-shadow: var(--c-shadow-card);
+}
+.dark .console-redeem-card { background: #0e1830; border-color: #1f2d48; box-shadow: none; }
+.console-redeem-card__title { font-size: 15px; font-weight: 600; color: rgb(var(--c-gray-900)); }
+.dark .console-redeem-card__title { color: #e9eef8; }
+.console-redeem-form { padding: 24px; }
+.console-redeem-row { display: flex; gap: 10px; margin-top: 14px; }
+.console-redeem-input { position: relative; flex: 1; min-width: 0; }
+.console-redeem-input__icon { position: absolute; top: 50%; left: 18px; transform: translateY(-50%); color: #66738c; pointer-events: none; }
+.dark .console-redeem-input__icon { color: #aab6cb; }
+.console-redeem-input .input {
+  height: 48px;
+  padding-left: 44px;
+  font: 16px/1.5 'Brand Geist Mono', monospace;
+  letter-spacing: 0.02em;
+}
+.console-redeem-input .input::placeholder { font-family: inherit; letter-spacing: 0; }
+.console-redeem-submit { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 8px; height: 48px; min-width: 96px; padding: 0 28px; font-size: 15px; }
+.console-redeem-hint { margin-top: 14px; font-size: 12px; color: #66738c; }
+.dark .console-redeem-hint { color: #aab6cb; }
+.console-redeem-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: rgb(var(--c-gray-900));
+}
+.dark .console-redeem-result { color: #e9eef8; }
+.console-redeem-result__icon { flex-shrink: 0; margin-top: 2px; }
+.console-redeem-result__body { min-width: 0; }
+.console-redeem-result__body > p { overflow-wrap: anywhere; }
+.console-redeem-result__body strong { margin-right: 6px; font-size: 14px; font-weight: 600; }
+.console-redeem-result__detail { margin-top: 2px; }
+.console-redeem-result--ok { background: rgb(19 122 82 / 0.08); }
+.console-redeem-result--ok .console-redeem-result__icon,
+.console-redeem-result--ok strong { color: #137a52; }
+.dark .console-redeem-result--ok { background: rgb(61 214 140 / 0.08); }
+.dark .console-redeem-result--ok .console-redeem-result__icon,
+.dark .console-redeem-result--ok strong { color: #3dd68c; }
+/* 失败是提醒：古铜描边，不引入红色 */
+.console-redeem-result--error { background: transparent; box-shadow: inset 0 0 0 1px rgb(138 100 32 / 0.45); }
+.console-redeem-result--error .console-redeem-result__icon,
+.console-redeem-result--error strong { color: #8a6420; }
+.dark .console-redeem-result--error { box-shadow: inset 0 0 0 1px rgb(236 201 120 / 0.4); }
+.dark .console-redeem-result--error .console-redeem-result__icon,
+.dark .console-redeem-result--error strong { color: #ecc978; }
+
+.console-redeem-balance {
+  min-width: 0;
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: #0e1830;
+  color: #e9eef8;
+  box-shadow: var(--c-shadow-float);
+}
+.dark .console-redeem-balance { border: 1px solid #1f2d48; }
+.console-redeem-balance__label { font-size: 13px; color: #aab6cb; }
+.console-redeem-balance__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  margin-top: 12px;
+  font-size: 36px;
+  font-weight: 500;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.console-redeem-balance__unit { font-size: 20px; font-weight: 400; }
+.console-redeem-balance__delta { font-size: 13px; font-weight: 400; color: #ecc978; }
+.console-redeem-balance__rows { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #1f2d48; }
+.console-redeem-balance__rows > div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.console-redeem-balance__rows dt { color: #7f8ca5; }
+
+.console-redeem-history { overflow: hidden; }
+.console-redeem-history__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 20px; }
+.console-redeem-activity { margin: 0; padding: 0; list-style: none; }
+.console-redeem-activity[aria-busy='true'] { opacity: 0.6; }
+.console-redeem-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 66px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--c-row-line);
+}
+.console-redeem-activity__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e8f0fc;
+  color: #14306b;
+}
+.dark .console-redeem-activity__icon { background: #15223f; color: #bfd6f6; }
+.console-redeem-activity__main { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.console-redeem-activity__title { font-size: 14px; font-weight: 500; color: rgb(var(--c-gray-900)); }
+.dark .console-redeem-activity__title { color: #e9eef8; }
+.console-redeem-activity__sub {
+  overflow: hidden;
+  font-size: 12px;
+  color: #66738c;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dark .console-redeem-activity__sub { color: #aab6cb; }
+.console-redeem-activity__side { display: flex; flex-shrink: 0; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 50%; text-align: right; }
+.console-redeem-activity__value { font-size: 14px; font-weight: 500; color: rgb(var(--c-gray-900)); overflow-wrap: anywhere; }
+.dark .console-redeem-activity__value { color: #e9eef8; }
+.console-redeem-activity__value.is-credit { color: #8a6420; }
+.dark .console-redeem-activity__value.is-credit { color: #ecc978; }
+.console-redeem-activity__time { font-size: 12px; color: #66738c; white-space: nowrap; }
+.dark .console-redeem-activity__time { color: #aab6cb; }
+.console-redeem-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  font-size: 13px;
+  color: #66738c;
+  border-top: 1px solid var(--c-row-line);
+}
+.dark .console-redeem-state { color: #aab6cb; }
+.console-redeem-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--c-row-line);
+  font-size: 12px;
+  color: #66738c;
+}
+.dark .console-redeem-foot { color: #aab6cb; }
+.console-redeem-foot__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.console-redeem-foot__size { display: inline-flex; align-items: center; gap: 8px; }
+.console-redeem-foot__size .input { width: 76px; height: 32px; padding: 0 12px; font-size: 12px; }
+.console-redeem-foot .btn { height: 32px; padding: 0 14px; font-size: 12px; }
+
+.console-redeem-about { min-width: 0; padding: 0 4px; }
+.console-redeem-about ul { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 0; padding: 0; list-style: none; }
+.console-redeem-about li { position: relative; padding-left: 20px; font-size: 14px; line-height: 22px; color: #45536e; }
+.dark .console-redeem-about li { color: #aab6cb; }
+.console-redeem-about li::before { content: ''; position: absolute; top: 7px; left: 0; width: 8px; height: 8px; background: #14306b; }
+.dark .console-redeem-about li::before { background: #7aa2ff; }
+.console-redeem-contact {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #e8f0fc;
+  color: #14306b;
+}
+.dark .console-redeem-contact { background: #15223f; color: #bfd6f6; }
+.console-redeem .fade-enter-active,
+.console-redeem .fade-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.console-redeem .fade-enter-from,
+.console-redeem .fade-leave-to { opacity: 0; transform: translateY(-4px); }
+
+@media (max-width: 1279px) {
+  .console-redeem-grid { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+@media (max-width: 1023px) {
+  .console-redeem-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'form' 'balance' 'history' 'about';
+    grid-template-rows: none;
+  }
+}
+@media (max-width: 767px) {
+  .console-redeem-form { padding: 20px 16px; }
+  .console-redeem-row { flex-direction: column; }
+  .console-redeem-submit { width: 100%; }
+  .console-redeem-balance { padding: 20px; }
+  .console-redeem-balance__value { font-size: 32px; }
+  .console-redeem-history__head { padding: 16px; }
+  .console-redeem-activity__row { gap: 12px; padding: 12px 16px; }
+  .console-redeem-foot { padding: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-orders-spinner,
+  .console-redeem-spinner { animation-duration: 2.4s; }
+  .console-redeem .fade-enter-active,
+  .console-redeem .fade-leave-active { transition: opacity 0.2s ease; }
+  .console-redeem .fade-enter-from,
+  .console-redeem .fade-leave-to { transform: none; }
+}

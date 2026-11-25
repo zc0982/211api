@@ -284,7 +284,7 @@
               </span>
               <span class="console-mobile-record-meta">
                 <span class="font-mono">{{ formatDateTimeToMinute(row.created_at) }}</span>
-                <span :class="['badge', statusBadgeClass(row.status)]">{{ t('payment.status.' + row.status.toLowerCase(), row.status) }}</span>
+                <span :class="['badge', consoleOrderBadgeClass(row.status)]">{{ t('payment.status.' + row.status.toLowerCase(), row.status) }}</span>
               </span>
             </template>
             <template #detail="{ row }">
@@ -321,7 +321,7 @@
                     <td>{{ order.order_type === 'subscription' ? t('payment.console.typeSubscription') : t('payment.console.typeBalance') }}</td>
                     <td class="font-mono console-orders__amount">{{ orderCurrencySymbol(order.currency) }}{{ order.pay_amount.toFixed(2) }}</td>
                     <td>{{ t('payment.methods.' + order.payment_type, order.payment_type) }}</td>
-                    <td><span :class="['badge', statusBadgeClass(order.status)]">{{ t('payment.status.' + order.status.toLowerCase(), order.status) }}</span></td>
+                    <td><span :class="['badge', consoleOrderBadgeClass(order.status)]">{{ t('payment.status.' + order.status.toLowerCase(), order.status) }}</span></td>
                     <td class="font-mono">{{ formatDateTimeToMinute(order.created_at) }}</td>
                   </tr>
                 </tbody>
@@ -405,7 +405,7 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { DEFAULT_PAYMENT_CURRENCY, currencySymbol as orderCurrencySymbol, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
-import { statusBadgeClass } from '@/components/payment/orderUtils'
+import { consoleOrderBadgeClass } from '@/components/payment/consoleOrderStatus'
 import { formatDateTimeToMinute } from '@/utils/format'
 import type { PaymentOrder } from '@/types/payment'
 import '@/styles/console-data-pages.css'

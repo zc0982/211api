@@ -864,7 +864,21 @@ export default {
     historyLoadFailed: 'Failed to load activity. Please try again.',
     userRefreshFailed: 'Redeemed successfully, but failed to refresh account information.',
     subscriptionRefreshFailed: 'Redeemed successfully, but failed to refresh subscription status.',
-    pleaseEnterCode: 'Please enter a redeem code'
+    pleaseEnterCode: 'Please enter a redeem code',
+    errors: {
+      REDEEM_CODE_NOT_FOUND: 'This code does not exist. Check it and try again (codes are case-sensitive).',
+      REDEEM_CODE_USED: 'This code has already been used.',
+      REDEEM_CODE_EXPIRED: 'This code has expired.',
+      REDEEM_CODE_LOCKED: 'This code is being processed. Try again in a moment.',
+      REDEEM_RATE_LIMITED: 'Too many failed attempts. Try again later.',
+      REDEEM_CODE_INVALID: 'This code is misconfigured. Please contact support.',
+      REDEEM_CODE_UNSUPPORTED_TYPE: 'This code cannot be used here (invitation codes only work at sign-up).'
+    },
+    console: {
+      description: 'Enter a code to add balance or concurrency, or to get a subscription.',
+      enterCode: 'Enter redeem code',
+      affiliateSource: 'Referral rewards'
+    }
   },
 
   // Profile
