@@ -1,7 +1,7 @@
 /** Channel Monitor V2 (user + admin passive monitor UI) */
 export default {
   channelMonitorV2: {
-    title: '渠道监控',
+    title: '渠道状态',
     updating: '正在更新数据',
     updatedTo: '更新至 {time}',
     partialCoverage: '部分历史覆盖',
@@ -34,6 +34,8 @@ export default {
     healthMode: { label: '健康显示', overall: '综合', success: '错误率', ttft: '首 Token', cache: '缓存率' },
     tabs: { aria: '明细维度', models: '模型', errors: '错误原因', users: '用户排行' },
     metrics: {
+      healthScore: '综合健康分',
+      healthScoreDetail: '沿用服务端综合评分',
       rpm: 'RPM',
       tpm: 'TPM',
       tps: '每秒 Token',

@@ -1,0 +1,152 @@
+/* Console C10 / C11. Shared badges opt in; monitor selectors never reach V1/admin settings. */
+.console-available-channels,
+.console-channel-status { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.console-available-channels .page-header,
+.console-channel-status .page-header { margin: 0; }
+.console-channel-platforms { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding: 12px 0 2px; }
+.console-channel-platforms .btn { flex-shrink: 0; font-size: 13px; min-height: 36px; padding: 6px 14px; }
+.console-channel-platforms .is-active { background: #14306b; color: #fff; border-color: #14306b; }
+.dark .console-channel-platforms .is-active { background: #e9eef8; color: #14306b; border-color: #e9eef8; }
+.console-channel-count { margin-left: auto; white-space: nowrap; color: #66738c; font-size: 13px; }
+.dark .console-channel-count { color: #aab6cb; }
+.console-channel-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #d9d1c1; border-radius: 16px; color: #8a6420; }
+.dark .console-channel-error { color: #ecc978; border-color: #40506d; }
+.console-available-channels .console-channel-table { min-width: 0; padding: 0; overflow: hidden; }
+.console-available-channels .table-wrapper { min-width: 0; overflow-x: auto; }
+.console-available-channels table { min-width: 820px; }
+.console-available-channels thead tr { background: var(--c-thead); text-transform: none; letter-spacing: normal; }
+.console-available-channels th:nth-child(1) { width: 15%; }
+.console-available-channels th:nth-child(2) { width: 16%; }
+.console-available-channels th:nth-child(3) { width: 12%; }
+.console-available-channels th:nth-child(4) { width: 25%; }
+.console-available-channels th:nth-child(5) { width: 32%; }
+.console-available-channels th,
+.console-available-channels td { padding: 14px 16px; text-align: left; overflow-wrap: anywhere; }
+.console-available-channels th { padding-block: 11px; font-size: 12px; }
+.console-available-channels tbody { border-bottom: 1px solid var(--c-row-line); }
+.console-available-channels .uppercase { text-transform: none; }
+.console-available-channels [class*="text-purple-"] { color: #14306b; }
+.dark .console-available-channels [class*="text-purple-"] { color: #bfd6f6; }
+.console-available-channels td > span[class*="border"],
+.console-available-channels dl + span,
+.console-channel-mobile-row > div > div > span { border-color: transparent; background: transparent; color: #45536e; padding-inline: 0; }
+.dark .console-available-channels td > span[class*="border"],
+.dark .console-channel-mobile-row > div > div > span { color: #aab6cb; }
+.console-channel-group { max-width: 100%; color: #45536e; background: #efeae1; }
+.dark .console-channel-group { color: #dbe6fb; background: #15223f; }
+.console-channel-rate { white-space: nowrap; font-family: 'Brand Geist Mono', monospace; }
+.console-available-channels .console-channel-peak { color: #8a6420; background: transparent; font-family: 'Brand Geist Mono', monospace; }
+.dark .console-available-channels .console-channel-peak { color: #ecc978; }
+.console-channel-rate.is-custom { color: #14306b; background: #e8f0fc; }
+.dark .console-channel-rate.is-custom { color: #bfd6f6; background: #20335b; }
+.console-channel-model { color: #45536e; background: #f7f5f0; border-color: #e3dccd; font-family: 'Brand Geist Mono', monospace; overflow-wrap: anywhere; min-height: 30px; max-width: 100%; text-align: left; }
+.dark .console-channel-model { color: #dbe6fb; background: #0b1427; border-color: #1f2d48; }
+.console-channel-model:focus-visible { outline: 2px solid #7aa2ff; outline-offset: 2px; }
+[data-console-platform="anthropic"] { color: #d97757; }
+[data-console-platform="gemini"] { color: #4285f4; }
+[data-console-platform="deepseek"] { color: #4d6bfe; }
+[data-console-platform="openai"], [data-console-platform="grok"] { color: #0c1830; }
+.dark [data-console-platform="openai"], .dark [data-console-platform="grok"] { color: #e9eef8; }
+.console-channel-price { pointer-events: auto; max-height: calc(100dvh - 16px); overflow-y: auto; border-radius: 16px; border-color: #e3dccd; box-shadow: var(--c-shadow-pop); }
+.console-channel-price > div:first-child { background: var(--c-thead); color: #14306b; }
+.console-channel-price .p-3 span:last-child { color: #8a6420; font-family: 'Brand Geist Mono', monospace; }
+.dark .console-channel-price { border-color: #1f2d48; }
+.dark .console-channel-price > div:first-child { color: #dbe6fb; }
+.dark .console-channel-price .p-3 span:last-child { color: #ecc978; }
+.console-channel-status .monitor-toolbar { border: 1px solid #e3dccd; border-radius: 16px; background: #fff; min-width: 0; }
+.dark .console-channel-status .monitor-toolbar { border-color: #1f2d48; background: #0e1830; }
+.console-channel-status .monitor-table th { text-transform: none; letter-spacing: normal; }
+.console-channel-status .monitor-table td,
+.console-channel-status .summary-value,
+.console-channel-status .stat-value,
+.console-channel-status .stat-card small { font-family: 'Brand Geist Mono', monospace; }
+.console-channel-status .stat-card { min-width: 0; }
+.console-channel-status .stat-label { text-transform: none; letter-spacing: normal; font-size: 12px; font-weight: 500; }
+.console-channel-status .matrix-scroll { border-radius: 0; background: transparent; padding: 0; }
+.console-channel-status .matrix-header { background: var(--c-thead); text-transform: none; letter-spacing: normal; font-size: 11px; padding-block: 10px; }
+.console-channel-status .matrix-row { min-height: 42px; }
+.console-channel-status .matrix-table { min-width: 550px; }
+.console-channel-status .matrix-table:has(.matrix-row--with-tps) { min-width: 640px; }
+.console-channel-status .pulse-track { min-height: 24px; }
+.console-channel-status .monitor-error-row { border-bottom: 1px solid var(--c-row-line); border-radius: 0; background: transparent; padding: 16px 0; }
+.console-channel-status .monitor-error-row:last-child { border-bottom: 0; }
+.console-channel-status .rank-trophy path { fill: #66738c; }
+.dark .console-channel-status .rank-trophy path { fill: #aab6cb; }
+.console-channel-status .rank-trophy ~ span { color: #45536e; }
+.dark .console-channel-status .rank-trophy ~ span { color: #dbe6fb; }
+/* Eleven original health bands and cutoffs remain intact; only their paint changes. */
+.console-channel-status { --health-10: #137a52; --health-9: #2f8f68; --health-8: #58a281; --health-7: #80a77a; --health-6: #a9a16b; --health-5: #b59a5c; --health-4: #b18b50; --health-3: #b47b5a; --health-2: #b96c68; --health-1: #b75c64; --health-0: #a94c58; --health-unknown: #d9d1c1; }
+.dark .console-channel-status { --health-10: #3dd68c; --health-9: #4eb48b; --health-8: #6bb093; --health-7: #91b58b; --health-6: #b2ad7a; --health-5: #c0aa72; --health-4: #c39d70; --health-3: #c88f79; --health-2: #cf8588; --health-1: #d37b86; --health-0: #d16b7a; --health-unknown: #40506d; }
+.console-channel-status .health-score10, .console-channel-status .health-healthy { background: var(--health-10); }
+.console-channel-status .health-score9 { background: var(--health-9); }
+.console-channel-status .health-score8 { background: var(--health-8); }
+.console-channel-status .health-score7 { background: var(--health-7); }
+.console-channel-status .health-score6, .console-channel-status .health-warning { background: var(--health-6); }
+.console-channel-status .health-score5 { background: var(--health-5); }
+.console-channel-status .health-score4 { background: var(--health-4); }
+.console-channel-status .health-score3 { background: var(--health-3); }
+.console-channel-status .health-score2 { background: var(--health-2); }
+.console-channel-status .health-score1 { background: var(--health-1); }
+.console-channel-status .health-score0, .console-channel-status .health-critical { background: var(--health-0); }
+.console-channel-status .health-unknown { background: var(--health-unknown); }
+.console-channel-status .score-legend { background: linear-gradient(90deg, var(--health-0), var(--health-1), var(--health-2), var(--health-3), var(--health-4), var(--health-5), var(--health-6), var(--health-7), var(--health-8), var(--health-9), var(--health-10)); }
+/* Body Teleport has its own explicit page marker; dark rules must not be scoped :global. */
+body .console-channel-status-tooltip.matrix-floating-tooltip { border-color: #e3dccd; background: #fff; box-shadow: var(--c-shadow-pop); }
+.console-channel-status-tooltip .matrix-floating-tooltip-line { color: #45536e; }
+.console-channel-status-tooltip .matrix-floating-tooltip-title { color: #0c1830; }
+.dark .console-channel-status .pulse-tooltip,
+.dark body .console-channel-status-tooltip.matrix-floating-tooltip { border-color: #1f2d48; background: #0e1830; color: #e9eef8; }
+.dark .console-channel-status .pulse-tooltip-line,
+.dark .console-channel-status-tooltip .matrix-floating-tooltip-line { color: #aab6cb; }
+.dark .console-channel-status .pulse-tooltip-title,
+.dark .console-channel-status-tooltip .matrix-floating-tooltip-title { color: #e9eef8; }
+@media (max-width: 767px) {
+  .console-available-channels section[aria-label] > div:first-child { flex-direction: row; align-items: center; gap: 10px; }
+  .console-available-channels section[aria-label] > div:first-child > div:last-child { width: auto; }
+  .console-channel-platforms { padding-top: 10px; }
+  .console-channel-count { display: none; }
+  .console-available-channels .console-channel-table { border-radius: 16px; }
+  .console-channel-mobile-row { padding: 18px 16px; border-width: 0 0 1px; border-color: var(--c-row-line); }
+  .console-channel-mobile-row summary { cursor: pointer; list-style: none; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+  .console-channel-mobile-row summary::-webkit-details-marker { display: none; }
+  .console-channel-mobile-row summary::after { content: '⌄'; color: #66738c; }
+  .console-channel-mobile-row[open] summary::after { transform: rotate(180deg); }
+  .console-channel-mobile-row[open] { background: rgb(239 234 225 / 45%); }
+  .dark .console-channel-mobile-row[open] { background: #0b1427; }
+  .console-channel-status .monitor-visualization { padding: 16px !important; }
+  .console-channel-status .monitor-detail-body { min-width: 0; }
+  .console-channel-status .monitor-detail-mobile { min-width: 0; }
+  .console-channel-status .monitor-mobile-record { min-width: 0; padding: 18px 0; border-bottom: 1px solid var(--c-row-line); overflow-wrap: anywhere; }
+  .console-channel-status .monitor-mobile-record:first-child { padding-top: 4px; }
+  .console-channel-status .monitor-mobile-record:last-child { border-bottom: 0; padding-bottom: 4px; }
+  .console-channel-status .monitor-mobile-model { display: flex; align-items: baseline; gap: 8px; width: 100%; min-width: 0; text-align: left; }
+  .console-channel-status .monitor-mobile-model strong { display: block; margin-top: 4px; font-size: 14px; }
+  .console-channel-status .monitor-mobile-model .status-dot { flex-shrink: 0; }
+  .console-channel-status .monitor-mobile-model:focus-visible { outline: 2px solid #7aa2ff; outline-offset: 4px; border-radius: 4px; }
+  .console-channel-status .monitor-mobile-user { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; font-size: 14px; }
+  .console-channel-status .monitor-mobile-record.is-self .monitor-mobile-user strong { color: #14306b; }
+  .dark .console-channel-status .monitor-mobile-record.is-self .monitor-mobile-user strong { color: #bfd6f6; }
+  .console-channel-status .monitor-mobile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin-top: 16px; }
+  .console-channel-status .monitor-mobile-fields > div { min-width: 0; }
+  .console-channel-status .monitor-mobile-fields dt { font-size: 12px; color: #66738c; }
+  .console-channel-status .monitor-mobile-fields dd { margin-top: 4px; font-family: 'Brand Geist Mono', monospace; font-size: 14px; }
+  .console-channel-status .monitor-mobile-fields small { display: block; margin-top: 4px; color: #66738c; font-size: 11px; line-height: 1.5; }
+  .dark .console-channel-status .monitor-mobile-fields dt,
+  .dark .console-channel-status .monitor-mobile-fields small { color: #aab6cb; }
+  .console-channel-status .monitor-error-row { overflow-wrap: anywhere; }
+  .console-channel-status .monitor-error-row > button { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 8px; }
+  .console-channel-status .monitor-error-row > button > span:first-child { grid-area: 1 / 1; flex-wrap: wrap; white-space: normal; }
+  .console-channel-status .monitor-error-row > button > span:nth-child(2) { grid-area: 2 / 1; }
+  .console-channel-status .monitor-error-row > button > small { grid-area: 2 / 2; }
+  .console-channel-status .monitor-error-row > button > svg { grid-area: 1 / 2; justify-self: end; }
+  .console-channel-status .monitor-error-row .truncate { overflow: visible; text-overflow: clip; white-space: normal; }
+  .console-channel-status .monitor-error-sample { min-width: 0; overflow-wrap: anywhere; }
+  .console-channel-status .monitor-error-sample p { overflow-wrap: anywhere; }
+}
+
+/* The phone matrix keeps real columns; fade only while content remains to the right. */
+.console-channel-status .matrix-scroll-hint { display: none; pointer-events: none; }
+@media (max-width: 767px) {
+  .console-channel-status .matrix-scroll-hint { display: block; position: absolute; inset: 0 0 0 auto; width: 40px; z-index: 4; background: linear-gradient(to right, rgb(255 255 255 / 0), #fff); }
+  .dark .console-channel-status .matrix-scroll-hint { background: linear-gradient(to right, rgb(14 24 48 / 0), #0e1830); }
+}

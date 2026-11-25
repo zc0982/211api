@@ -675,6 +675,11 @@ export default {
 
   // Available Channels (user-facing)
   availableChannels: {
+    filters: '渠道筛选',
+    platformFilter: '平台筛选',
+    count: '共 {count} 个渠道',
+    noMatch: '没有匹配的渠道，试试其他平台或搜索词',
+    loadFailed: '可用渠道加载失败',
     title: '可用渠道',
     description: '查看您可访问的渠道与其支持的模型、定价',
     searchPlaceholder: '搜索渠道或模型...',

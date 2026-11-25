@@ -1,7 +1,13 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="console-available-channels">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">{{ t('availableChannels.title') }}</h1>
+          <p class="page-description">{{ t('availableChannels.description') }}</p>
+        </div>
+      </header>
+      <section :aria-label="t('availableChannels.filters')">
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div class="flex flex-1 flex-wrap items-center gap-3">
             <div class="relative w-full sm:w-80">
@@ -14,6 +20,7 @@
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('availableChannels.searchPlaceholder')"
+                :aria-label="t('availableChannels.searchPlaceholder')"
                 class="input pl-10"
               />
             </div>
@@ -25,14 +32,26 @@
               :disabled="loading"
               class="btn btn-secondary"
               :title="t('common.refresh', 'Refresh')"
+              :aria-label="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
           </div>
         </div>
-      </template>
+        <div class="console-channel-platforms" role="group" :aria-label="t('availableChannels.platformFilter')">
+          <button class="btn btn-secondary" :class="{ 'is-active': !selectedPlatform }" :aria-pressed="!selectedPlatform" @click="selectedPlatform = ''">{{ t('common.all') }}</button>
+          <button v-for="platform in platforms" :key="platform" class="btn btn-secondary" :class="{ 'is-active': selectedPlatform === platform }" :aria-pressed="selectedPlatform === platform" @click="selectedPlatform = platform">
+            <PlatformIcon :platform="platform as GroupPlatform" :data-console-platform="platform" size="sm" />{{ platform }}
+          </button>
+          <span class="console-channel-count">{{ t('availableChannels.count', { count: filteredChannels.length }) }}</span>
+        </div>
+      </section>
 
-      <template #table>
+      <div v-if="loadError" class="console-channel-error" role="alert">
+        <p>{{ loadError }}</p>
+        <button class="btn btn-secondary" :disabled="loading" @click="loadChannels">{{ t('common.tryAgain') }}</button>
+      </div>
+      <section v-else class="card console-channel-table">
         <AvailableChannelsTable
           :columns="columnLabels"
           :rows="filteredChannels"
@@ -41,10 +60,11 @@
           pricing-key-prefix="availableChannels.pricing"
           :no-pricing-label="t('availableChannels.noPricing')"
           :no-models-label="t('availableChannels.noModels')"
-          :empty-label="t('availableChannels.empty')"
+          :empty-label="t(channels.length ? 'availableChannels.noMatch' : 'availableChannels.empty')"
+          console
         />
-      </template>
-    </TablePageLayout>
+      </section>
+    </div>
   </AppLayout>
 </template>
 
@@ -52,7 +72,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import type { GroupPlatform } from '@/types'
+import '@/styles/console-channel-pages.css'
 import Icon from '@/components/icons/Icon.vue'
 import AvailableChannelsTable from '@/components/channels/AvailableChannelsTable.vue'
 import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
@@ -67,6 +89,9 @@ const channels = ref<UserAvailableChannel[]>([])
 const userGroupRates = ref<Record<number, number>>({})
 const loading = ref(false)
 const searchQuery = ref('')
+const selectedPlatform = ref('')
+const loadError = ref('')
+const platforms = computed(() => [...new Set(channels.value.flatMap(ch => ch.platforms.map(p => p.platform)))])
 
 const columnLabels = computed(() => ({
   name: t('availableChannels.columns.name'),
@@ -84,13 +109,13 @@ const columnLabels = computed(() => ({
  */
 const filteredChannels = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return channels.value
   return channels.value
     .map((ch) => {
+      const sections = ch.platforms.filter(p => !selectedPlatform.value || p.platform === selectedPlatform.value)
       const nameHit = ch.name.toLowerCase().includes(q)
       const descHit = (ch.description || '').toLowerCase().includes(q)
-      if (nameHit || descHit) return ch
-      const matchingSections = ch.platforms.filter(
+      if (!q || nameHit || descHit) return sections.length ? { ...ch, platforms: sections } : null
+      const matchingSections = sections.filter(
         (p) =>
           p.platform.toLowerCase().includes(q) ||
           p.groups.some((g) => g.name.toLowerCase().includes(q)) ||
@@ -103,7 +128,9 @@ const filteredChannels = computed(() => {
 })
 
 async function loadChannels() {
+  if (loading.value) return
   loading.value = true
+  loadError.value = ''
   try {
     // 渠道列表和用户专属倍率并发拉取。专属倍率失败不阻塞渠道展示——
     // 失败时只是无法渲染专属倍率角标，降级为仅显示默认倍率。
@@ -116,8 +143,10 @@ async function loadChannels() {
     ])
     channels.value = list
     userGroupRates.value = rates
+    if (selectedPlatform.value && !platforms.value.includes(selectedPlatform.value)) selectedPlatform.value = ''
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    loadError.value = extractApiErrorMessage(err, t('availableChannels.loadFailed'))
+    appStore.showError(loadError.value)
   } finally {
     loading.value = false
   }

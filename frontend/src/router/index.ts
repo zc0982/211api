@@ -278,7 +278,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Available Channels',
       titleKey: 'availableChannels.title',
-      descriptionKey: 'availableChannels.description'
+      descriptionKey: 'availableChannels.description',
+      pageHeading: true
     }
   },
   {
@@ -530,7 +531,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Channel Status',
-      titleKey: 'nav.channelStatus'
+      titleKey: 'nav.channelStatus',
+      pageHeading: true
     }
   },
   {

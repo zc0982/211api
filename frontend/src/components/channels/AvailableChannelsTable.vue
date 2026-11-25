@@ -4,10 +4,10 @@
   <div class="table-wrapper">
     <table
       data-testid="desktop-channels"
-      class="!hidden w-full table-fixed border-collapse text-sm lg:!table"
+      class="!hidden w-full table-fixed border-collapse text-sm md:!table"
     >
       <thead>
-        <tr class="border-b border-gray-100 bg-gray-50/50 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-gray-400">
+        <tr class="border-b border-gray-100 bg-gray-50/50 text-xs font-medium tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-gray-400">
           <th class="w-[180px] px-4 py-3 text-center">{{ columns.name }}</th>
           <th class="w-[200px] px-4 py-3 text-left">{{ columns.description }}</th>
           <th class="w-[140px] px-4 py-3 text-left">{{ columns.platform }}</th>
@@ -67,11 +67,11 @@
           <td class="align-top px-4 py-3">
             <span
               :class="[
-                'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase',
+                'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
                 platformBadgeClass(section.platform),
               ]"
             >
-              <PlatformIcon :platform="section.platform as GroupPlatform" size="xs" />
+              <PlatformIcon :platform="section.platform as GroupPlatform" :data-console-platform="props.console ? section.platform : undefined" size="xs" />
               {{ section.platform }}
             </span>
           </td>
@@ -84,7 +84,7 @@
                 class="flex flex-wrap items-center gap-1.5"
               >
                 <span
-                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-purple-600 dark:text-purple-400"
+                  class="inline-flex items-center gap-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400"
                   :title="t('availableChannels.exclusiveTooltip')"
                 >
                   <Icon name="shield" size="xs" class="h-3 w-3" />
@@ -96,6 +96,7 @@
                   class="inline-flex flex-wrap items-center gap-1"
                 >
                   <GroupBadge
+                    :console="props.console"
                     :name="g.name"
                     :platform="g.platform as GroupPlatform"
                     :subscription-type="(g.subscription_type || 'standard') as SubscriptionType"
@@ -105,7 +106,7 @@
                   />
                   <span
                     v-if="hasPeakRate(g)"
-                    class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                    class="inline-flex items-center gap-1 rounded-md console-channel-peak px-1.5 py-0.5 text-[10px] font-medium"
                     :title="peakRateTitle(g)"
                   >
                     <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -118,7 +119,7 @@
                 class="flex flex-wrap items-center gap-1.5"
               >
                 <span
-                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-gray-500 dark:text-gray-400"
+                  class="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-500 dark:text-gray-400"
                   :title="t('availableChannels.publicTooltip')"
                 >
                   <Icon name="globe" size="xs" class="h-3 w-3" />
@@ -130,6 +131,7 @@
                   class="inline-flex flex-wrap items-center gap-1"
                 >
                   <GroupBadge
+                    :console="props.console"
                     :name="g.name"
                     :platform="g.platform as GroupPlatform"
                     :subscription-type="(g.subscription_type || 'standard') as SubscriptionType"
@@ -139,7 +141,7 @@
                   />
                   <span
                     v-if="hasPeakRate(g)"
-                    class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                    class="inline-flex items-center gap-1 rounded-md console-channel-peak px-1.5 py-0.5 text-[10px] font-medium"
                     :title="peakRateTitle(g)"
                   >
                     <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -155,6 +157,7 @@
           <td class="align-top px-4 py-3">
             <div class="flex flex-wrap gap-1">
               <SupportedModelChip
+                    :console="props.console"
                 v-for="m in section.supported_models"
                 :key="`${section.platform}-${m.name}`"
                 :model="m"
@@ -172,7 +175,7 @@
       </tbody>
     </table>
 
-    <div data-testid="mobile-channels" class="w-full min-w-0 overflow-x-hidden lg:hidden">
+    <div data-testid="mobile-channels" class="w-full min-w-0 overflow-x-hidden md:hidden">
       <div v-if="loading" data-testid="mobile-loading" class="py-10 text-center">
         <Icon name="refresh" size="lg" class="inline-block animate-spin text-gray-400" />
       </div>
@@ -180,20 +183,21 @@
         <Icon name="inbox" size="xl" class="mx-auto mb-3 h-12 w-12 text-gray-400" />
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ emptyLabel }}</p>
       </div>
-      <section
+      <details
+        :open="chIdx === 0"
         v-else
         v-for="(channel, chIdx) in rows"
         :key="`mobile-${channel.name}-${chIdx}`"
-        class="border-b-2 border-gray-200 px-4 py-4 last:border-b-0 dark:border-dark-600"
+        class="console-channel-mobile-row border-b-2 border-gray-200 px-4 py-4 last:border-b-0 dark:border-dark-600"
       >
-        <header class="mb-3 min-w-0">
+        <summary class="mb-3 min-w-0"><div>
           <h3 class="break-words text-sm font-semibold text-gray-900 dark:text-white">
             {{ channel.name }}
           </h3>
           <p class="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-gray-400">
             {{ channel.description || '-' }}
           </p>
-        </header>
+        </div></summary>
 
         <div class="divide-y divide-gray-100 dark:divide-dark-700/60">
           <div
@@ -203,11 +207,11 @@
           >
             <span
               :class="[
-                'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase',
+                'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
                 platformBadgeClass(section.platform),
               ]"
             >
-              <PlatformIcon :platform="section.platform as GroupPlatform" size="xs" />
+              <PlatformIcon :platform="section.platform as GroupPlatform" :data-console-platform="props.console ? section.platform : undefined" size="xs" />
               {{ section.platform }}
             </span>
 
@@ -222,7 +226,7 @@
                     class="flex min-w-0 flex-wrap items-center gap-1.5"
                   >
                     <span
-                      class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-purple-600 dark:text-purple-400"
+                      class="inline-flex items-center gap-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400"
                       :title="t('availableChannels.exclusiveTooltip')"
                     >
                       <Icon name="shield" size="xs" class="h-3 w-3" />
@@ -234,6 +238,7 @@
                       class="inline-flex max-w-full min-w-0 flex-wrap items-center gap-1"
                     >
                       <GroupBadge
+                    :console="props.console"
                         class="max-w-full"
                         :name="g.name"
                         :platform="g.platform as GroupPlatform"
@@ -244,7 +249,7 @@
                       />
                       <span
                         v-if="hasPeakRate(g)"
-                        class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                        class="inline-flex items-center gap-1 rounded-md console-channel-peak px-1.5 py-0.5 text-[10px] font-medium"
                         :title="peakRateTitle(g)"
                       >
                         <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -257,7 +262,7 @@
                     class="flex min-w-0 flex-wrap items-center gap-1.5"
                   >
                     <span
-                      class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-gray-500 dark:text-gray-400"
+                      class="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-500 dark:text-gray-400"
                       :title="t('availableChannels.publicTooltip')"
                     >
                       <Icon name="globe" size="xs" class="h-3 w-3" />
@@ -269,6 +274,7 @@
                       class="inline-flex max-w-full min-w-0 flex-wrap items-center gap-1"
                     >
                       <GroupBadge
+                    :console="props.console"
                         class="max-w-full"
                         :name="g.name"
                         :platform="g.platform as GroupPlatform"
@@ -279,7 +285,7 @@
                       />
                       <span
                         v-if="hasPeakRate(g)"
-                        class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                        class="inline-flex items-center gap-1 rounded-md console-channel-peak px-1.5 py-0.5 text-[10px] font-medium"
                         :title="peakRateTitle(g)"
                       >
                         <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -297,6 +303,7 @@
                 </dt>
                 <dd class="flex min-w-0 flex-wrap gap-1">
                   <SupportedModelChip
+                    :console="props.console"
                     v-for="m in section.supported_models"
                     :key="`mobile-${section.platform}-${m.name}`"
                     class="max-w-full [&>span]:max-w-full [&>span]:truncate"
@@ -314,7 +321,7 @@
             </dl>
           </div>
         </div>
-      </section>
+      </details>
     </div>
   </div>
 </template>
@@ -332,6 +339,7 @@ import { useAppStore } from '@/stores/app'
 import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 
 const props = defineProps<{
+  console?: boolean
   columns: {
     name: string
     description: string

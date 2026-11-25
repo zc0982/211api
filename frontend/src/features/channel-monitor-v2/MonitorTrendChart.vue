@@ -1,8 +1,8 @@
 <template>
   <section
-    class="card flex min-h-[360px] flex-col overflow-hidden !rounded-3xl !border-0 !p-6 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700"
+    class="card monitor-visualization flex min-h-[360px] flex-col overflow-hidden !rounded-2xl !p-6"
   >
-    <div class="card-header mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3 !border-0 !p-0">
+    <div class="card-header mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3 !p-0">
       <div class="min-w-0">
         <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
           <span class="inline-flex h-4 w-4 text-sky-500" aria-hidden="true">
@@ -16,13 +16,13 @@
       </div>
       <div class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400 sm:w-auto">
         <span class="flex shrink-0 items-center gap-1">
-          <span class="h-2 w-2 rounded-full bg-red-500"></span>{{ t('channelMonitorV2.chart.errorLegend') }}
+          <span class="h-2 w-2 rounded-full bg-star-bronze dark:bg-star-bronze-night"></span>{{ t('channelMonitorV2.chart.errorLegend') }}
         </span>
         <span class="flex shrink-0 items-center gap-1">
-          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>{{ t('channelMonitorV2.chart.cacheLegend') }}
+          <span class="h-2 w-2 rounded-full bg-star-ok dark:bg-star-ok-night"></span>{{ t('channelMonitorV2.chart.cacheLegend') }}
         </span>
         <span class="flex shrink-0 items-center gap-1">
-          <span class="h-2 w-2 rounded-full bg-sky-500"></span>{{ t('channelMonitorV2.chart.ttftLegend') }}
+          <span class="h-2 w-2 rounded-full bg-primary-600 dark:bg-primary-400"></span>{{ t('channelMonitorV2.chart.ttftLegend') }}
         </span>
         <span class="badge badge-gray shrink-0">{{ bucketLabel }}</span>
         <button
@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -98,9 +98,17 @@ const chartRef = ref<HTMLElement | null>(null)
 const zoom = ref<ZoomState>(resetZoom())
 const zoomed = computed(() => isZoomed(zoom.value))
 
-const isDark = computed(() =>
+const isDark = ref(
   typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 )
+let themeObserver: MutationObserver | null = null
+onMounted(() => {
+  themeObserver = new MutationObserver(() => {
+    isDark.value = document.documentElement.classList.contains('dark')
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+onBeforeUnmount(() => themeObserver?.disconnect())
 
 const bucketLabel = computed(() => {
   const seconds = props.coverage?.bucket_seconds || 60
@@ -131,8 +139,8 @@ const chartData = computed(() => {
       {
         label: t('channelMonitorV2.chart.errorDataset'),
         data: errorRates,
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 67, 67, 0.10)',
+        borderColor: isDark.value ? '#ecc978' : '#8a6420',
+        backgroundColor: 'rgba(138, 100, 32, 0.08)',
         yAxisID: 'yPct',
         tension: 0.4,
         cubicInterpolationMode: 'monotone' as const,
@@ -145,8 +153,8 @@ const chartData = computed(() => {
       {
         label: t('channelMonitorV2.chart.cacheDataset'),
         data: cacheRates,
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+        borderColor: isDark.value ? '#3dd68c' : '#137a52',
+        backgroundColor: 'rgba(19, 122, 82, 0.08)',
         yAxisID: 'yPct',
         tension: 0.4,
         cubicInterpolationMode: 'monotone' as const,
@@ -159,8 +167,8 @@ const chartData = computed(() => {
       {
         label: t('channelMonitorV2.chart.ttftDataset'),
         data: ttftP50,
-        borderColor: '#0ea5e9',
-        backgroundColor: 'rgba(14, 165, 233, 0.08)',
+        borderColor: isDark.value ? '#7aa2ff' : '#2f5fd0',
+        backgroundColor: 'rgba(47, 95, 208, 0.08)',
         yAxisID: 'yTtft',
         tension: 0.4,
         cubicInterpolationMode: 'monotone' as const,
@@ -205,11 +213,11 @@ function smoothTrend(values: Array<number | null>): Array<number | null> {
 }
 
 const chartOptions = computed(() => {
-  const text = isDark.value ? '#9ca3af' : '#6b7280'
-  const grid = isDark.value ? '#374151' : '#f3f4f6'
-  const tooltipBg = isDark.value ? '#1f2937' : '#ffffff'
-  const tooltipTitle = isDark.value ? '#f3f4f6' : '#111827'
-  const tooltipBody = isDark.value ? '#d1d5db' : '#4b5563'
+  const text = isDark.value ? '#aab6cb' : '#66738c'
+  const grid = isDark.value ? '#1f2d48' : '#f0ebe0'
+  const tooltipBg = isDark.value ? '#0e1830' : '#ffffff'
+  const tooltipTitle = isDark.value ? '#e9eef8' : '#0c1830'
+  const tooltipBody = isDark.value ? '#aab6cb' : '#45536e'
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -260,12 +268,12 @@ const chartOptions = computed(() => {
         position: 'right' as const,
         min: 0,
         ticks: {
-          color: '#0ea5e9',
+          color: isDark.value ? '#7aa2ff' : '#2f5fd0',
           font: { size: 10 },
           callback: (v: string | number) => formatMonitorMs(Number(v)),
         },
         grid: { display: false },
-        title: { display: true, text: t('channelMonitorV2.metrics.ttftP50'), color: '#0ea5e9', font: { size: 11 } },
+        title: { display: true, text: t('channelMonitorV2.metrics.ttftP50'), color: isDark.value ? '#7aa2ff' : '#2f5fd0', font: { size: 11 } },
       },
     },
   }
