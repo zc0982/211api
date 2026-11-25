@@ -1,8 +1,14 @@
 <template>
-  <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
-      {{ t('admin.dashboard.tokenUsageTrend') }}
-    </h3>
+  <div class="card p-5">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <h3 class="text-[15px] font-semibold text-gray-900 dark:text-dark-100">
+        {{ t('admin.dashboard.tokenUsageTrend') }}
+      </h3>
+      <!-- 可选的工具条（时间范围、粒度、刷新），用户仪表盘放在卡片标题行里 -->
+      <div v-if="$slots.actions" class="flex flex-wrap items-center gap-2">
+        <slot name="actions" />
+      </div>
+    </div>
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
@@ -59,14 +65,15 @@ const isDarkMode = computed(() => {
   return document.documentElement.classList.contains('dark')
 })
 
+// v3 图表色（Figma C1 Token 使用趋势）：输入深蓝、输出星光蓝、缓存读取天蓝；缓存写入古铜、命中率石板灰
 const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb',
-  input: '#3b82f6',
-  output: '#10b981',
-  cacheCreation: '#f59e0b',
-  cacheRead: '#06b6d4',
-  cacheHitRate: '#8b5cf6'
+  text: isDarkMode.value ? '#aab6cb' : '#45536e',
+  grid: isDarkMode.value ? '#18243f' : '#f0ebe0',
+  input: isDarkMode.value ? '#dbe6fb' : '#14306b',
+  output: isDarkMode.value ? '#7aa2ff' : '#2f5fd0',
+  cacheCreation: isDarkMode.value ? '#ecc978' : '#8a6420',
+  cacheRead: isDarkMode.value ? '#5b7fc7' : '#9cbcec',
+  cacheHitRate: isDarkMode.value ? '#7f8ca5' : '#66738c'
 }))
 
 const chartData = computed(() => {

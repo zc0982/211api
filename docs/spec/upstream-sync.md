@@ -16,7 +16,9 @@
 - 日期计算测试优先传入显式时区。必须验证全局时区配置的测试在独立进程中初始化时区，避免与同进程后台 worker 读取 `time.Local` 发生竞争。
 - 保留 `frontend/src/features/brand-home` 与 `/home` 入口覆盖（`HomeEntry.vue`）。同步后核对上游 HomeView、`home_content`、`compact_home_enabled` 的行为有没有变化，并检查 i18n index 的 `brandHome` 接入行、`tailwind.config.js` 的 `brand` 追加项和 `vite.config.ts` 的 `vendor-brand-icons` 分支；首页为 v3「星链」（像素场景、浅 / 深两版），步骤见 `docs/spec/brand-home.md`「上游同步检查」。
 - 同步上游后检查 `frontend/public/logo.svg` 仍是星狐通用头像，且显示站点 Logo 的容器（侧栏、登录页、模型广场、公开页、Key 查询页、上游首页）仍带深色模式白底 `dark:bg-white`；上游新增的 Logo 位置同样补上。见 `docs/spec/brand-home.md`「标志」。
-- 同步上游后检查主题状态没变：`main.ts` 仍在挂载前按 `localStorage.theme`（`dark` / `light`，无值跟随系统）写 `html.dark`，`AppSidebar.vue` 仍读写同一个键。品牌首页的主题切换（`features/brand-home/composables/useBrandTheme.ts`）依赖这套约定，首页和控制台靠它同步；上游若改键名或改成三态，要同步改这里。见 `docs/spec/brand-home.md`「主题」。
+- 同步上游后检查主题状态没变：`main.ts` 仍在挂载前按 `localStorage.theme`（`dark` / `light`，无值跟随系统）写 `html.dark`，控制台顶栏 `AppHeader.vue` 的主题按钮仍读写同一个键（v3 起从侧栏移到顶栏）。品牌首页的主题切换（`features/brand-home/composables/useBrandTheme.ts`）依赖这套约定，首页和控制台靠它同步；上游若改键名或改成三态，要同步改这里。见 `docs/spec/brand-home.md`「主题」。
+
+- 用户后台 v3：上游改到 `tailwind.config.js` 调色板、`style.css` 组件类、`AppSidebar.vue` / `AppHeader.vue` / `AppLayout.vue` 或用户仪表盘组件时，按 `docs/spec/console-v3.md`「上游同步检查」合并。
 
 ## 验证与交付
 

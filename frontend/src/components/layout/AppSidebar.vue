@@ -1,32 +1,46 @@
 <template>
+  <!--
+    v3「星链」夜空侧栏（Figma「211API · Console v3」C0 / C1 / C13–C15，DESIGN.md · Console）：
+    桌面 ≥1280 为按内容自适应宽度的侧栏（min 200 / max 288，可收成 72px 图标栏），平板 768–1279 固定为图标栏、展开按钮以浮层打开整栏，
+    手机 <768 为 304px 抽屉。当前项 = 月白 8% 底 + 左侧 3px 月白竖条（蓝色外发光），不用金色。
+  -->
   <aside
+    ref="sidebarRef"
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-64',
-      { '-translate-x-full lg:translate-x-0': !mobileOpen }
+      isRail ? 'sidebar--rail' : 'sidebar--full',
+      isOverlay ? 'sidebar--overlay' : '',
+      { '-translate-x-full': isHidden }
     ]"
+    :aria-hidden="isHidden ? 'true' : undefined"
   >
-    <!-- Logo/Brand -->
-    <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">
-      <!-- Custom Logo or Default Logo -->
+    <!-- Logo / Brand -->
+    <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': isRail }">
       <router-link
         :to="homePath"
-        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80 dark:bg-white dark:p-1"
+        class="sidebar-logo transition-opacity hover:opacity-85"
+        :class="{ 'sidebar-logo--uploaded': !!siteLogo }"
+        :aria-label="siteName"
         @click="handleMenuItemClick(homePath)"
       >
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
       </router-link>
-      <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-        <router-link
-          :to="homePath"
-          class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
-          @click="handleMenuItemClick(homePath)"
-        >
+      <div v-if="!isRail" class="sidebar-brand">
+        <router-link :to="homePath" class="sidebar-brand-title" @click="handleMenuItemClick(homePath)">
           {{ siteName }}
         </router-link>
         <!-- Version Badge -->
         <VersionBadge :version="siteVersion" />
       </div>
+      <button
+        v-if="isOverlay"
+        type="button"
+        class="sidebar-close"
+        :aria-label="t('nav.closeMenu')"
+        @click="closeMobile"
+      >
+        <XMarkIcon class="h-5 w-5" />
+      </button>
     </div>
 
     <!-- Navigation -->
@@ -40,20 +54,16 @@
             <template v-if="item.children?.length">
               <button
                 type="button"
-                class="sidebar-link mb-1 w-full"
+                class="sidebar-link w-full"
                 :class="{
                   'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
-                  'sidebar-link-collapsed': sidebarCollapsed
+                  'sidebar-link-collapsed': isRail
                 }"
-                :title="sidebarCollapsed ? item.label : undefined"
+                :title="isRail ? item.label : undefined"
                 @click="handleGroupClick(item)"
               >
-                <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-                <span
-                  class="sidebar-label sidebar-label-flex"
-                  :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
-                  :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
-                >
+                <component :is="item.icon" class="sidebar-icon" />
+                <span v-if="!isRail" class="sidebar-label sidebar-label-flex">
                   <span class="min-w-0 truncate">{{ item.label }}</span>
                   <ChevronDownIcon
                     class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
@@ -61,18 +71,24 @@
                   />
                 </span>
               </button>
-              <!-- Children -->
-              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
+              <!-- Children：收起的分组也留在 DOM（折叠 + inert），侧栏宽度按全部菜单算，展开分组时不跳宽 -->
+              <div
+                v-if="!isRail"
+                class="sidebar-children"
+                :class="{ 'sidebar-children--collapsed': !isGroupExpanded(item) }"
+                :inert="!isGroupExpanded(item) || undefined"
+                :aria-hidden="isGroupExpanded(item) ? undefined : 'true'"
+              >
                 <router-link
                   v-for="child in item.children"
                   :key="child.path"
                   :to="child.path"
-                  class="sidebar-link mb-0.5 py-1.5 text-sm"
+                  class="sidebar-link sidebar-link-child"
                   :class="{ 'sidebar-link-active': route.path === child.path }"
                   @click="handleMenuItemClick(child.path)"
                 >
                   <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
-                  <span>{{ child.label }}</span>
+                  <span class="sidebar-label">{{ child.label }}</span>
                 </router-link>
               </div>
             </template>
@@ -80,9 +96,9 @@
             <router-link
               v-else
               :to="item.path"
-              class="sidebar-link mb-1"
-              :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-              :title="sidebarCollapsed ? item.label : undefined"
+              class="sidebar-link"
+              :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
+              :title="isRail ? item.label : undefined"
               :id="
                 item.path === '/admin/accounts'
                   ? 'sidebar-channel-manage'
@@ -94,96 +110,94 @@
               "
               @click="handleMenuItemClick(item.path)"
             >
-              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-              <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+              <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+              <component v-else :is="item.icon" class="sidebar-icon" />
+              <span v-if="!isRail" class="sidebar-label">{{ item.label }}</span>
             </router-link>
           </template>
         </div>
 
         <!-- Personal Section for Admin (hidden in simple mode) -->
         <div v-if="!authStore.isSimpleMode" class="sidebar-section">
-          <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-            <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
-              {{ t('nav.myAccount') }}
-            </span>
+          <div v-if="!isRail" class="sidebar-section-title">
+            <span class="sidebar-section-title-text">{{ t('nav.myAccount') }}</span>
           </div>
+          <div v-else class="sidebar-rail-divider" aria-hidden="true"></div>
 
           <router-link
             v-for="item in personalNavItems"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
+            class="sidebar-link"
+            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
+            :title="isRail ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <component v-else :is="item.icon" class="sidebar-icon" />
+            <span v-if="!isRail" class="sidebar-label">{{ item.label }}</span>
           </router-link>
         </div>
       </template>
 
-      <!-- Regular User View -->
+      <!-- Regular User View: grouped as 概览 / 调用 / 账户 / 设置 -->
       <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
+        <div v-for="(group, gi) in userNavGroups" :key="group.key" class="sidebar-section">
+          <div v-if="!isRail" class="sidebar-section-title" :class="{ 'sidebar-section-title--first': gi === 0 }">
+            <span class="sidebar-section-title-text">{{ group.label }}</span>
+          </div>
+          <div v-else-if="gi > 0" class="sidebar-rail-divider" aria-hidden="true"></div>
           <router-link
-            v-for="item in userNavItems"
+            v-for="item in group.items"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
+            class="sidebar-link"
+            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
+            :title="isRail ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <component v-else :is="item.icon" class="sidebar-icon" />
+            <span v-if="!isRail" class="sidebar-label">{{ item.label }}</span>
           </router-link>
         </div>
       </template>
     </nav>
 
-    <!-- Bottom Section -->
-    <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
-      <!-- Theme Toggle -->
-      <button
-        @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
-      >
-        <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
-        <MoonIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{
-          isDark ? t('nav.lightMode') : t('nav.darkMode')
-        }}</span>
-      </button>
+    <!-- Pixel vignette: 学院一角（月亮、图书馆、松树、Claude 在书桌前干活） -->
+    <img
+      v-if="!isRail"
+      class="sidebar-vignette"
+      :src="vignetteUrl"
+      alt=""
+      width="248"
+      height="122"
+      loading="lazy"
+      decoding="async"
+    />
 
-      <!-- Collapse Button -->
+    <!-- Bottom: collapse / expand -->
+    <div class="sidebar-footer">
       <button
-        @click="toggleSidebar"
-        class="sidebar-link w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
+        type="button"
+        class="sidebar-link sidebar-link-dim w-full"
+        :class="{ 'sidebar-link-collapsed': isRail }"
+        :title="isRail ? t('nav.expandSidebar') : undefined"
+        :aria-label="isRail ? t('nav.expandSidebar') : t('nav.collapseSidebar')"
+        @click="handleCollapseClick"
       >
-        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-5 w-5 flex-shrink-0" />
-        <ChevronDoubleRightIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('nav.collapse') }}</span>
+        <ChevronDoubleLeftIcon v-if="!isRail" class="sidebar-icon" />
+        <ChevronDoubleRightIcon v-else class="sidebar-icon" />
+        <span v-if="!isRail" class="sidebar-label">{{ t('nav.collapseSidebar') }}</span>
       </button>
     </div>
   </aside>
 
-  <!-- Mobile Overlay -->
+  <!-- Drawer overlay (phone, and the tablet overlay sidebar) -->
   <transition name="fade">
-    <div
-      v-if="mobileOpen"
-      class="fixed inset-0 z-30 bg-black/50 lg:hidden"
-      @click="closeMobile"
-    ></div>
+    <div v-if="isOverlay" class="sidebar-backdrop" @click="closeMobile"></div>
   </transition>
 </template>
 
@@ -199,6 +213,8 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { consoleSidebarWidth, useConsoleViewport } from '@/composables/useConsoleViewport'
+import vignetteUrl from './assets/sidebar-vignette.png'
 
 interface NavItem {
   path: string
@@ -219,7 +235,12 @@ interface NavItem {
    * 开关切换时菜单自动更新。
    */
   featureFlag?: () => boolean | undefined
+  /** 用户菜单分组（Figma：概览 / 调用 / 账户 / 设置）；管理员菜单不分组。 */
+  group?: NavGroupKey
 }
+
+type NavGroupKey = 'overview' | 'calls' | 'account' | 'settings'
+const NAV_GROUP_ORDER: NavGroupKey[] = ['overview', 'calls', 'account', 'settings']
 
 // applyFeatureFlags 递归过滤掉 featureFlag() === false 的节点（含子节点）。
 // 使用 `!== false` 宽容语义：undefined（设置未加载）或 true 都视为显示。
@@ -250,7 +271,21 @@ const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
-const isDark = ref(document.documentElement.classList.contains('dark'))
+const sidebarRef = ref<HTMLElement | null>(null)
+const { isPhone, isTablet, isDesktop } = useConsoleViewport()
+
+// 桌面侧栏宽度（展开态 max-content，收起 72，动画中逐帧）同步给 AppLayout 定主内容区左边距
+let sidebarResizeObserver: ResizeObserver | null = null
+function syncSidebarWidth(width?: number) {
+  if (!isDesktop.value) return
+  const w = width ?? sidebarRef.value?.getBoundingClientRect().width
+  if (w && w > 0) consoleSidebarWidth.value = Math.round(w * 100) / 100
+}
+
+// 图标栏：平板默认图标栏（展开时以浮层显示整栏），桌面由用户收起；手机始终是整栏抽屉。
+const isOverlay = computed(() => mobileOpen.value && !isDesktop.value)
+const isRail = computed(() => (isTablet.value && !mobileOpen.value) || (isDesktop.value && sidebarCollapsed.value))
+const isHidden = computed(() => isPhone.value && !mobileOpen.value)
 
 const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
 
@@ -535,33 +570,12 @@ const CogIcon = {
     )
 }
 
-const SunIcon = {
+const XMarkIcon = {
   render: () =>
     h(
       'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z'
-        })
-      ]
-    )
-}
-
-const MoonIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z'
-        })
-      ]
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.75' },
+      [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M6 18 18 6M6 6l12 12' })]
     )
 }
 
@@ -725,26 +739,27 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
-    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
+    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon, group: 'overview' })
   }
   items.push(
-    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
-    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    { path: '/settings/mcp', label: t('mcp.title'), icon: MCPIcon, featureFlag: flagMCP },
+    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon, group: 'calls' },
+    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess, group: 'calls' },
+    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true, group: 'calls' },
+    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels, group: 'calls' },
+    { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor, group: 'calls' },
+    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment, group: 'account' },
+    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription, group: 'account' },
+    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment, group: 'account' },
+    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true, group: 'account' },
+    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate, group: 'account' },
+    { path: '/profile', label: t('nav.profile'), icon: UserIcon, group: 'settings' },
+    { path: '/settings/mcp', label: t('mcp.title'), icon: MCPIcon, featureFlag: flagMCP, group: 'settings' },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
       label: item.label,
       icon: null,
       iconSvg: item.icon_svg,
+      group: 'settings',
     })),
   )
   return items
@@ -758,6 +773,22 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
+
+const NAV_GROUP_LABEL_KEYS: Record<NavGroupKey, string> = {
+  overview: 'nav.groupOverview',
+  calls: 'nav.groupCalls',
+  account: 'nav.groupAccount',
+  settings: 'nav.groupSettings'
+}
+
+// 用户菜单按 概览 / 调用 / 账户 / 设置 分组；空组（功能全部关闭或简易模式）不渲染标题。
+const userNavGroups = computed(() =>
+  NAV_GROUP_ORDER.map((key) => ({
+    key,
+    label: t(NAV_GROUP_LABEL_KEYS[key]),
+    items: userNavItems.value.filter((item) => (item.group ?? 'settings') === key)
+  })).filter((group) => group.items.length > 0)
+)
 
 // Personal navigation items (for admin's "My Account" section, without Dashboard).
 // Admins access 可用渠道 from this section just like regular users — there is no
@@ -870,10 +901,13 @@ function toggleSidebar() {
   appStore.toggleSidebar()
 }
 
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+// 底部按钮：桌面收起 / 展开图标栏；平板图标栏上「展开」以浮层打开整栏，浮层里「收起」关掉浮层。
+function handleCollapseClick() {
+  if (isDesktop.value) {
+    toggleSidebar()
+    return
+  }
+  appStore.setMobileOpen(!mobileOpen.value)
 }
 
 function closeMobile() {
@@ -927,7 +961,8 @@ function toggleGroup(item: NavItem) {
  *   (router-link semantics) and ensure the group is expanded.
  */
 function handleGroupClick(item: NavItem) {
-  if (sidebarCollapsed.value) return
+  // 与子菜单渲染同一判断：图标栏里不展开分组；桌面收起后切到平板再打开浮层时 isRail 为 false，应能展开
+  if (isRail.value) return
   if (item.expandOnly) {
     toggleGroup(item)
     return
@@ -937,16 +972,6 @@ function handleGroupClick(item: NavItem) {
     router.push(item.path)
   }
   groupExpandOverrides.value.set(item.path, true)
-}
-
-// Initialize theme
-const savedTheme = localStorage.getItem('theme')
-if (
-  savedTheme === 'dark' ||
-  (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-) {
-  isDark.value = true
-  document.documentElement.classList.add('dark')
 }
 
 // Fetch admin settings (for feature-gated nav items like Ops).
@@ -960,7 +985,17 @@ watch(
   { immediate: true }
 )
 
+watch(isDesktop, () => void nextTick(() => syncSidebarWidth()))
+
 onMounted(() => {
+  if (sidebarRef.value && typeof ResizeObserver !== 'undefined') {
+    sidebarResizeObserver = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0]
+      syncSidebarWidth(box ? box.inlineSize : entries[0]?.contentRect.width)
+    })
+    sidebarResizeObserver.observe(sidebarRef.value)
+  }
+  syncSidebarWidth()
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
@@ -976,6 +1011,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  sidebarResizeObserver?.disconnect()
+  sidebarResizeObserver = null
   if (sidebarNavRef.value) {
     appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }
@@ -983,56 +1020,136 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.sidebar-logo {
-  flex: 0 0 2.25rem;
-  min-width: 2.25rem;
+/*
+ * v3 夜空侧栏。数值取自 Figma「211API · Console v3」C0 脚本（L.sidebar / L.rail / L.navItem）：
+ * 展开态宽度按内容自适应（Figma 为 248，实际取最长菜单 / 品牌区 / 底栏所需，限定 200–288）、夜空渐变 #050b18 → #091430 → #13244b、种子星空、导航项高 38 胶囊、分组标题 12px #7f8ca5。
+ * 深色主题只多一条右侧描边，写在 style.css 的全局 .sidebar 里（scoped 的 :global(.dark) 会编译成光秃的 .dark {}）。
+ */
+.sidebar {
+  /* 收起 / 展开时宽度可在 72 ↔ max-content 之间过渡（不支持的浏览器直接切换） */
+  interpolate-size: allow-keywords;
+  color: #aab6cb;
+  background-color: #091430;
+  background-image:
+    url('./assets/sidebar-stars.svg'),
+    linear-gradient(180deg, #050b18 0%, #091430 55%, #13244b 100%);
+  background-repeat: no-repeat;
+  background-size: 248px 1800px, 100% 100%;
+}
+
+.sidebar--full {
+  width: max-content;
+  min-width: 200px;
+  max-width: 288px;
+}
+
+.sidebar--rail {
+  width: 72px;
+  background-image:
+    url('./assets/rail-stars.svg'),
+    linear-gradient(180deg, #050b18 0%, #091430 55%, #13244b 100%);
+  background-size: 72px 1800px, 100% 100%;
+}
+
+.sidebar--overlay {
+  width: min(304px, 86vw);
+  min-width: 0;
+  max-width: none;
+  box-shadow: 0 18px 40px -14px rgb(0 0 0 / 0.55);
+}
+
+/* ---- Brand ---- */
+.sidebar-header {
+  padding: 22px 24px 20px;
 }
 
 .sidebar-header-collapsed {
+  justify-content: center;
   gap: 0;
-  padding-left: 1.125rem;
-  padding-right: 1.125rem;
+  padding: 18px 0 16px;
+}
+
+.sidebar-logo {
+  display: block;
+  flex: none;
+  width: 30px;
+  height: 34px;
+}
+
+.sidebar-header-collapsed .sidebar-logo {
+  width: 32px;
+  height: 36px;
+}
+
+/* 后台上传的标志多为透明底深色图形，垫白底小圆角（与首页导航一致） */
+.sidebar-logo--uploaded,
+.sidebar-header-collapsed .sidebar-logo--uploaded {
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .sidebar-brand {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
-  transition:
-    max-width 0.22s ease,
-    opacity 0.14s ease,
-    transform 0.14s ease;
-  max-width: 12rem;
-}
-
-.sidebar-brand-collapsed {
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateX(-4px);
-  pointer-events: none;
 }
 
 .sidebar-brand-title {
   display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
-.sidebar-link-collapsed {
-  gap: 0;
-  padding-left: 0.875rem;
-  padding-right: 0.875rem;
+.sidebar-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border-radius: 999px;
+  color: #aab6cb;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-close:hover {
+  background: rgb(219 230 251 / 0.08);
+  color: #fff;
+}
+
+/* ---- Nav ---- */
+.sidebar-nav {
+  padding: 0 16px 12px;
+}
+
+.sidebar--rail .sidebar-nav {
+  padding: 0 14px 12px;
 }
 
 .sidebar-section-title {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 1.25rem;
-  overflow: hidden;
-  white-space: nowrap;
+  padding: 14px 12px 6px;
+  color: #7f8ca5;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.sidebar-section-title--first {
+  padding-top: 0;
 }
 
 .sidebar-section-title-text {
@@ -1040,49 +1157,123 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
 }
 
-.sidebar-section-title::after {
+.sidebar-rail-divider {
+  width: 24px;
+  height: 1px;
+  margin: 8px auto;
+  background: #1f2d48;
+}
+
+.sidebar-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  margin-bottom: 2px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: #aab6cb;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-link:hover {
+  background: rgb(219 230 251 / 0.05);
+  color: #e9eef8;
+}
+
+.sidebar-link:focus-visible {
+  outline: 2px solid rgb(122 162 255 / 0.7);
+  outline-offset: 1px;
+}
+
+.sidebar-icon {
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+/* 当前项：月白 8% 底 + 左侧 3px 月白竖条、蓝色外发光（不用金色） */
+.sidebar-link-active,
+.sidebar-link-active:hover {
+  background: rgb(219 230 251 / 0.08);
+  color: #fff;
+  font-weight: 500;
+}
+
+.sidebar-link-active .sidebar-icon {
+  color: #dbe6fb;
+}
+
+.sidebar-link-active::before {
   content: '';
   position: absolute;
-  left: 0.75rem;
-  right: 0.75rem;
-  top: 50%;
-  height: 1px;
-  background: rgb(229 231 235);
-  opacity: 0;
-  transform: translateY(-50%);
-  transition: opacity 0.18s ease;
+  top: 10px;
+  left: -16px;
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: #dbe6fb;
+  box-shadow: 0 0 8px rgb(122 162 255 / 0.85);
 }
 
-.dark .sidebar-section-title::after {
-  background: rgb(55 65 81);
+.sidebar-link-collapsed {
+  justify-content: center;
+  gap: 0;
+  width: 44px;
+  height: 40px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0;
 }
 
-.sidebar-section-title-text-collapsed {
-  opacity: 0;
-  transform: translateX(-4px);
+.sidebar-link-collapsed.sidebar-link-active::before {
+  top: 11px;
+  left: -14px;
 }
 
-.sidebar-section-title-collapsed::after {
-  opacity: 1;
-  transition-delay: 0.08s;
+.sidebar-link-dim {
+  color: #7f8ca5;
+}
+
+.sidebar-children {
+  margin: 0 0 4px 21px;
+  padding-left: 8px;
+  border-left: 1px solid #1f2d48;
+}
+
+/* 收起的分组：不占高度、不可见、不可聚焦（inert），但仍参与侧栏的 max-content 宽度 */
+.sidebar-children--collapsed {
+  height: 0;
+  margin-bottom: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.sidebar-link-child {
+  height: 34px;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.sidebar-link-child.sidebar-link-active::before {
+  left: -25px;
+  top: 8px;
 }
 
 .sidebar-label {
   display: block;
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition:
-    max-width 0.2s ease,
-    opacity 0.12s ease,
-    transform 0.12s ease;
-  max-width: 12rem;
 }
 
 .sidebar-label-flex {
@@ -1092,11 +1283,44 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
-.sidebar-label-collapsed {
-  max-width: 0;
-  opacity: 0;
-  transform: translateX(-4px);
+/* ---- Vignette + footer ---- */
+.sidebar-vignette {
+  display: block;
+  flex: none;
+  /* 不参与侧栏的内容宽度；跟着侧栏宽，窄了从两边裁、宽了轻微放大 */
+  width: 0;
+  min-width: 100%;
+  height: 122px;
+  object-fit: cover;
+  object-position: center bottom;
   pointer-events: none;
+  user-select: none;
+}
+
+.sidebar--overlay .sidebar-vignette {
+  /* 抽屉比 248 宽：地面接着往右铺 */
+  width: 100%;
+  object-fit: none;
+  object-position: left top;
+  background: linear-gradient(to top, #0b1427 0 14px, #1f2d48 14px 16px, transparent 16px);
+}
+
+.sidebar-footer {
+  flex: none;
+  padding: 6px 16px 14px;
+  background: #0b1427;
+}
+
+.sidebar--rail .sidebar-footer {
+  padding: 6px 14px 14px;
+  background: transparent;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgb(5 11 24 / 0.55);
 }
 
 /* Custom SVG icon in sidebar: constrain size without overriding uploaded SVG colors */
@@ -1106,7 +1330,7 @@ onBeforeUnmount(() => {
 
 .sidebar-svg-icon :deep(svg) {
   display: block;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.125rem;
+  height: 1.125rem;
 }
 </style>

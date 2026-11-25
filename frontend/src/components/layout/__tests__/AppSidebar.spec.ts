@@ -90,3 +90,43 @@ describe('AppSidebar MCP entry', () => {
     expect(componentSource).not.toMatch(/path: '\/settings\/mcp'[^\n]*PluginIcon/)
   })
 })
+
+describe('AppSidebar v3 night sidebar', () => {
+  it('groups the user menu as 概览 / 调用 / 账户 / 设置 in that order', () => {
+    expect(componentSource).toContain("const NAV_GROUP_ORDER: NavGroupKey[] = ['overview', 'calls', 'account', 'settings']")
+    expect(componentSource).toMatch(/path: '\/dashboard'[^\n]*group: 'overview'/)
+    expect(componentSource).toMatch(/path: '\/keys'[^\n]*group: 'calls'/)
+    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*group: 'account'/)
+    expect(componentSource).toMatch(/path: '\/profile'[^\n]*group: 'settings'/)
+  })
+
+  it('marks the current item with a moon bar and blue glow, never gold', () => {
+    const active = componentSource.match(/\.sidebar-link-active::before\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(active).toContain('background: #dbe6fb;')
+    expect(active).toContain('rgb(122 162 255 / 0.85)')
+    expect(componentSource).not.toMatch(/#d4a84b|#e3b95e/i)
+  })
+
+  it('collapses to the icon rail on tablets and in the collapsed desktop state', () => {
+    expect(componentSource).toContain('const isRail = computed(() => (isTablet.value && !mobileOpen.value) || (isDesktop.value && sidebarCollapsed.value))')
+    expect(componentSource).toContain('const isHidden = computed(() => isPhone.value && !mobileOpen.value)')
+  })
+
+  it('no longer owns the theme toggle (it lives in the top bar)', () => {
+    expect(componentSource).not.toContain('toggleTheme')
+  })
+})
+
+describe('AppSidebar content-sized width', () => {
+  it('sizes the expanded sidebar to its content within 200–288px, leaving rail and overlay widths alone', () => {
+    expect(componentSource).toMatch(/\.sidebar--full \{\s*width: max-content;\s*min-width: 200px;\s*max-width: 288px;/)
+    expect(componentSource).toMatch(/\.sidebar--rail \{\s*width: 72px;/)
+    expect(componentSource).toMatch(/\.sidebar--overlay \{\s*width: min\(304px, 86vw\);\s*min-width: 0;\s*max-width: none;/)
+  })
+
+  it('keeps the vignette out of the intrinsic width and reports the measured width to the layout', () => {
+    expect(componentSource).toMatch(/\.sidebar-vignette \{[^}]*width: 0;\s*min-width: 100%;/)
+    expect(componentSource).toContain('consoleSidebarWidth.value =')
+    expect(componentSource).toContain('new ResizeObserver(')
+  })
+})

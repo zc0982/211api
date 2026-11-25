@@ -45,6 +45,15 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/payment/__tests__/SubscriptionPlanCard.spec.ts \
 	src/components/user/__tests__/UserPlatformQuotaCell.spec.ts \
 	src/components/user/dashboard/__tests__/UserDashboardStats.spec.ts \
+	src/components/user/dashboard/__tests__/UserDashboardOverview.spec.ts \
+	src/components/user/dashboard/__tests__/UserDashboardCharts.spec.ts \
+	src/composables/__tests__/useConsoleViewport.spec.ts \
+	src/components/layout/__tests__/AppSidebar.spec.ts \
+	src/components/layout/__tests__/AppSidebar.interaction.spec.ts \
+	src/components/layout/__tests__/AppHeader.spec.ts \
+	src/components/user/dashboard/__tests__/UserDashboardRecentUsage.spec.ts \
+	src/views/user/__tests__/DashboardView.spec.ts \
+	src/utils/__tests__/siteBillingMode.spec.ts \
 	src/constants/__tests__/platforms.spec.ts \
 	src/i18n/__tests__/opsLocaleKeys.spec.ts \
 	src/utils/__tests__/rechargeBonus.spec.ts \
