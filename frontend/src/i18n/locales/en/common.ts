@@ -196,6 +196,8 @@ export default {
     collapseSidebar: 'Collapse sidebar',
     expandSidebar: 'Expand sidebar',
     closeMenu: 'Close menu',
+    sidebarStudentLabel: 'Pixel student {name} at the {tool} desk. Click for the next one',
+    sidebarStudentTitle: '{name} · at the {tool} desk',
     balance: 'Balance',
     lightMode: 'Light Mode',
     darkMode: 'Dark Mode',

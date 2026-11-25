@@ -193,6 +193,7 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 - **图片**：一律 `<img>` + `image-rendering: pixelated`，宽高写死为 1x × 倍数，`decoding="async"`，`alt=""`；首屏不懒加载，页脚 `loading="lazy"`。
 - **角色精灵图**：设计仓库 `export/sprites/{hero,footer}/characters/` 的逐帧 PNG 由 `scripts/build-sprite-sheets.py <设计仓库>/export/sprites`（需 Pillow）打包，产物入库：
   - `assets/sprites/<场景>/actors-<n>.png`：每行一个角色，帧从左到右按 `kinds` 顺序（首屏 work、walk；页脚 work、walk、empty），每格为该场景最大帧尺寸、帧底边居中，格间 2px 透明间隔防串帧。行按「每张 ≤ 256 色」贪心分组，存为无损调色板 PNG（首屏 2 张、页脚 3 张，共约 71KB），且每张都大于 Vite 的 4KB 内联阈值，所以是独立文件、按需加载。
+  - 控制台侧栏专用的 Cursor、Pi（脚本 `EXTRA`，只有 hero 帧）排在首页 6 位之后并且总是另起一张（`hero/actors-3.png`），首页的图集逐字节不受影响；`sprites.generated.ts` 每个场景的 `home` 是首页要加载的图集编号，`useSpriteSheets` 只加载这些。见 `docs/spec/console-v3.md`「侧栏像素学子」。
   - `assets/sprites/<场景>/<角色>-<kind>-f1.png`：同格尺寸的第 1 帧静图，首屏渲染用（小于 4KB，内联进 JS）。
   - `sprites.generated.ts`：格尺寸、帧序和每个角色所在的图与行，脚本生成，不手改。
   - 设计仓库换帧后重跑脚本，核对 `sprites.generated.ts` 与 `motion.spec.ts`。
