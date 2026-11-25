@@ -261,6 +261,7 @@ const routes: RouteRecordRaw[] = [
     name: 'Affiliate',
     component: () => import('@/views/user/AffiliateView.vue'),
     meta: {
+      pageHeading: true,
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Affiliate',
@@ -308,6 +309,7 @@ const routes: RouteRecordRaw[] = [
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
     meta: {
+      pageHeading: true,
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Profile',

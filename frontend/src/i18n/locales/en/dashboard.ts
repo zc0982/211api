@@ -926,6 +926,8 @@ export default {
     totp: {
       title: 'Two-Factor Authentication (2FA)',
       description: 'Enhance account security with Google Authenticator or similar apps',
+      loadFailed: 'Failed to load two-factor authentication status. Please try again.',
+      retry: 'Retry',
       enabled: 'Enabled',
       enabledAt: 'Enabled at',
       notEnabled: 'Not Enabled',

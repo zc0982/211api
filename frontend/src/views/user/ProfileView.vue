@@ -2,9 +2,16 @@
   <AppLayout>
     <div
       data-testid="profile-shell"
-      class="mx-auto max-w-[950px] space-y-6"
+      class="console-data-page console-profile"
     >
+      <header class="console-page-heading">
+        <div>
+          <h1 class="page-title">{{ t('nav.profile') }}</h1>
+          <p class="page-description">{{ t('profile.description') }}</p>
+        </div>
+      </header>
       <ProfileInfoCard
+        console
         :user="user"
         :linuxdo-enabled="linuxdoOAuthEnabled"
         :dingtalk-enabled="dingtalkOAuthEnabled"
@@ -13,43 +20,46 @@
         :wechat-enabled="wechatOAuthEnabled"
         :wechat-open-enabled="wechatOAuthOpenEnabled"
         :wechat-mp-enabled="wechatOAuthMPEnabled"
-      />
-
-      <div
-        v-if="contactInfo"
-        class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
       >
-        <div class="flex items-center gap-4">
-          <div class="rounded-xl bg-primary-100 p-3 text-primary-600">
-            <Icon name="chat" size="lg" />
+        <template #settings>
+          <div
+            v-if="contactInfo"
+            class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
+          >
+            <div class="flex items-center gap-4">
+              <div class="rounded-xl bg-primary-100 p-3 text-primary-600">
+                <Icon name="chat" size="lg" />
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary-800 dark:text-primary-200">
+                  {{ t('common.contactSupport') }}
+                </h3>
+                <p class="text-sm font-medium">{{ contactInfo }}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <h3 class="font-semibold text-primary-800 dark:text-primary-200">
-              {{ t('common.contactSupport') }}
-            </h3>
-            <p class="text-sm font-medium">{{ contactInfo }}</p>
-          </div>
-        </div>
-      </div>
 
-      <ProfilePasswordForm />
+          <ProfilePasswordForm class="console-profile-password" />
+          <ProfileTotpCard class="console-profile-totp" />
+          <ProfilePasskeyCard :enabled="passkeyEnabled" class="console-profile-passkey" />
 
-      <ProfileBalanceNotifyCard
-        v-if="user && balanceLowNotifyEnabled"
-        :enabled="user.balance_notify_enabled ?? true"
-        :threshold="user.balance_notify_threshold"
-        :extra-emails="user.balance_notify_extra_emails ?? []"
-        :system-default-threshold="systemDefaultThreshold"
-        :user-email="user.email"
-      />
-
-      <ProfileTotpCard />
-      <ProfilePasskeyCard :enabled="passkeyEnabled" />
+          <ProfileBalanceNotifyCard
+            v-if="user && balanceLowNotifyEnabled"
+            :enabled="user.balance_notify_enabled ?? true"
+            :threshold="user.balance_notify_threshold"
+            :extra-emails="user.balance_notify_extra_emails ?? []"
+            :system-default-threshold="systemDefaultThreshold"
+            :user-email="user.email"
+          />
+        </template>
+      </ProfileInfoCard>
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
+import '@/styles/console-data-pages.css'
+import '@/styles/console-account-pages.css'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'
