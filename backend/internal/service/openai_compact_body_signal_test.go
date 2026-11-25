@@ -120,13 +120,24 @@ func TestWebSocketCompatibilityNormalizesTriggerAfterPairedOutputCleanup(t *test
 
 func TestNormalizeCompactionTriggerInputOrder_PrecheckKeepsContract(t *testing.T) {
 	plain := []byte(`{"model":"gpt-5","input":[{"type":"message","role":"user","content":"` + strings.Repeat("x", 4096) + `"}]}`)
-	allocs := testing.AllocsPerRun(10, func() {
-		got, changed, err := NormalizeCompactionTriggerInputOrder(plain)
-		if err != nil || changed || &got[0] != &plain[0] {
-			t.Fatal("body without a trigger must be returned unchanged")
-		}
-	})
-	require.Zero(t, allocs)
+	got, changed, err := NormalizeCompactionTriggerInputOrder(plain)
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.Same(t, &plain[0], &got[0], "body without a trigger must be returned unchanged")
+	// AllocsPerRun reads process-wide allocation counters; race
+	// instrumentation and other live goroutines contaminate the count.
+	// The non-race unit job still enforces the zero-allocation contract.
+	if raceDetectorEnabled {
+		t.Log("allocation contract is checked by the non-race unit job")
+	} else {
+		allocs := testing.AllocsPerRun(10, func() {
+			got, changed, err := NormalizeCompactionTriggerInputOrder(plain)
+			if err != nil || changed || &got[0] != &plain[0] {
+				t.Fatal("body without a trigger must be returned unchanged")
+			}
+		})
+		require.Zero(t, allocs)
+	}
 
 	for _, invalid := range []string{`{"input":[`, `[{"type":"message"}]`, `{"input":[]} {}`} {
 		_, _, err := NormalizeCompactionTriggerInputOrder([]byte(invalid))

@@ -76,6 +76,15 @@ func signedThinkingHistoryBody() []byte {
 
 func TestFilterThinkingBlocksSignedHistorySkipsDecode(t *testing.T) {
 	body := signedThinkingHistoryBody()
+	got := filterThinkingBlocksInternal(body, false)
+	require.Same(t, &body[0], &got[0], "valid signed history must be returned unchanged")
+	if raceDetectorEnabled {
+		// AllocsPerRun reads process-wide allocation counters; race
+		// instrumentation and other live goroutines contaminate the count.
+		// The non-race unit job still enforces the allocation contract.
+		t.Log("allocation contract is checked by the non-race unit job")
+		return
+	}
 	allocs := testing.AllocsPerRun(5, func() {
 		got := filterThinkingBlocksInternal(body, false)
 		if &got[0] != &body[0] {

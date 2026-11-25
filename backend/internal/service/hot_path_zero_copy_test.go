@@ -207,6 +207,13 @@ func TestDeleteJSONPathIfPresent(t *testing.T) {
 	}
 	require.Equal(t, `{"model":"m","stream":true,"messages":[]}`, string(body))
 
+	if raceDetectorEnabled {
+		// AllocsPerRun reads process-wide allocation counters; race
+		// instrumentation and other live goroutines contaminate the count.
+		// The non-race unit job still enforces the allocation contract.
+		t.Log("allocation contract is checked by the non-race unit job")
+		return
+	}
 	allocs := testing.AllocsPerRun(20, func() {
 		_, _ = deleteJSONPathIfPresent(body, "provider")
 	})
