@@ -3,6 +3,7 @@
     v-if="assets"
     type="button"
     class="sidebar-student"
+    :tabindex="active ? undefined : -1"
     :data-student="assets.id"
     :data-animated="animated ? 'true' : 'false'"
     :data-running="running ? 'true' : 'false'"
@@ -54,6 +55,7 @@ import {
  * 只按需加载当次学子的第 1 帧静图、道具（各自是很小的异步模块）和所在那张图集；
  * 图集解码完成前显示静图。`active` 为 false（手机抽屉关闭）、标签页隐藏、
  * 或系统要求减少动态效果时帧时钟停住（后者停在第 1 帧静图，也不加载图集）。
+ * 手机抽屉关闭时侧栏整体 aria-hidden 且移出屏幕，按钮同时退出 Tab 顺序（tabindex=-1）。
  */
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 

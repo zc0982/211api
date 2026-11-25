@@ -226,12 +226,15 @@ describe('SidebarStudent', () => {
   it('pauses the frame clock while inactive (closed drawer) and resumes when shown', async () => {
     const wrapper = await mountStudent({ active: false })
     expect(wrapper.get('button').attributes('data-running')).toBe('false')
+    // 抽屉关着时侧栏 aria-hidden 且在屏幕外：按钮不能被 Tab 聚焦
+    expect(wrapper.get('button').attributes('tabindex')).toBe('-1')
     // 抽屉关着时连图集都不取，停在静图
     expect(decodeCalls).toHaveLength(0)
     expect(wrapper.get('.bh-actor img').attributes('src')).toMatch(/-work-f1\.png/)
     await wrapper.setProps({ active: true })
     await vi.waitFor(() => expect(wrapper.get('button').attributes('data-running')).toBe('true'))
     expect(decodeCalls).toHaveLength(1)
+    expect(wrapper.get('button').attributes('tabindex')).toBeUndefined()
     await wrapper.setProps({ active: false })
     expect(wrapper.get('button').attributes('data-running')).toBe('false')
     const frozen = cell(wrapper)
