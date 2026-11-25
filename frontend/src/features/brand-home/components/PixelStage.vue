@@ -1,7 +1,7 @@
 <template>
   <div ref="stageEl" class="bh-stage" :class="{ 'is-fit': fit }" :style="stageStyle" aria-hidden="true">
     <div class="bh-stage__world" :style="{ width: `${width}px`, height: `${worldHeight}px`, transform: worldTransform }">
-      <slot :height="worldHeight" />
+      <slot :height="worldHeight" :viewport="viewport" :scale="scale" />
     </div>
   </div>
 </template>
@@ -70,6 +70,8 @@ const panRuns = computed(() => panEnabled.value && overflow.value > 0.5)
 const { time } = useSceneClock(stageEl, panRuns)
 
 const offset = computed(() => (panRuns.value ? panAt(time.value, overflow.value) : 0))
+/** Visible horizontal bounds in world pixels, shared with moving labels at camera edges. */
+const viewport = computed(() => ({ left: offset.value / scale.value, right: (offset.value + stageWidth.value) / scale.value }))
 const worldTransform = computed(() => `translateX(${-offset.value}px) scale(${scale.value})`)
 
 let observer: ResizeObserver | null = null
