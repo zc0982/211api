@@ -87,6 +87,14 @@ func TestModelMappingSignature_DoesNotAllocate(t *testing.T) {
 		"gpt-5":         "gpt-5-upstream",
 		"non-string":    3.14,
 	}
+	require.NotZero(t, modelMappingSignature(mapping))
+	if raceDetectorEnabled {
+		// AllocsPerRun reads process-wide allocation counters; race
+		// instrumentation and other live goroutines contaminate the count.
+		// The non-race unit job still enforces the allocation contract.
+		t.Log("allocation contract is checked by the non-race unit job")
+		return
+	}
 	var sink uint64
 	allocs := testing.AllocsPerRun(1000, func() {
 		sink += modelMappingSignature(mapping)
