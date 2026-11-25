@@ -73,16 +73,17 @@ describe('ProfileView', () => {
     })
   })
 
-  it('renders the simplified single-column profile shell without separate stat cards', async () => {
+  it('places the existing settings forms inside the Console profile slot', async () => {
     const wrapper = mount(ProfileView, {
       global: {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           StatCard: { template: '<div class="stat-card" />' },
-          ProfileInfoCard: { template: '<div data-testid="profile-info-card" />' },
+          ProfileInfoCard: { template: '<div data-testid="profile-info-card"><slot name="settings" /></div>' },
           ProfileBalanceNotifyCard: { template: '<div data-testid="profile-balance-notify-card" />' },
           ProfilePasswordForm: { template: '<div data-testid="profile-password-form" />' },
           ProfileTotpCard: { template: '<div data-testid="profile-totp-card" />' },
+          ProfilePasskeyCard: { template: '<div data-testid="profile-passkey-card" />' },
           Icon: true
         }
       }
@@ -95,5 +96,10 @@ describe('ProfileView', () => {
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-info-card')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-password-form')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-totp-card')
+    expect(wrapper.findAll('h1')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="profile-info-card"]').attributes('console')).toBeDefined()
+    expect(wrapper.get('[data-testid="profile-info-card"]').html()).toContain('profile-passkey-card')
+    expect(refreshUserMock).toHaveBeenCalledOnce()
+    expect(fetchPublicSettingsMock).toHaveBeenCalledOnce()
   })
 })
