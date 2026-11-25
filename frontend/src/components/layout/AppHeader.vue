@@ -33,8 +33,8 @@
 
       <!-- Right: Announcements + Docs + Plaza + Language + Theme + Subscriptions + Balance + Account -->
       <div class="flex min-w-0 items-center gap-1 sm:gap-2 xl:gap-3.5">
-        <!-- Announcement Bell（手机夜空顶栏里隐藏入口，公告弹窗不受影响） -->
-        <div v-if="user" class="hidden md:flex">
+        <!-- Announcement Bell：手机夜空顶栏也保留，静默公告只能从这里打开 -->
+        <div v-if="user" class="console-bell flex">
           <AnnouncementBell />
         </div>
 
@@ -274,7 +274,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { resolveBalancePurchaseAction, resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useConsoleViewport } from '@/composables/useConsoleViewport'
 
 const router = useRouter()
@@ -289,8 +289,14 @@ const user = computed(() => authStore.user)
 const { isPhone } = useConsoleViewport()
 const homePath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-// 顶栏余额旁的「充值」：开启支付、非简易模式才显示
-const showRechargeButton = computed(() => isFeatureFlagEnabled(FeatureFlags.payment) && !authStore.isSimpleMode)
+// 顶栏余额旁的「充值」：开启支付、非简易模式、且没关余额充值（仅订阅站点走侧栏的「订阅」）才显示
+const showRechargeButton = computed(
+  () =>
+    resolveBalancePurchaseAction(appStore.cachedPublicSettings, {
+      paymentEnabled: isFeatureFlagEnabled(FeatureFlags.payment),
+      simpleMode: authStore.isSimpleMode,
+    }) === 'recharge',
+)
 
 // 主题切换（原在侧栏底部，v3 移到顶栏）；启动时的主题由 main.ts initThemeClass 决定
 const isDark = ref(typeof document !== 'undefined' && document.documentElement.classList.contains('dark'))
@@ -460,6 +466,17 @@ onBeforeUnmount(() => {
   background-repeat: no-repeat;
   background-size: 390px 140px, 100% 100%;
   backdrop-filter: none;
+}
+
+.console-topbar--night .console-bell button {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: #dbe6fb;
+}
+
+.console-topbar--night .console-bell button:hover {
+  background: rgb(219 230 251 / 0.08);
 }
 
 .console-topbar--night .console-topbar__row {

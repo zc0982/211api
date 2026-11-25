@@ -25,9 +25,10 @@
           :balance="user?.balance || 0"
           :stats="stats"
           :platform-quotas="platformQuotas"
-          :last-call="recentUsage[0] ?? null"
+          :last-call="lastCall"
+          :last-call-state="lastCallState"
           :is-simple="authStore.isSimpleMode"
-          :payment-enabled="paymentEnabled"
+          :purchase-action="purchaseAction"
         />
         <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" :platform-quotas="platformQuotas" />
         <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="loadCharts" @granularityChange="loadCharts" @refresh="refreshAll" />
@@ -49,13 +50,21 @@ import UserDashboardOverview from '@/components/user/dashboard/UserDashboardOver
 import Icon from '@/components/icons/Icon.vue'
 import { useI18n } from 'vue-i18n'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { resolveBalancePurchaseAction } from '@/utils/siteBillingMode'
+import { useAppStore } from '@/stores/app'
 import type { UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
 import { getMyPlatformQuotas } from '@/api/user'
 import { formatDateLocalInput } from '@/utils/format'
 
 const authStore = useAuthStore(); const user = computed(() => authStore.user)
 const { t } = useI18n()
-const paymentEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.payment))
+const appStore = useAppStore()
+const purchaseAction = computed(() =>
+  resolveBalancePurchaseAction(appStore.cachedPublicSettings, {
+    paymentEnabled: isFeatureFlagEnabled(FeatureFlags.payment),
+    simpleMode: authStore.isSimpleMode
+  })
+)
 // 问候语按本地时间：5–12 早上、12–18 下午、其余晚上
 const greeting = computed(() => {
   const name = user.value?.username || user.value?.email?.split('@')[0] || ''
@@ -72,6 +81,8 @@ const todaySummary = computed(() =>
 const stats = ref<UserStatsType | null>(null); const loading = ref(false); const loadingUsage = ref(false); const loadingCharts = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const modelStats = ref<ModelStat[]>([]); const recentUsage = ref<UsageLog[]>([])
 const platformQuotas = ref<PlatformQuotaItem[] | null>(null)
+// 最近一次调用单独查：不受趋势图日期影响，按 created_at 倒序取 1 条
+const lastCall = ref<UsageLog | null>(null); const lastCallState = ref<'loading' | 'error' | 'ready'>('loading')
 
 const startDate = ref(formatDateLocalInput(new Date(Date.now() - 6 * 86400000))); const endDate = ref(formatDateLocalInput(new Date())); const granularity = ref('day')
 
@@ -79,7 +90,18 @@ const loadStats = async () => { loading.value = true; try { await authStore.refr
 const loadCharts = async () => { loadingCharts.value = true; try { const res = await Promise.all([usageAPI.getDashboardTrend({ start_date: startDate.value, end_date: endDate.value, granularity: granularity.value as any }), usageAPI.getDashboardModels({ start_date: startDate.value, end_date: endDate.value })]); trendData.value = res[0].trend || []; modelStats.value = res[1].models || [] } catch (error) { console.error('Failed to load charts:', error) } finally { loadingCharts.value = false } }
 const loadRecent = async () => { loadingUsage.value = true; try { const res = await usageAPI.getByDateRange(startDate.value, endDate.value); recentUsage.value = res.items.slice(0, 5) } catch (error) { console.error('Failed to load recent usage:', error) } finally { loadingUsage.value = false } }
 const loadPlatformQuotas = async () => { try { const data = await getMyPlatformQuotas(); platformQuotas.value = data.platform_quotas ?? [] } catch (error) { console.warn('Failed to load platform quotas:', error); platformQuotas.value = [] } }
-const refreshAll = () => { loadStats(); loadCharts(); loadRecent(); loadPlatformQuotas() }
+const loadLastCall = async () => {
+  if (!lastCall.value) lastCallState.value = 'loading'
+  try {
+    const res = await usageAPI.query({ page: 1, page_size: 1, sort_by: 'created_at', sort_order: 'desc' })
+    lastCall.value = res.items[0] ?? null
+    lastCallState.value = 'ready'
+  } catch (error) {
+    console.error('Failed to load last call:', error)
+    if (!lastCall.value) lastCallState.value = 'error'
+  }
+}
+const refreshAll = () => { loadStats(); loadCharts(); loadRecent(); loadLastCall(); loadPlatformQuotas() }
 
 onMounted(() => { refreshAll() })
 </script>

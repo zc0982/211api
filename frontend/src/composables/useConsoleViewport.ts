@@ -48,3 +48,23 @@ export function useConsoleViewport() {
     isDesktop: computed(() => viewport.value === 'desktop')
   }
 }
+
+/**
+ * 桌面侧栏的实测宽度（AppSidebar 用 ResizeObserver 写入，AppLayout 读来定主内容区的左边距）。
+ * 展开态按内容自适应（`width: max-content` + min/max），所以不能再写死 248；
+ * 没量到时（首帧、jsdom）回退到 248 / 72。
+ */
+export const consoleSidebarWidth = ref<number | null>(null)
+
+export const CONSOLE_SIDEBAR_FALLBACK = { full: 248, rail: 72 } as const
+
+export function resolveConsoleMainOffset(options: {
+  viewport: ConsoleViewport
+  collapsed: boolean
+  measured: number | null
+}): number {
+  if (options.viewport === 'phone') return 0
+  if (options.viewport === 'tablet') return CONSOLE_SIDEBAR_FALLBACK.rail
+  if (options.measured != null && options.measured > 0) return options.measured
+  return options.collapsed ? CONSOLE_SIDEBAR_FALLBACK.rail : CONSOLE_SIDEBAR_FALLBACK.full
+}

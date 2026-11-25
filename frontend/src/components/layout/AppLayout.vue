@@ -3,8 +3,8 @@
     <!-- Sidebar（夜空侧栏 / 图标栏 / 抽屉，见 AppSidebar.vue） -->
     <AppSidebar />
 
-    <!-- Main Content Area: 248 / 72 / 0，随 useConsoleViewport 的三档宽度 -->
-    <div class="relative min-h-screen transition-[margin] duration-300" :style="{ marginLeft: mainOffset }">
+    <!-- Main Content Area：桌面跟随侧栏实测宽度（展开态按内容自适应），平板 72、手机 0 -->
+    <div class="relative min-h-screen" :style="{ marginLeft: mainOffset }">
       <!-- Header -->
       <AppHeader />
 
@@ -25,17 +25,17 @@ import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
-import { useConsoleViewport } from '@/composables/useConsoleViewport'
+import { consoleSidebarWidth, resolveConsoleMainOffset, useConsoleViewport } from '@/composables/useConsoleViewport'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const { isPhone, isTablet } = useConsoleViewport()
-const mainOffset = computed(() => {
-  if (isPhone.value) return '0px'
-  if (isTablet.value || sidebarCollapsed.value) return '72px'
-  return '248px'
-})
+const { viewport } = useConsoleViewport()
+// 侧栏宽度变化（含收起 / 展开动画的每一帧）由 ResizeObserver 写入，主内容区逐帧跟随，不另设过渡
+const mainOffset = computed(
+  () =>
+    `${resolveConsoleMainOffset({ viewport: viewport.value, collapsed: sidebarCollapsed.value, measured: consoleSidebarWidth.value })}px`
+)
 const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 const { replayTour } = useOnboardingTour({

@@ -1,10 +1,11 @@
 <template>
   <!--
     v3「星链」夜空侧栏（Figma「211API · Console v3」C0 / C1 / C13–C15，DESIGN.md · Console）：
-    桌面 ≥1280 为 248px 侧栏（可收成 72px 图标栏），平板 768–1279 固定为图标栏、展开按钮以浮层打开整栏，
+    桌面 ≥1280 为按内容自适应宽度的侧栏（min 200 / max 288，可收成 72px 图标栏），平板 768–1279 固定为图标栏、展开按钮以浮层打开整栏，
     手机 <768 为 304px 抽屉。当前项 = 月白 8% 底 + 左侧 3px 月白竖条（蓝色外发光），不用金色。
   -->
   <aside
+    ref="sidebarRef"
     class="sidebar"
     :class="[
       isRail ? 'sidebar--rail' : 'sidebar--full',
@@ -70,8 +71,14 @@
                   />
                 </span>
               </button>
-              <!-- Children -->
-              <div v-if="!isRail && isGroupExpanded(item)" class="sidebar-children">
+              <!-- Children：收起的分组也留在 DOM（折叠 + inert），侧栏宽度按全部菜单算，展开分组时不跳宽 -->
+              <div
+                v-if="!isRail"
+                class="sidebar-children"
+                :class="{ 'sidebar-children--collapsed': !isGroupExpanded(item) }"
+                :inert="!isGroupExpanded(item) || undefined"
+                :aria-hidden="isGroupExpanded(item) ? undefined : 'true'"
+              >
                 <router-link
                   v-for="child in item.children"
                   :key="child.path"
@@ -206,7 +213,7 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
-import { useConsoleViewport } from '@/composables/useConsoleViewport'
+import { consoleSidebarWidth, useConsoleViewport } from '@/composables/useConsoleViewport'
 import vignetteUrl from './assets/sidebar-vignette.png'
 
 interface NavItem {
@@ -264,7 +271,16 @@ const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
+const sidebarRef = ref<HTMLElement | null>(null)
 const { isPhone, isTablet, isDesktop } = useConsoleViewport()
+
+// 桌面侧栏宽度（展开态 max-content，收起 72，动画中逐帧）同步给 AppLayout 定主内容区左边距
+let sidebarResizeObserver: ResizeObserver | null = null
+function syncSidebarWidth(width?: number) {
+  if (!isDesktop.value) return
+  const w = width ?? sidebarRef.value?.getBoundingClientRect().width
+  if (w && w > 0) consoleSidebarWidth.value = Math.round(w * 100) / 100
+}
 
 // 图标栏：平板默认图标栏（展开时以浮层显示整栏），桌面由用户收起；手机始终是整栏抽屉。
 const isOverlay = computed(() => mobileOpen.value && !isDesktop.value)
@@ -945,7 +961,8 @@ function toggleGroup(item: NavItem) {
  *   (router-link semantics) and ensure the group is expanded.
  */
 function handleGroupClick(item: NavItem) {
-  if (sidebarCollapsed.value) return
+  // 与子菜单渲染同一判断：图标栏里不展开分组；桌面收起后切到平板再打开浮层时 isRail 为 false，应能展开
+  if (isRail.value) return
   if (item.expandOnly) {
     toggleGroup(item)
     return
@@ -968,7 +985,17 @@ watch(
   { immediate: true }
 )
 
+watch(isDesktop, () => void nextTick(() => syncSidebarWidth()))
+
 onMounted(() => {
+  if (sidebarRef.value && typeof ResizeObserver !== 'undefined') {
+    sidebarResizeObserver = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0]
+      syncSidebarWidth(box ? box.inlineSize : entries[0]?.contentRect.width)
+    })
+    sidebarResizeObserver.observe(sidebarRef.value)
+  }
+  syncSidebarWidth()
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
@@ -984,6 +1011,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  sidebarResizeObserver?.disconnect()
+  sidebarResizeObserver = null
   if (sidebarNavRef.value) {
     appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }
@@ -993,11 +1022,12 @@ onBeforeUnmount(() => {
 <style scoped>
 /*
  * v3 夜空侧栏。数值取自 Figma「211API · Console v3」C0 脚本（L.sidebar / L.rail / L.navItem）：
- * 248 宽、夜空渐变 #050b18 → #091430 → #13244b、种子星空、导航项高 38 胶囊、分组标题 12px #7f8ca5。
+ * 展开态宽度按内容自适应（Figma 为 248，实际取最长菜单 / 品牌区 / 底栏所需，限定 200–288）、夜空渐变 #050b18 → #091430 → #13244b、种子星空、导航项高 38 胶囊、分组标题 12px #7f8ca5。
  * 深色主题只多一条右侧描边，写在 style.css 的全局 .sidebar 里（scoped 的 :global(.dark) 会编译成光秃的 .dark {}）。
  */
 .sidebar {
-  width: 248px;
+  /* 收起 / 展开时宽度可在 72 ↔ max-content 之间过渡（不支持的浏览器直接切换） */
+  interpolate-size: allow-keywords;
   color: #aab6cb;
   background-color: #091430;
   background-image:
@@ -1005,6 +1035,12 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, #050b18 0%, #091430 55%, #13244b 100%);
   background-repeat: no-repeat;
   background-size: 248px 1800px, 100% 100%;
+}
+
+.sidebar--full {
+  width: max-content;
+  min-width: 200px;
+  max-width: 288px;
 }
 
 .sidebar--rail {
@@ -1017,6 +1053,8 @@ onBeforeUnmount(() => {
 
 .sidebar--overlay {
   width: min(304px, 86vw);
+  min-width: 0;
+  max-width: none;
   box-shadow: 0 18px 40px -14px rgb(0 0 0 / 0.55);
 }
 
@@ -1210,6 +1248,14 @@ onBeforeUnmount(() => {
   border-left: 1px solid #1f2d48;
 }
 
+/* 收起的分组：不占高度、不可见、不可聚焦（inert），但仍参与侧栏的 max-content 宽度 */
+.sidebar-children--collapsed {
+  height: 0;
+  margin-bottom: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
 .sidebar-link-child {
   height: 34px;
   gap: 10px;
@@ -1241,8 +1287,12 @@ onBeforeUnmount(() => {
 .sidebar-vignette {
   display: block;
   flex: none;
-  width: 248px;
+  /* 不参与侧栏的内容宽度；跟着侧栏宽，窄了从两边裁、宽了轻微放大 */
+  width: 0;
+  min-width: 100%;
   height: 122px;
+  object-fit: cover;
+  object-position: center bottom;
   pointer-events: none;
   user-select: none;
 }

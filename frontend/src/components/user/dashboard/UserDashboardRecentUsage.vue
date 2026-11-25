@@ -31,7 +31,6 @@
               <th>{{ t('dashboard.recentTable.tokens') }}</th>
               <th>{{ t('dashboard.recentTable.duration') }}</th>
               <th>{{ t('dashboard.recentTable.cost') }}</th>
-              <th>{{ t('dashboard.recentTable.status') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -41,13 +40,13 @@
                 <span class="inline-flex max-w-[13rem] items-center gap-2">
                   <ModelIcon :model="log.model" size="16px" />
                   <span class="truncate font-mono text-gray-900 dark:text-dark-100" :title="log.model">{{ log.model }}</span>
+                  <span v-if="isPolicyBlockedUsage(log)" class="badge badge-warning flex-none" data-testid="recent-usage-blocked">{{ t('dashboard.overview.blocked') }}</span>
                 </span>
               </td>
               <td class="max-w-[8rem] truncate text-gray-600 dark:text-dark-300">{{ log.api_key?.name || `#${log.api_key_id}` }}</td>
               <td class="font-mono text-gray-900 dark:text-dark-100">{{ formatInt(log.input_tokens) }} / {{ formatInt(log.output_tokens) }}</td>
               <td class="font-mono text-gray-900 dark:text-dark-100">{{ log.duration_ms != null ? formatDuration(log.duration_ms) : '-' }}</td>
               <td class="font-mono text-star-bronze dark:text-star-bronze-night" :title="`${t('dashboard.standard')} $${formatCost(log.total_cost)}`">${{ formatCost(log.actual_cost) }}</td>
-              <td><span class="badge badge-success font-mono"><i class="status-dot"></i>200 OK</span></td>
             </tr>
           </tbody>
         </table>
@@ -58,7 +57,10 @@
         <li v-for="log in data" :key="log.id" class="recent-item" data-testid="recent-usage-item">
           <ModelIcon :model="log.model" size="18px" />
           <div class="min-w-0 flex-1">
-            <p class="truncate font-mono text-[13px] text-gray-900 dark:text-dark-100">{{ log.model }}</p>
+            <p class="flex min-w-0 items-center gap-1.5">
+              <span class="truncate font-mono text-[13px] text-gray-900 dark:text-dark-100">{{ log.model }}</span>
+              <span v-if="isPolicyBlockedUsage(log)" class="badge badge-warning flex-none" data-testid="recent-usage-blocked">{{ t('dashboard.overview.blocked') }}</span>
+            </p>
             <p class="mt-0.5 truncate font-mono text-[11px] text-gray-500 dark:text-dark-400">
               {{ formatClock(log.created_at) }} · {{ formatInt(log.input_tokens) }} / {{ formatInt(log.output_tokens) }}
             </p>
@@ -77,6 +79,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import { formatDateTime } from '@/utils/format'
 import type { UsageLog } from '@/types'
+import { isPolicyBlockedUsage } from './usageStatus'
 
 defineProps<{
   data: UsageLog[]
@@ -130,14 +133,6 @@ function formatClock(iso: string): string {
 
 .recent-table tbody tr:last-child td {
   border-bottom: 0;
-}
-
-.status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
 }
 
 .recent-item {

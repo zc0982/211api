@@ -48,3 +48,19 @@ export function billingModeToSettings(mode: SiteBillingMode): Required<BillingMo
       return { subscription_enabled: true, payment_balance_disabled: false }
   }
 }
+
+/** 余额旁的购买入口（顶栏余额胶囊、仪表盘余额卡共用）。 */
+export type BalancePurchaseAction = 'recharge' | 'subscribe' | null
+
+/**
+ * 支付关闭或简易模式不给入口；关闭了余额充值（仅订阅站点）时 /purchase 没有充值标签，只能给「订阅」，
+ * 订阅也关了就不给入口。
+ */
+export function resolveBalancePurchaseAction(
+  settings: BillingModeSettings | null | undefined,
+  options: { paymentEnabled: boolean; simpleMode: boolean },
+): BalancePurchaseAction {
+  if (!options.paymentEnabled || options.simpleMode) return null
+  if (settings?.payment_balance_disabled !== true) return 'recharge'
+  return resolveSiteBillingMode(settings) === 'subscription_only' ? 'subscribe' : null
+}

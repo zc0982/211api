@@ -116,3 +116,17 @@ describe('AppSidebar v3 night sidebar', () => {
     expect(componentSource).not.toContain('toggleTheme')
   })
 })
+
+describe('AppSidebar content-sized width', () => {
+  it('sizes the expanded sidebar to its content within 200–288px, leaving rail and overlay widths alone', () => {
+    expect(componentSource).toMatch(/\.sidebar--full \{\s*width: max-content;\s*min-width: 200px;\s*max-width: 288px;/)
+    expect(componentSource).toMatch(/\.sidebar--rail \{\s*width: 72px;/)
+    expect(componentSource).toMatch(/\.sidebar--overlay \{\s*width: min\(304px, 86vw\);\s*min-width: 0;\s*max-width: none;/)
+  })
+
+  it('keeps the vignette out of the intrinsic width and reports the measured width to the layout', () => {
+    expect(componentSource).toMatch(/\.sidebar-vignette \{[^}]*width: 0;\s*min-width: 100%;/)
+    expect(componentSource).toContain('consoleSidebarWidth.value =')
+    expect(componentSource).toContain('new ResizeObserver(')
+  })
+})

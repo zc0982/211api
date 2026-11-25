@@ -19,9 +19,9 @@
         {{ t('dashboard.overview.keys', { total: stats.total_api_keys, active: stats.active_api_keys }) }}
       </p>
       <div v-if="!isSimple" class="mt-2 flex flex-wrap gap-2">
-        <router-link v-if="paymentEnabled" to="/purchase" class="night-btn night-btn--moon">
+        <router-link v-if="purchaseAction" to="/purchase" class="night-btn night-btn--moon" data-testid="overview-purchase">
           <Icon name="creditCard" size="xs" />
-          {{ t('dashboard.overview.recharge') }}
+          {{ purchaseAction === 'subscribe' ? t('dashboard.overview.subscribe') : t('dashboard.overview.recharge') }}
         </router-link>
         <router-link to="/redeem" class="night-btn night-btn--ghost">
           {{ t('dashboard.overview.redeem') }}
@@ -88,7 +88,14 @@
         <router-link to="/usage" class="night-link ml-auto">{{ t('dashboard.overview.viewUsage') }} →</router-link>
       </div>
 
-      <template v-if="lastCall">
+      <div v-if="lastCallState === 'loading'" class="mt-3" data-testid="last-call-loading">
+        <p class="text-sm text-[#7f8ca5]">{{ t('dashboard.overview.lastCallLoading') }}</p>
+      </div>
+      <div v-else-if="lastCallState === 'error'" class="mt-3" data-testid="last-call-error">
+        <p class="text-sm font-medium text-[#e9eef8]">{{ t('dashboard.overview.lastCallError') }}</p>
+        <p class="mt-1.5 text-xs leading-5 text-[#7f8ca5]">{{ t('dashboard.overview.lastCallErrorHint') }}</p>
+      </div>
+      <template v-else-if="lastCall">
         <div class="trace" data-testid="last-call-trace">
           <span class="trace__moon" aria-hidden="true">
             <svg viewBox="240 184 565 762" width="17" height="23">
@@ -106,7 +113,7 @@
           </span>
         </div>
         <div class="mt-3.5 flex flex-wrap items-center gap-2.5">
-          <span class="night-badge"><i></i>200 OK</span>
+          <span v-if="isPolicyBlockedUsage(lastCall)" class="night-badge night-badge--warn" data-testid="last-call-blocked">{{ t('dashboard.overview.blocked') }}</span>
           <span class="truncate font-mono text-xs text-[#7f8ca5]">{{ lastCall.request_id }} · {{ formatClock(lastCall.created_at) }}</span>
         </div>
         <p class="mt-2.5 font-mono text-xs text-[#aab6cb]">
@@ -131,14 +138,18 @@ import ModelIcon from '@/components/common/ModelIcon.vue'
 import type { UserDashboardStats } from '@/api/usage'
 import type { PlatformQuotaItem, UsageLog } from '@/types'
 import { PLATFORM_LABELS } from './platformLabels'
+import { isPolicyBlockedUsage } from './usageStatus'
 
 const props = defineProps<{
   balance: number
   stats: UserDashboardStats | null
   platformQuotas?: PlatformQuotaItem[] | null
   lastCall?: UsageLog | null
+  /** 最近一次调用的读取状态：加载中 / 失败 / 已读取（lastCall 为空才是真的没有调用） */
+  lastCallState?: 'loading' | 'error' | 'ready'
   isSimple: boolean
-  paymentEnabled: boolean
+  /** 余额卡的购买入口：充值余额、只能订阅，或不显示 */
+  purchaseAction: 'recharge' | 'subscribe' | null
 }>()
 
 const { t } = useI18n()
@@ -449,11 +460,10 @@ function formatReset(iso: string): string {
   line-height: 16px;
 }
 
-.night-badge i {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #3dd68c;
+.night-badge--warn {
+  background: rgb(236 201 120 / 0.12);
+  color: #ecc978;
+  font-family: inherit;
 }
 
 /* 深色主题：夜空卡补 1px line 描边（:global(.dark) 不能写在 scoped 里，见 style.css） */

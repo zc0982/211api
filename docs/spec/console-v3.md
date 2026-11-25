@@ -31,12 +31,16 @@
 
 | 档位 | 侧栏 | 顶栏 | 内容区边距 |
 |---|---|---|---|
-| 桌面 ≥ 1280 | 248px 夜空侧栏，可收成 72px 图标栏（`appStore.sidebarCollapsed`） | 64px 暖纸底 + 底线 | 28 40 56 |
+| 桌面 ≥ 1280 | 夜空侧栏，宽度按内容自适应（200–288px，Figma 为 248），可收成 72px 图标栏（`appStore.sidebarCollapsed`） | 64px 暖纸底 + 底线 | 28 40 56 |
 | 平板 768–1279 | 固定 72px 图标栏；底部「展开」以浮层打开整栏（复用 `appStore.mobileOpen`） | 同上，左右 32 | 24 32 48 |
 | 手机 < 768 | 304px 抽屉（`mobileOpen`），带遮罩和关闭按钮 | 52px 夜空顶栏：菜单、星狐横版、余额、头像 | 20 16 36 |
 
 - **侧栏**（`AppSidebar.vue`）：夜空渐变 `#050b18 → #091430 → #13244b` + 种子星空（`components/layout/assets/*-stars.svg`，与 Figma 同一种子）；顶部星狐 + 白色站点名（后台上传了标志则垫白底）；用户菜单按 概览 / 调用 / 账户 / 设置 分组（`NavItem.group`），图标栏里组之间用短横线；当前项月白 8% 底 + 左侧 3px 月白竖条、蓝色外发光，不用金色；底部像素「学院一角」（`assets/sidebar-vignette.png`，从 Figma 节点导出 @2x）和收起按钮。管理员菜单不分组，样式相同。
-- **顶栏**（`AppHeader.vue`）：左侧页面标题；右侧公告、文档、模型广场、语言、主题切换（从侧栏移来，仍读写 `localStorage.theme`）、订阅进度、余额胶囊（余额 + 等宽金额 + 「充值」，支付开启且非简易模式才有）、账户菜单。顶栏样式写在非 scoped 的 `<style>` 里，类名带 `console-` 前缀（scoped 里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`）。
+- **顶栏**（`AppHeader.vue`）：左侧页面标题；右侧公告、文档、模型广场、语言、主题切换（从侧栏移来，仍读写 `localStorage.theme`）、订阅进度、余额胶囊（余额 + 等宽金额 + 「充值」）、账户菜单。手机夜空顶栏也保留公告铃铛：后端默认公告是 `silent`，不自动弹出，铃铛是唯一入口。
+- **余额旁的购买入口**统一用 `utils/siteBillingMode.ts` 的 `resolveBalancePurchaseAction`：支付关闭或简易模式不给；关了余额充值（`payment_balance_disabled`，仅订阅站点）时 `/purchase` 没有充值标签，顶栏不显示「充值」，仪表盘余额卡改成「订阅」；订阅也关了就都不给。
+- **侧栏宽度**：展开态 `.sidebar--full` 为 `width: max-content`，`min-width: 200px`、`max-width: 288px`，取最长菜单项 / 品牌区（Logo + 站点名 + 版本号）/ 底栏所需，中英文、管理员 / 用户菜单各自贴合；收起的分组子菜单仍留在 DOM（折叠 + `inert`），所以宽度按全部菜单算，展开分组不跳宽。像素插画 `width: 0; min-width: 100%` 不参与宽度。`.sidebar--rail` 72、`.sidebar--overlay` `min(304px, 86vw)` 不变。
+- **主内容区左边距**跟随侧栏实测宽度：`AppSidebar` 用 `ResizeObserver` 写 `consoleSidebarWidth`（`useConsoleViewport.ts`），`AppLayout` 经 `resolveConsoleMainOffset` 取值（桌面 = 实测宽，收起 / 展开动画逐帧跟随；平板 72；手机 0；未量到回退 248 / 72），不再写死 248。
+- **侧栏分组**的点击和子菜单渲染都按当前视口的 `isRail` 判断，不看 `sidebarCollapsed`：桌面收起后切到平板再打开浮层，分组必须能展开。顶栏样式写在非 scoped 的 `<style>` 里，类名带 `console-` 前缀（scoped 里的 `:global(.dark) x` 会被编译成光秃的 `.dark {}`）。
 - Figma 顶栏的「搜索请求 ID、密钥或模型」是新功能，没有后端支持，未做；位置先给页面标题。
 
 ## 仪表盘（第一批）
@@ -46,7 +50,9 @@
 - 指标卡四块：今日请求、今日消费（标准价、省多少）、今日 Token、平均响应（RPM / TPM）。按平台拆分保留，改成一张卡里竖线分栏。
 - 趋势图沿用 `TokenUsageTrend`（新增可选 `#actions` 插槽放时间范围、粒度、刷新），线色换成深蓝 / 星光蓝 / 天蓝；Figma 是堆叠柱，暂未改图表类型（管理员页也用这个组件）。
 - 模型分布改成按费用的条形列表：前 4 个模型 + 「其他 N 个模型」。
-- 最近使用改成表格（时间、模型、密钥、输入 / 输出、耗时、费用、状态），手机改列表行；快捷操作改成细线分隔的列表。
+- 「最近一次调用」单独请求 `/usage?page=1&page_size=1&sort_by=created_at&sort_order=desc`，不带趋势图日期，区分加载中、读取失败、确实没有调用三种状态。
+- 用量记录没有 HTTP 状态码，**不显示 `200 OK`**；只有 `request_type === 'cyber'`（安全策略拦截，网关也会写用量）标「安全策略拦截」古铜徽章（`components/user/dashboard/usageStatus.ts`）。之后的用量页同样照此处理。
+- 最近使用改成表格（时间、模型、密钥、输入 / 输出、耗时、费用），手机改列表行；快捷操作改成细线分隔的列表。
 - 金额沿用产品实际的美元，Figma 里的 ¥ 和数值只是示意。
 
 ## 之后每一页的改法

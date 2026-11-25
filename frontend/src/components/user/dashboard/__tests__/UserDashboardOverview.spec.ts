@@ -49,7 +49,7 @@ const lastCall = {
 
 function mountOverview(props: Partial<InstanceType<typeof UserDashboardOverview>['$props']> = {}) {
   return mount(UserDashboardOverview, {
-    props: { balance: 128.4, stats, platformQuotas: null, lastCall: null, isSimple: false, paymentEnabled: true, ...props },
+    props: { balance: 128.4, stats, platformQuotas: null, lastCall: null, isSimple: false, purchaseAction: 'recharge', ...props },
     global: { stubs: { Icon: true, ModelIcon: true, RouterLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } } }
   })
 }
@@ -62,8 +62,8 @@ describe('UserDashboardOverview', () => {
     expect(w.find('a[href="/redeem"]').exists()).toBe(true)
   })
 
-  it('hides recharge when payment is disabled and all actions in simple mode', () => {
-    expect(mountOverview({ paymentEnabled: false }).find('a[href="/purchase"]').exists()).toBe(false)
+  it('hides recharge without a purchase action and all actions in simple mode', () => {
+    expect(mountOverview({ purchaseAction: null }).find('a[href="/purchase"]').exists()).toBe(false)
     const simple = mountOverview({ isSimple: true })
     expect(simple.find('a[href="/purchase"]').exists()).toBe(false)
     expect(simple.find('a[href="/redeem"]').exists()).toBe(false)
@@ -80,6 +80,38 @@ describe('UserDashboardOverview', () => {
     expect(w.text()).toContain('0.0042')
     // 月亮里是淡色星狐剪影，不放彩色 Logo
     expect(trace.find('.trace__moon path').attributes('fill')).toBe('#CDD9EE')
+  })
+
+  it('offers a subscription instead of a balance top-up on subscription-only sites', () => {
+    const w = mountOverview({ purchaseAction: 'subscribe' })
+    const link = w.find('[data-testid="overview-purchase"]')
+    expect(link.attributes('href')).toBe('/purchase')
+    expect(link.text()).toContain('dashboard.overview.subscribe')
+    expect(link.text()).not.toContain('dashboard.overview.recharge')
+  })
+
+  it('never claims a status code the usage log does not carry', () => {
+    const w = mountOverview({ lastCall })
+    expect(w.text()).not.toContain('200')
+    expect(w.find('[data-testid="last-call-blocked"]').exists()).toBe(false)
+  })
+
+  it('flags a call blocked by the security policy instead of showing it as OK', () => {
+    const w = mountOverview({ lastCall: { ...lastCall, request_type: 'cyber' } as UsageLog })
+    expect(w.find('[data-testid="last-call-blocked"]').text()).toBe('dashboard.overview.blocked')
+    expect(w.text()).not.toContain('200 OK')
+  })
+
+  it('tells loading and failed reads apart from an account with no calls', () => {
+    const loading = mountOverview({ lastCall: null, lastCallState: 'loading' })
+    expect(loading.find('[data-testid="last-call-loading"]').exists()).toBe(true)
+    expect(loading.text()).not.toContain('dashboard.overview.noCalls')
+
+    const failed = mountOverview({ lastCall: null, lastCallState: 'error' })
+    expect(failed.find('[data-testid="last-call-error"]').exists()).toBe(true)
+    expect(failed.text()).not.toContain('dashboard.overview.noCalls')
+
+    expect(mountOverview({ lastCall: null, lastCallState: 'ready' }).text()).toContain('dashboard.overview.noCalls')
   })
 
   it('has no gold and shows the empty hint before the first call', () => {
