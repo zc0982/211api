@@ -1,18 +1,25 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="console-subscriptions">
+      <div class="console-page-heading">
+        <div>
+          <h1 class="page-title">{{ t('userSubscriptions.title') }}</h1>
+          <p class="page-description">{{ t('userSubscriptions.console.description') }}</p>
+        </div>
+        <button type="button" class="btn btn-primary" data-testid="buy-subscription" @click="goPurchase()">
+          <Icon name="plus" size="sm" class="mr-1.5" />
+          {{ t('userSubscriptions.buy') }}
+        </button>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
-        <div
-          class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
-        ></div>
+        <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
       </div>
 
       <!-- Empty State -->
       <div v-else-if="subscriptions.length === 0" class="card p-12 text-center">
-        <div
-          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700"
-        >
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700">
           <Icon name="creditCard" size="xl" class="text-gray-400" />
         </div>
         <h3 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
@@ -24,224 +31,61 @@
       </div>
 
       <!-- Subscriptions Grid -->
-      <div v-else class="grid gap-6 lg:grid-cols-2">
-        <div
+      <div v-else class="console-sub-grid">
+        <article
           v-for="subscription in subscriptions"
           :key="subscription.id"
-          class="overflow-hidden rounded-2xl border bg-white dark:bg-dark-800"
-          :class="platformBorderClass(subscription.group?.platform || '')"
+          class="console-sub"
+          :class="{ 'is-inactive': subscription.status !== 'active' }"
+          data-testid="subscription-card"
         >
-          <!-- Header -->
-          <div
-            class="flex items-center justify-between border-b border-gray-100 p-4 dark:border-dark-700"
-          >
-            <div class="flex items-center gap-3">
-              <div :class="['h-1.5 w-1.5 shrink-0 rounded-full', platformAccentDotClass(subscription.group?.platform || '')]" />
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-semibold text-gray-900 dark:text-white">
-                    {{ subscription.group?.name || `Group #${subscription.group_id}` }}
-                  </h3>
-                  <span :class="['rounded-md border px-2 py-0.5 text-[11px] font-medium', platformBadgeClass(subscription.group?.platform || '')]">
-                    {{ platformLabel(subscription.group?.platform || '') }}
-                  </span>
-                </div>
-                <p v-if="subscription.group?.description" class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
-                  {{ subscription.group.description }}
-                </p>
-                <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500">
-                  <span>{{ t('payment.planCard.rate') }}: ×{{ subscription.group?.rate_multiplier ?? 1 }}</span>
-                  <span v-if="subscriptionHasPeakRate(subscription)" class="text-amber-700 dark:text-amber-300">
-                    {{ t('payment.planCard.peakRate') }}: {{ subscriptionPeakRateLabel(subscription) }}
-                  </span>
-                </div>
-              </div>
+          <header class="console-sub__head">
+            <div class="console-sub__title">
+              <h2 :title="subscription.group?.name">{{ subscription.group?.name || `Group #${subscription.group_id}` }}</h2>
+              <span :class="['badge', statusBadgeClass(subscription.status)]">{{ t(`userSubscriptions.status.${subscription.status}`) }}</span>
             </div>
-            <div class="flex items-center gap-2">
-              <span
-                :class="[
-                  'rounded-full px-2 py-0.5 text-xs font-medium',
-                  subscription.status === 'active'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                    : subscription.status === 'expired'
-                      ? 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-400'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                ]"
-              >
-                {{ t(`userSubscriptions.status.${subscription.status}`) }}
+            <span class="console-sub__remain font-mono">{{ remainingText(subscription) }}</span>
+          </header>
+          <p class="console-sub__meta">
+            <span class="console-sub__platform">{{ platformText(subscription.group?.platform || '') }}</span>
+            <span class="font-mono">{{ t('userSubscriptions.rate') }} ×{{ subscription.group?.rate_multiplier ?? 1 }}</span>
+            <span v-if="subscriptionHasPeakRate(subscription)" class="text-star-bronze dark:text-star-bronze-night">
+              {{ t('payment.planCard.peakRate') }}: {{ subscriptionPeakRateLabel(subscription) }}
+            </span>
+            <span class="font-mono">{{ subscription.expires_at ? t('userSubscriptions.expiresOn', { date: formatDateOnly(subscription.expires_at) }) : t('userSubscriptions.noExpiration') }}</span>
+          </p>
+
+          <div class="console-sub__usage">
+            <div v-for="row in usageRows(subscription)" :key="row.key" class="console-sub__row" :data-testid="`usage-${row.key}`">
+              <span class="console-sub__label">{{ row.label }}</span>
+              <span class="console-sub__bar" role="progressbar" :aria-valuenow="Math.round(row.pct)" aria-valuemin="0" aria-valuemax="100" :aria-label="row.label">
+                <span :class="{ 'is-high': row.pct >= 90 }" :style="{ width: row.pct + '%' }"></span>
               </span>
-              <button
-                v-if="subscription.status === 'active'"
-                :class="['rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors', platformButtonClass(subscription.group?.platform || '')]"
-                @click="router.push({ path: '/purchase', query: { tab: 'subscription', group: String(subscription.group_id) } })"
-              >
-                {{ t('payment.renewNow') }}
-              </button>
+              <span class="console-sub__used font-mono" :class="{ 'is-high': row.pct >= 90 }">{{ t('userSubscriptions.usageOf', { used: '$' + row.used.toFixed(2), limit: '$' + row.limit.toFixed(2) }) }}</span>
+              <span class="console-sub__reset">{{ row.reset }}</span>
             </div>
+            <p v-if="usageRows(subscription).length === 0" class="console-sub__unlimited" data-testid="usage-unlimited">
+              <Icon name="check" size="sm" />
+              {{ t('userSubscriptions.unlimitedDesc') }}
+            </p>
           </div>
 
-          <!-- Usage Progress -->
-          <div class="space-y-4 p-4">
-            <!-- Expiration Info -->
-            <div v-if="subscription.expires_at" class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-dark-400">{{
-                t('userSubscriptions.expires')
-              }}</span>
-              <span :class="getExpirationClass(subscription.expires_at)">
-                {{ formatExpirationDate(subscription.expires_at) }}
-              </span>
-            </div>
-            <div v-else class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-dark-400">{{
-                t('userSubscriptions.expires')
-              }}</span>
-              <span class="text-gray-700 dark:text-gray-300">{{
-                t('userSubscriptions.noExpiration')
-              }}</span>
-            </div>
-
-            <!-- Daily Usage -->
-            <div v-if="subscription.group?.daily_limit_usd" class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('userSubscriptions.daily') }}
-                </span>
-                <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ${{ (subscription.daily_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.daily_limit_usd.toFixed(2)
-                  }}
-                </span>
-              </div>
-              <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                <div
-                  class="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                  :class="
-                    getProgressBarClass(
-                      subscription.daily_usage_usd,
-                      subscription.group.daily_limit_usd
-                    )
-                  "
-                  :style="{
-                    width: getProgressWidth(
-                      subscription.daily_usage_usd,
-                      subscription.group.daily_limit_usd
-                    )
-                  }"
-                ></div>
-              </div>
-              <p
-                v-if="subscription.daily_window_start"
-                class="text-xs text-gray-500 dark:text-dark-400"
-              >
-                {{ formatDailyUsageWindow(subscription) }}
-              </p>
-            </div>
-
-            <!-- Weekly Usage -->
-            <div v-if="subscription.group?.weekly_limit_usd" class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('userSubscriptions.weekly') }}
-                </span>
-                <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ${{ (subscription.weekly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.weekly_limit_usd.toFixed(2)
-                  }}
-                </span>
-              </div>
-              <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                <div
-                  class="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                  :class="
-                    getProgressBarClass(
-                      subscription.weekly_usage_usd,
-                      subscription.group.weekly_limit_usd
-                    )
-                  "
-                  :style="{
-                    width: getProgressWidth(
-                      subscription.weekly_usage_usd,
-                      subscription.group.weekly_limit_usd
-                    )
-                  }"
-                ></div>
-              </div>
-              <p
-                v-if="subscription.weekly_window_start"
-                class="text-xs text-gray-500 dark:text-dark-400"
-              >
-                {{
-                  t('userSubscriptions.resetIn', {
-                    time: formatResetTime(subscription.weekly_window_start, 168)
-                  })
-                }}
-              </p>
-            </div>
-
-            <!-- Monthly Usage -->
-            <div v-if="subscription.group?.monthly_limit_usd" class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('userSubscriptions.monthly') }}
-                </span>
-                <span class="text-sm text-gray-500 dark:text-dark-400">
-                  ${{ (subscription.monthly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.monthly_limit_usd.toFixed(2)
-                  }}
-                </span>
-              </div>
-              <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                <div
-                  class="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                  :class="
-                    getProgressBarClass(
-                      subscription.monthly_usage_usd,
-                      subscription.group.monthly_limit_usd
-                    )
-                  "
-                  :style="{
-                    width: getProgressWidth(
-                      subscription.monthly_usage_usd,
-                      subscription.group.monthly_limit_usd
-                    )
-                  }"
-                ></div>
-              </div>
-              <p
-                v-if="subscription.monthly_window_start"
-                class="text-xs text-gray-500 dark:text-dark-400"
-              >
-                {{
-                  t('userSubscriptions.resetIn', {
-                    time: formatResetTime(subscription.monthly_window_start, 720)
-                  })
-                }}
-              </p>
-            </div>
-
-            <!-- No limits configured - Unlimited badge -->
-            <div
-              v-if="
-                !subscription.group?.daily_limit_usd &&
-                !subscription.group?.weekly_limit_usd &&
-                !subscription.group?.monthly_limit_usd
-              "
-              class="flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 py-6 dark:from-emerald-900/20 dark:to-teal-900/20"
-            >
-              <div class="flex items-center gap-3">
-                <span class="text-4xl text-emerald-600 dark:text-emerald-400">∞</span>
-                <div>
-                  <p class="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                    {{ t('userSubscriptions.unlimited') }}
-                  </p>
-                  <p class="text-xs text-emerald-600/70 dark:text-emerald-400/70">
-                    {{ t('userSubscriptions.unlimitedDesc') }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+          <footer class="console-sub__actions">
+            <button
+              v-if="subscription.status === 'active'"
+              type="button"
+              class="btn btn-secondary btn-sm"
+              @click="goPurchase(subscription.group_id)"
+            >{{ t('payment.renewNow') }}</button>
+            <button
+              v-else-if="subscription.status === 'expired'"
+              type="button"
+              class="btn btn-secondary btn-sm"
+              @click="goPurchase(subscription.group_id)"
+            >{{ t('userSubscriptions.rebuy') }}</button>
+            <router-link to="/usage" class="console-link">{{ t('userSubscriptions.viewUsage') }}</router-link>
+          </footer>
+        </article>
       </div>
     </div>
   </AppLayout>
@@ -256,25 +100,15 @@ import subscriptionsAPI from '@/api/subscriptions'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { formatDateTimeToMinute } from '@/utils/format'
+import '@/styles/console-purchase-pages.css'
+import { formatDateOnly } from '@/utils/format'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
-import { platformBorderClass, platformBadgeClass, platformButtonClass, platformLabel } from '@/utils/platformColors'
+import { platformLabel } from '@/utils/platformColors'
 import {
-  getExpirationDateRelation,
   getRemainingDurationParts,
   isOneTimeDailyQuota,
   type RemainingDurationParts
 } from '@/utils/subscriptionQuota'
-
-function platformAccentDotClass(p: string): string {
-  switch (p) {
-    case 'anthropic': return 'bg-orange-500'
-    case 'openai': return 'bg-emerald-500'
-    case 'antigravity': return 'bg-purple-500'
-    case 'gemini': return 'bg-blue-500'
-    default: return 'bg-gray-400'
-  }
-}
 
 const { t } = useI18n()
 const router = useRouter()
@@ -303,55 +137,63 @@ async function loadSubscriptions() {
   }
 }
 
-function getProgressWidth(used: number | undefined, limit: number | null | undefined): string {
-  if (!limit || limit === 0) return '0%'
-  const percentage = Math.min(((used || 0) / limit) * 100, 100)
-  return `${percentage}%`
+// 未归入具体平台（platform 为空或 default）的订阅写「默认」，不露出内部取值
+function platformText(platform: string): string {
+  return !platform || platform === 'default' ? t('userSubscriptions.defaultPlatform') : platformLabel(platform)
 }
 
-function getProgressBarClass(used: number | undefined, limit: number | null | undefined): string {
-  if (!limit || limit === 0) return 'bg-gray-400'
-  const percentage = ((used || 0) / limit) * 100
-  if (percentage >= 90) return 'bg-red-500'
-  if (percentage >= 70) return 'bg-orange-500'
-  return 'bg-green-500'
+function statusBadgeClass(status: UserSubscription['status']): string {
+  return status === 'active' ? 'badge-success' : 'badge-secondary'
 }
 
-function formatExpirationDate(expiresAt: string): string {
-  const now = new Date()
-  const expires = new Date(expiresAt)
-  const diff = expires.getTime() - now.getTime()
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-  const relation = getExpirationDateRelation(expires, now)
-
-  if (relation === null) return ''
-
-  if (relation === 'expired') {
-    return t('userSubscriptions.status.expired')
-  }
-
-  const dateStr = formatDateTimeToMinute(expires)
-
-  if (relation === 'today') {
-    return `${dateStr} (${t('common.today')})`
-  }
-  if (relation === 'tomorrow') {
-    return `${dateStr} (${t('common.tomorrow')})`
-  }
-
-  return t('userSubscriptions.daysRemaining', { days }) + ` (${dateStr})`
+function remainingText(subscription: UserSubscription): string {
+  if (subscription.status !== 'active') return t('userSubscriptions.ended')
+  if (!subscription.expires_at) return t('userSubscriptions.longTerm')
+  const days = Math.max(0, Math.ceil((new Date(subscription.expires_at).getTime() - Date.now()) / 86400000))
+  return t('userSubscriptions.daysRemaining', { days })
 }
 
-function getExpirationClass(expiresAt: string): string {
-  const now = new Date()
-  const expires = new Date(expiresAt)
-  const diff = expires.getTime() - now.getTime()
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+interface UsageRow {
+  key: 'daily' | 'weekly' | 'monthly'
+  label: string
+  used: number
+  limit: number
+  pct: number
+  reset: string
+}
 
-  if (diff <= 0) return 'text-red-600 dark:text-red-400 font-medium'
-  if (days <= 3) return 'text-red-600 dark:text-red-400'
-  if (days <= 7) return 'text-orange-600 dark:text-orange-400'
-  return 'text-gray-700 dark:text-gray-300'
+// 只列出设置了限额的周期；没有任何限额的订阅用文字说明，不画空进度条
+function usageRows(subscription: UserSubscription): UsageRow[] {
+  const group = subscription.group
+  const rows: UsageRow[] = []
+  const add = (
+    key: UsageRow['key'],
+    limit: number | null | undefined,
+    used: number | undefined,
+    reset: string
+  ) => {
+    if (!limit) return
+    const value = used || 0
+    rows.push({
+      key,
+      label: t(`userSubscriptions.${key}`),
+      used: value,
+      limit,
+      pct: Math.min((value / limit) * 100, 100),
+      reset: subscription.status !== 'active' ? t('userSubscriptions.ended') : reset
+    })
+  }
+  add('daily', group?.daily_limit_usd, subscription.daily_usage_usd, formatDailyUsageWindow(subscription))
+  add('weekly', group?.weekly_limit_usd, subscription.weekly_usage_usd, formatResetLabel(subscription.weekly_window_start, 168))
+  add('monthly', group?.monthly_limit_usd, subscription.monthly_usage_usd, formatResetLabel(subscription.monthly_window_start, 720))
+  return rows
+}
+
+function goPurchase(groupId?: number) {
+  router.push({
+    path: '/purchase',
+    query: groupId ? { tab: 'subscription', group: String(groupId) } : { tab: 'subscription' }
+  })
 }
 
 function formatDurationParts(parts: RemainingDurationParts): string {
@@ -367,15 +209,24 @@ function formatDurationParts(parts: RemainingDurationParts): string {
 }
 
 function formatDailyUsageWindow(subscription: UserSubscription): string {
+  // 一次性日额度（有效期 ≤ 1 天）按到期时间倒计时，即使还没开始用也已经在走
   if (isOneTimeDailyQuota(subscription) && subscription.expires_at) {
     const parts = getRemainingDurationParts(subscription.expires_at)
     if (!parts) return t('userSubscriptions.windowNotActive')
     return t('userSubscriptions.quotaEndsIn', { time: formatDurationParts(parts) })
   }
+  if (!subscription.daily_window_start) return t('userSubscriptions.windowNotActive')
 
   return t('userSubscriptions.resetIn', {
     time: formatResetTime(subscription.daily_window_start, 24)
   })
+}
+
+// 未开始计时的窗口直接写「等待首次使用」，不拼成「等待首次使用 后重置」
+function formatResetLabel(windowStart: string | null, windowHours: number): string {
+  if (!windowStart) return t('userSubscriptions.windowNotActive')
+  const parts = getRemainingDurationParts(new Date(new Date(windowStart).getTime() + windowHours * 3600000))
+  return parts ? t('userSubscriptions.resetIn', { time: formatDurationParts(parts) }) : t('userSubscriptions.windowNotActive')
 }
 
 function formatResetTime(windowStart: string | null, windowHours: number): string {

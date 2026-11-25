@@ -324,6 +324,7 @@ const routes: RouteRecordRaw[] = [
       title: 'My Subscriptions',
       titleKey: 'userSubscriptions.title',
       descriptionKey: 'userSubscriptions.description',
+      pageHeading: true,
       requiresSubscription: true
     }
   },
@@ -337,6 +338,7 @@ const routes: RouteRecordRaw[] = [
       title: 'Purchase Subscription',
       titleKey: 'nav.buySubscription',
       descriptionKey: 'purchase.description',
+      pageHeading: true,
       requiresPayment: true
     }
   },

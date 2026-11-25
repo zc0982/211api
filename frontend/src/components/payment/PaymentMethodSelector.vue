@@ -1,5 +1,27 @@
 <template>
-  <div>
+  <!-- 用户后台 v3：单选卡片（console 默认关闭） -->
+  <div v-if="console" class="console-methods" role="radiogroup" :aria-label="t('payment.paymentMethod')" data-testid="payment-method-grid">
+    <button
+      v-for="method in sortedMethods"
+      :key="method.type"
+      type="button"
+      role="radio"
+      :aria-checked="selected === method.type"
+      :title="methodLabel(method)"
+      :disabled="!method.available"
+      class="console-method"
+      :class="{ 'is-selected': selected === method.type }"
+      @click="method.available && emit('select', method.type)"
+    >
+      <span class="console-method__radio" aria-hidden="true"></span>
+      <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="console-method__icon" />
+      <span class="console-method__text">
+        <span data-testid="payment-method-label" class="console-method__name">{{ methodLabel(method) }}</span>
+        <span v-if="method.fee_rate > 0" class="console-method__sub">{{ t('payment.fee') }} {{ method.fee_rate }}%</span>
+      </span>
+    </button>
+  </div>
+  <div v-else>
     <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
       {{ t('payment.paymentMethod') }}
     </label>
@@ -62,6 +84,8 @@ export interface PaymentMethodOption {
 const props = defineProps<{
   methods: PaymentMethodOption[]
   selected: string
+  /** 用户后台 v3 样式；默认关闭 */
+  console?: boolean
 }>()
 
 const emit = defineEmits<{

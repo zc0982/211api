@@ -1,5 +1,34 @@
 <template>
-  <div class="space-y-4">
+  <!-- 用户后台 v3：金额卡 3 列网格，最后一格是自定义金额输入（console 默认关闭，不影响其他调用方） -->
+  <div v-if="console" class="console-amounts" data-testid="console-amounts">
+    <button
+      v-for="amt in filteredAmounts"
+      :key="amt"
+      type="button"
+      class="console-amount"
+      :class="{ 'is-selected': isQuickSelected(amt), 'has-bonus': quoteFor(amt).percent > 0 }"
+      :aria-pressed="isQuickSelected(amt)"
+      :data-testid="`quick-amount-${amt}`"
+      @click="selectAmount(amt)"
+    >
+      <span v-if="quoteFor(amt).percent > 0" class="console-amount__tag" data-testid="quick-amount-bonus-badge">{{ badgeText(amt) }}</span>
+      <span class="console-amount__value">{{ symbol }}{{ amt }}</span>
+      <span class="console-amount__sub" data-testid="quick-amount-credited">{{ consoleSecondLine(amt) }}</span>
+    </button>
+    <label class="console-amount console-amount--custom" :class="{ 'is-selected': isCustomSelected }">
+      <span class="console-amount__value">{{ t('payment.customAmount') }}</span>
+      <input
+        type="text"
+        inputmode="decimal"
+        :value="isCustomSelected ? customText : ''"
+        :placeholder="placeholderText"
+        :aria-label="t('payment.customAmount')"
+        class="console-amount__input"
+        @input="handleInput"
+      />
+    </label>
+  </div>
+  <div v-else class="space-y-4">
     <!-- Quick Amount Buttons -->
     <div>
       <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -75,7 +104,7 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RechargeBonusTier } from '@/types/payment'
 import { formatRechargeBonusNumber, quoteRechargeBonus, type RechargeBonusMode } from '@/utils/rechargeBonus'
-import { formatPaymentAmount } from './currency'
+import { currencySymbol, formatPaymentAmount } from './currency'
 
 const props = withDefaults(defineProps<{
   amounts?: number[]
@@ -90,6 +119,8 @@ const props = withDefaults(defineProps<{
   multiplier?: number
   /** 支付币种（折扣模式第二行实付金额的币种与精度） */
   currency?: string
+  /** 用户后台 v3 样式；默认关闭 */
+  console?: boolean
 }>(), {
   amounts: () => [10, 20, 50, 100, 200, 500, 1000, 2000, 5000],
   min: 0,
@@ -98,6 +129,7 @@ const props = withDefaults(defineProps<{
   bonusMode: 'bonus',
   multiplier: 1,
   currency: undefined,
+  console: false,
 })
 
 const emit = defineEmits<{
@@ -155,7 +187,26 @@ const placeholderText = computed(() => {
 
 const AMOUNT_PATTERN = /^\d*(\.\d{0,2})?$/
 
+const symbol = computed(() => currencySymbol(props.currency))
+// 正在自定义输入时（哪怕输到一半恰好等于某个快捷金额，例如 100.50 途经 100），草稿保持在自定义卡里，不被清空
+const customEditing = ref(false)
+const isCustomSelected = computed(() =>
+  customEditing.value || (props.modelValue !== null && !filteredAmounts.value.includes(props.modelValue))
+)
+function isQuickSelected(amt: number): boolean {
+  return props.modelValue === amt && !customEditing.value
+}
+
+function consoleSecondLine(amt: number): string {
+  const quote = quoteFor(amt)
+  if (props.bonusMode === 'discount' && props.bonusTiers.length > 0) {
+    return t('payment.rechargeBonus.payShort', { amount: formatPaymentAmount(quote.payBase, props.currency) })
+  }
+  return t('payment.console.credited', { amount: '$' + quote.credited.toFixed(2) })
+}
+
 function selectAmount(amt: number) {
+  customEditing.value = false
   customText.value = String(amt)
   emit('update:modelValue', amt)
 }
@@ -168,6 +219,7 @@ function handleInput(e: Event) {
     return
   }
   customText.value = val
+  if (props.console) customEditing.value = true
   if (val === '') {
     emit('update:modelValue', null)
     return

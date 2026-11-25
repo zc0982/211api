@@ -69,6 +69,11 @@
 .console-data-page .console-records tbody .sticky-col { background: white; }
 .dark .console-data-page .console-records tbody,
 .dark .console-data-page .console-records tbody .sticky-col { background: #0e1830; }
+/* 行 hover：冷色淡蓝，和暖色表头 --c-thead 区分开；固定操作列一起变色（否则只剩表头/整行颜色不一致） */
+.console-data-page .console-records tbody tr:hover,
+.console-data-page .console-records tbody tr:hover .sticky-col { background: #f2f6fd; }
+.dark .console-data-page .console-records tbody tr:hover,
+.dark .console-data-page .console-records tbody tr:hover .sticky-col { background: #182641; }
 .console-data-page .console-records tbody tr { border-color: var(--c-row-line); }
 .console-data-page .console-records td .text-sm { font-size: 12px; }
 .console-data-page .console-records .code { background: none; padding: 0; }

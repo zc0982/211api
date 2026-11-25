@@ -149,3 +149,16 @@ describe("SubscriptionPlanCard", () => {
     expect(badge?.element.parentElement?.textContent).toContain("/ 30days");
   });
 });
+
+describe("SubscriptionPlanCard console variant", () => {
+  it("uses one neutral primary button instead of platform colours, and stays off by default", () => {
+    const on = mountPlanCard("anthropic");
+    expect(on.get("button").classes()).not.toContain("bg-primary-800");
+    const wrapper = mount(SubscriptionPlanCard, {
+      props: { console: true, plan: { id: 1, group_id: 3, group_platform: "anthropic", name: "P", price: 9, features: [], validity_days: 30, validity_unit: "day" } as unknown as SubscriptionPlan },
+      global: { plugins: [i18n, createPinia()] },
+    });
+    expect(wrapper.get("button").classes()).toContain("bg-primary-800");
+    expect(wrapper.html()).not.toMatch(/orange-|emerald-|green-/);
+  });
+});
