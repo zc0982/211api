@@ -1,9 +1,32 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout class="console-data-page console-keys">
       <template #filters>
+        <ConsoleEndpointBar
+          v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
+          :api-base-url="publicSettings?.api_base_url || ''"
+          :custom-endpoints="publicSettings?.custom_endpoints || []"
+        />
+        <section v-if="quotaKeys.length" class="console-key-quota" aria-labelledby="key-quota-title">
+          <div class="console-quota-heading">
+            <h2 id="key-quota-title">{{ t('keys.quotaOverview') }}</h2>
+            <span>{{ t('keys.quotaOverviewHint') }}</span>
+          </div>
+          <div class="console-quota-grid">
+            <div v-for="key in quotaKeys" :key="key.id" class="console-quota-item">
+              <p class="console-quota-name">{{ key.name }}</p>
+              <p class="console-quota-value" :class="{ 'console-quota-warning': key.quota_used >= key.quota * 0.9 }">
+                {{ Math.round(key.quota_used / key.quota * 100) }}<span>%</span>
+              </p>
+              <div class="console-quota-track" role="meter" :aria-label="key.name" :aria-valuenow="key.quota_used" :aria-valuemax="Math.max(key.quota, key.quota_used)" :aria-valuemin="0" :aria-valuetext="`$${key.quota_used.toFixed(2)} / $${key.quota.toFixed(2)}`">
+                <span :style="{ width: Math.min(key.quota_used / key.quota * 100, 100) + '%' }" />
+              </div>
+              <p class="console-quota-amount">${{ key.quota_used.toFixed(2) }} / ${{ key.quota.toFixed(2) }}</p>
+            </div>
+          </div>
+        </section>
         <div class="flex flex-col gap-3">
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="console-key-filters flex flex-wrap items-center gap-3">
             <SearchInput
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
@@ -23,11 +46,6 @@
               @update:model-value="onStatusFilterChange"
             />
           </div>
-          <EndpointPopover
-            v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
-            :api-base-url="publicSettings?.api_base_url || ''"
-            :custom-endpoints="publicSettings?.custom_endpoints || []"
-          />
           <div v-if="selectedIds.length" class="flex flex-wrap items-center gap-3 text-sm">
             <span class="text-gray-600 dark:text-gray-300">
               {{ t('keys.bulkEdit.selectedCount', { count: selectedIds.length }) }}
@@ -48,7 +66,12 @@
       </template>
 
       <template #actions>
-        <div class="flex justify-end gap-3">
+        <div class="console-page-heading">
+          <div>
+            <h1 class="page-title">{{ t('keys.title') }}</h1>
+            <p class="page-description">{{ t('keys.description') }}</p>
+          </div>
+          <div class="console-page-actions flex gap-3">
           <button
             @click="loadApiKeys"
             :disabled="loading"
@@ -94,12 +117,100 @@
             {{ t('keys.createKey') }}
           </button>
         </div>
+        </div>
       </template>
 
       <template #table>
+        <section class="console-records console-key-records">
+        <ConsoleRecordList
+          :data="apiKeys"
+          :loading="loading"
+          :label="t('keys.title')"
+          selectable
+          :selected-ids="selectedIds"
+          :selection-label="(key: ApiKey) => t('keys.bulkEdit.selectKey', { name: key.name })"
+          :select-all-label="t('keys.selectAllOnPage')"
+          @update:selected-ids="handleSelectionChange"
+        >
+          <template #summary="{ row }">
+            <span class="console-mobile-record-title"><strong>{{ row.name }}</strong><span :class="['badge', keyStatusBadge(row.status)]">{{ t('keys.status.' + row.status) }}</span><Icon name="chevronDown" size="sm" /></span>
+            <span class="console-mobile-record-meta"><code>{{ maskApiKey(row.key) }}</code><span>{{ row.group?.name || t('keys.noGroup') }}</span></span>
+            <span class="console-mobile-record-meta">
+              <template v-if="row.quota > 0">
+                <span class="console-mobile-quota-track"><span :class="{ 'is-warning': row.quota_used >= row.quota * 0.9 }" :style="{ width: Math.min(row.quota_used / row.quota * 100, 100) + '%' }" /></span>
+                <span class="font-mono text-star-bronze dark:text-star-bronze-night">${{ row.quota_used.toFixed(2) }} / ${{ row.quota.toFixed(2) }}</span>
+              </template>
+              <span v-else class="console-key-unlimited" data-test="mobile-unlimited">{{ t('keys.unlimitedQuota') }}</span>
+            </span>
+            <span class="console-mobile-record-meta console-key-spend">
+              <span>{{ t('keys.today') }} <b class="font-mono">{{ keySpend(row.id, 'today') }}</b></span>
+              <span>{{ t('keys.total') }} <b class="font-mono">{{ keySpend(row.id, 'total') }}</b></span>
+            </span>
+          </template>
+          <template #detail="{ row }">
+            <dl class="console-mobile-fields" data-test="key-mobile-fields">
+              <div>
+                <dt>{{ t('keys.apiKey') }}</dt>
+                <dd class="console-mobile-copy">
+                  <code>{{ maskApiKey(row.key) }}</code>
+                  <button type="button" class="console-inline-action" :aria-label="copiedKeyId === row.id ? t('keys.copied') : t('keys.copyToClipboard')" @click="copyToClipboard(row.key, row.id)">
+                    <Icon :name="copiedKeyId === row.id ? 'check' : 'clipboard'" size="xs" />
+                    <span>{{ copiedKeyId === row.id ? t('common.copied') : t('common.copy') }}</span>
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt>{{ t('keys.group') }}</dt>
+                <dd>
+                  <button
+                    :ref="(el) => setGroupButtonRef(row.id, el)"
+                    type="button"
+                    class="console-inline-action"
+                    :aria-label="`${t('keys.clickToChangeGroup')}: ${row.group?.name || t('keys.noGroup')}`"
+                    @click="openGroupSelector(row)"
+                  >
+                    <span>{{ row.group?.name || t('keys.noGroup') }}</span>
+                    <Icon name="chevronDown" size="xs" />
+                  </button>
+                </dd>
+              </div>
+              <div><dt>{{ t('keys.currentConcurrency') }}</dt><dd class="font-mono">{{ row.current_concurrency ?? 0 }}</dd></div>
+              <div v-if="row.rate_limit_5h > 0 || row.rate_limit_1d > 0 || row.rate_limit_7d > 0">
+                <dt>{{ t('keys.rateLimitColumn') }}</dt>
+                <dd class="font-mono">
+                  <template v-for="window in rateLimitWindows(row)" :key="window.label">
+                    <span class="block">{{ window.label }} ${{ window.used.toFixed(2) }} / ${{ window.limit.toFixed(2) }}</span>
+                  </template>
+                  <button
+                    v-if="row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0"
+                    type="button"
+                    class="console-inline-action mt-1"
+                    @click="confirmResetRateLimitFromTable(row)"
+                  >
+                    <Icon name="refresh" size="xs" />
+                    <span>{{ t('keys.resetUsage') }}</span>
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt>{{ t('keys.expiresAt') }}</dt>
+                <dd :class="row.expires_at && new Date(row.expires_at) < new Date() ? 'text-star-bronze dark:text-star-bronze-night' : ''">{{ row.expires_at ? formatDateTime(row.expires_at) : t('keys.noExpiration') }}</dd>
+              </div>
+              <div><dt>{{ t('keys.lastUsedAt') }}</dt><dd>{{ row.last_used_at ? formatDateTime(row.last_used_at) : '-' }}<template v-if="row.last_used_ip"> · {{ row.last_used_ip }}</template></dd></div>
+              <div><dt>{{ t('keys.created') }}</dt><dd>{{ formatDateTime(row.created_at) }}</dd></div>
+            </dl>
+            <div class="console-mobile-actions">
+              <button type="button" class="console-inline-action" :aria-label="t('keys.useKey')" @click="openUseKeyModal(row)"><Icon name="play" size="xs" /><span>{{ t('keys.useKey') }}</span></button>
+              <button type="button" class="console-inline-action" :aria-label="t('common.edit')" @click="editKey(row)"><Icon name="edit" size="xs" /><span>{{ t('common.edit') }}</span></button>
+              <button type="button" class="console-inline-action" :aria-label="row.status === 'active' ? t('keys.disable') : t('keys.enable')" @click="toggleKeyStatus(row)"><Icon :name="row.status === 'active' ? 'ban' : 'checkCircle'" size="xs" /><span>{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span></button>
+              <button v-if="!publicSettings?.hide_ccs_import_button" type="button" class="console-inline-action" :aria-label="t('keys.importToCcSwitch')" @click="importToCcswitch(row)"><Icon name="upload" size="xs" /><span>{{ t('keys.importToCcSwitch') }}</span></button>
+              <button type="button" class="console-inline-action" :aria-label="t('common.delete')" @click="confirmDelete(row)"><Icon name="trash" size="xs" /><span>{{ t('common.delete') }}</span></button>
+            </div>
+          </template>
+          <template #default="{ rows }">
         <DataTable
           :columns="columns"
-          :data="apiKeys"
+          :data="rows"
           :loading="loading"
           selectable
           row-key="id"
@@ -142,8 +253,8 @@
           </template>
 
           <template #cell-name="{ value, row }">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <div class="console-key-name flex items-center gap-1.5">
+              <span class="truncate font-medium text-gray-900 dark:text-white" :title="value">{{ value }}</span>
               <Icon
                 v-if="row.ip_whitelist?.length > 0 || row.ip_blacklist?.length > 0"
                 name="shield"
@@ -163,6 +274,7 @@
                 :title="t('keys.clickToChangeGroup')"
               >
                 <GroupBadge
+                  class="console-key-group"
                   v-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
@@ -177,7 +289,7 @@
                 <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
                   t('keys.noGroup')
                 }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
+                <span class="sr-only">{{ t('keys.selectGroup') }}</span>
                 <svg
                   class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
                   fill="none"
@@ -199,9 +311,7 @@
             <span
               :class="[
                 'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
-                (value ?? 0) > 0
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
+                'text-gray-600 dark:text-gray-300 font-mono'
               ]"
             >
               {{ value ?? 0 }}
@@ -209,52 +319,36 @@
           </template>
 
           <template #cell-usage="{ row }">
-            <div class="text-sm">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
+            <!-- 额度条 + 今日 / 近30天花费都直接可见；未设额度显示「不限额」，不画空进度条。 -->
+            <div class="console-key-usage">
+              <div v-if="row.quota > 0" class="console-key-usage-quota">
                 <span
-                  v-if="usageLoading && !usageStats[row.id]"
-                  data-test="usage-pending"
-                  class="inline-block h-3 w-14 animate-pulse rounded bg-gray-200 dark:bg-dark-600"
-                />
-                <span v-else class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span
-                  v-if="usageLoading && !usageStats[row.id]"
-                  class="inline-block h-3 w-14 animate-pulse rounded bg-gray-200 dark:bg-dark-600"
-                />
-                <span v-else class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <!-- Quota progress (if quota is set) -->
-              <div v-if="row.quota > 0" class="mt-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.quota') }}:</span>
-                  <span :class="[
-                    'font-medium',
-                    row.quota_used >= row.quota ? 'text-red-500' :
-                    row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
-                    'text-gray-900 dark:text-white'
-                  ]">
-                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.quota_used >= row.quota ? 'bg-red-500' :
-                      row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
+                  class="console-key-usage-track"
+                  role="meter"
+                  :aria-label="t('keys.quota')"
+                  :aria-valuenow="row.quota_used"
+                  :aria-valuemin="0"
+                  :aria-valuemax="Math.max(row.quota, row.quota_used)"
+                  :aria-valuetext="`$${row.quota_used.toFixed(2)} / $${row.quota.toFixed(2)}`"
+                >
+                  <span
+                    :class="row.quota_used >= row.quota * 0.9 ? 'bg-star-bronze dark:bg-star-bronze-night' : 'bg-primary-800 dark:bg-primary-400'"
                     :style="{ width: Math.min((row.quota_used / row.quota) * 100, 100) + '%' }"
                   />
-                </div>
+                </span>
+                <span class="font-mono text-star-bronze dark:text-star-bronze-night">${{ row.quota_used.toFixed(2) }} / ${{ row.quota.toFixed(2) }}</span>
+              </div>
+              <span v-else class="console-key-unlimited" data-test="usage-unlimited">{{ t('keys.unlimitedQuota') }}</span>
+              <div class="console-key-spend">
+                <span v-for="range in (['today', 'total'] as const)" :key="range">
+                  {{ t(range === 'today' ? 'keys.today' : 'keys.total') }}
+                  <span
+                    v-if="usageLoading && !usageStats[row.id]"
+                    :data-test="range === 'today' ? 'usage-pending' : undefined"
+                    class="inline-block h-3 w-12 animate-pulse rounded bg-gray-200 align-middle dark:bg-dark-600"
+                  />
+                  <b v-else class="font-mono">{{ keySpend(row.id, range) }}</b>
+                </span>
               </div>
             </div>
           </template>
@@ -361,8 +455,8 @@
 
           <template #cell-expires_at="{ value }">
             <span v-if="value" :class="[
-              'text-sm',
-              new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
+              'console-record-date text-sm',
+              new Date(value) < new Date() ? 'text-star-bronze dark:text-star-bronze-night' : 'text-gray-500 dark:text-dark-400'
             ]">
               {{ formatDateTime(value) }}
             </span>
@@ -370,13 +464,7 @@
           </template>
 
           <template #cell-status="{ value }">
-            <span :class="[
-              'badge',
-              value === 'active' ? 'badge-success' :
-              value === 'quota_exhausted' ? 'badge-warning' :
-              value === 'expired' ? 'badge-danger' :
-              'badge-gray'
-            ]">
+            <span :class="['badge whitespace-nowrap', keyStatusBadge(value)]">
               {{ t('keys.status.' + value) }}
             </span>
           </template>
@@ -396,58 +484,63 @@
           </template>
 
           <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
+            <span class="console-record-date text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <!-- Use Key Button -->
+            <!-- 常用「使用」带文字，编辑保留图标，其余收进「更多」菜单；每个操作保留可访问名称。 -->
+            <div class="console-key-actions">
               <button
+                type="button"
+                class="console-key-use"
+                :aria-label="t('keys.useKey')"
+                :title="t('keys.useKey')"
                 @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
               >
-                <Icon name="terminal" size="sm" />
-                <span class="text-xs">{{ t('keys.useKey') }}</span>
+                <Icon name="play" size="xs" />
+                <span>{{ t('keys.use') }}</span>
               </button>
-              <!-- Import to CC Switch Button -->
               <button
-                v-if="!publicSettings?.hide_ccs_import_button"
-                @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-              >
-                <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
-              </button>
-              <!-- Toggle Status Button -->
-              <button
-                @click="toggleKeyStatus(row)"
-                :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
-                  row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
-                ]"
-              >
-                <Icon v-if="row.status === 'active'" name="ban" size="sm" />
-                <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
-              </button>
-              <!-- Edit Button -->
-              <button
+                type="button"
+                class="console-key-icon-action"
+                :aria-label="t('common.edit')"
+                :title="t('common.edit')"
                 @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
+                <span class="sr-only">{{ t('common.edit') }}</span>
               </button>
-              <!-- Delete Button -->
-              <button
-                @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-              >
-                <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t('common.delete') }}</span>
-              </button>
+              <ConsoleRowMenu :label="`${t('keys.moreActions')}: ${row.name}`">
+                <button
+                  v-if="!publicSettings?.hide_ccs_import_button"
+                  type="button"
+                  role="menuitem"
+                  :aria-label="t('keys.importToCcSwitch')"
+                  @click="importToCcswitch(row)"
+                >
+                  <Icon name="upload" size="sm" />
+                  <span>{{ t('keys.importToCcSwitch') }}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  :aria-label="row.status === 'active' ? t('keys.disable') : t('keys.enable')"
+                  @click="toggleKeyStatus(row)"
+                >
+                  <Icon :name="row.status === 'active' ? 'ban' : 'checkCircle'" size="sm" />
+                  <span>{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="console-row-menu-danger"
+                  :aria-label="t('common.delete')"
+                  @click="confirmDelete(row)"
+                >
+                  <Icon name="trash" size="sm" />
+                  <span>{{ t('common.delete') }}</span>
+                </button>
+              </ConsoleRowMenu>
             </div>
           </template>
 
@@ -460,17 +553,19 @@
             />
           </template>
         </DataTable>
-      </template>
-
-      <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
-        />
+          </template>
+        </ConsoleRecordList>
+        <!-- 分页是表格卡片的 Table foot（Figma C2 / C3）：上边框 1px，padding 12px 20px。 -->
+        <div v-if="pagination.total > 0" class="console-table-foot">
+          <Pagination
+            :page="pagination.page"
+            :total="pagination.total"
+            :page-size="pagination.page_size"
+            @update:page="handlePageChange"
+            @update:pageSize="handlePageSizeChange"
+          />
+        </div>
+        </section>
       </template>
     </TablePageLayout>
 
@@ -1208,6 +1303,7 @@
 </template>
 
 <script setup lang="ts">
+import '@/styles/console-data-pages.css'
 	import { ref, reactive, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
@@ -1218,6 +1314,9 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import ConsoleRecordList from '@/components/user/ConsoleRecordList.vue'
+import ConsoleRowMenu from '@/components/user/ConsoleRowMenu.vue'
+import ConsoleEndpointBar from '@/components/user/ConsoleEndpointBar.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 	import DataTable from '@/components/common/DataTable.vue'
@@ -1229,7 +1328,6 @@ import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 	import SearchInput from '@/components/common/SearchInput.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
-	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
@@ -1366,6 +1464,27 @@ const columns = computed<Column[]>(() =>
 )
 
 const apiKeys = ref<ApiKey[]>([])
+// 列表接口分页；概览只展示当前页中已设额度的前四项，不冒充账户或月度汇总。
+const quotaKeys = computed(() => apiKeys.value
+  .filter((key) => key.quota > 0)
+  .slice()
+  .sort((a, b) => b.quota_used / b.quota - a.quota_used / a.quota)
+  .slice(0, 4))
+const keyStatusBadge = (status: string) =>
+  status === 'active' ? 'badge-success'
+    : status === 'quota_exhausted' || status === 'expired' ? 'badge-warning'
+      : 'badge-gray'
+// 今日 / 近30天实际花费（批量用量接口）；加载中或无数据时显示 $0.0000，与原表格一致。
+const keySpend = (id: number, range: 'today' | 'total') => {
+  const stats = usageStats.value[id]
+  const value = range === 'today' ? stats?.today_actual_cost : stats?.total_actual_cost
+  return `$${(value ?? 0).toFixed(4)}`
+}
+const rateLimitWindows = (key: ApiKey) => ([
+  { label: '5h', used: key.usage_5h ?? 0, limit: key.rate_limit_5h },
+  { label: '1d', used: key.usage_1d ?? 0, limit: key.rate_limit_1d },
+  { label: '7d', used: key.usage_7d ?? 0, limit: key.rate_limit_7d },
+]).filter((window) => window.limit > 0)
 const selectedIds = ref<number[]>([])
 const showBulkEditModal = ref(false)
 const selectedApiKeys = computed(() => apiKeys.value.filter((key) => selectedIds.value.includes(key.id)))

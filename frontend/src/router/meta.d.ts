@@ -70,5 +70,11 @@ declare module 'vue-router' {
      * i18n key for the page description
      */
     descriptionKey?: string
+
+    /**
+     * 页面自带页头（h1 标题 + 描述），顶栏不再重复显示标题和描述（v3 密钥 / 使用记录）
+     * @default false
+     */
+    pageHeading?: boolean
   }
 }

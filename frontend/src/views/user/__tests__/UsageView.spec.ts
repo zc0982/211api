@@ -151,6 +151,13 @@ const usageLog = {
   native_compaction_v2: false,
 }
 
+async function openCharts(wrapper: ReturnType<typeof mountUsageView>, open = true) {
+  const details = wrapper.get('[data-test="usage-charts"]')
+  ;(details.element as HTMLDetailsElement).open = open
+  await details.trigger('toggle')
+  await flushPromises()
+}
+
 function mountUsageView() {
   return mount(UsageView, {
     global: {
@@ -166,7 +173,7 @@ function mountUsageView() {
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
         EndpointDistributionChart: chartStub,
-        TokenUsageTrend: chartStub,
+        TokenUsageTrend: { ...chartStub, name: 'TokenUsageTrend' },
       },
     },
   })
@@ -218,7 +225,7 @@ describe('user UsageView', () => {
     getAvailable.mockResolvedValue([{ id: 1, name: 'default' }])
   })
 
-  it('loads logs, stats, model stats, and snapshot on first render', async () => {
+  it('loads logs, stats and model stats on first render but defers the chart snapshot until charts open', async () => {
     const wrapper = mountUsageView()
     await flushPromises()
 
@@ -228,6 +235,11 @@ describe('user UsageView', () => {
     expect(query).toHaveBeenCalled()
     expect(getStats).toHaveBeenCalled()
     expect(getDashboardModels).toHaveBeenCalled()
+    expect(getDashboardSnapshotV2).not.toHaveBeenCalled()
+    expect(wrapper.findComponent({ name: 'TokenUsageTrend' }).exists()).toBe(false)
+
+    await openCharts(wrapper)
+    expect(getDashboardSnapshotV2).toHaveBeenCalledTimes(1)
     expect(getDashboardSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
       include_trend: true,
       include_model_stats: false,
@@ -236,6 +248,31 @@ describe('user UsageView', () => {
     expect(list).toHaveBeenCalledTimes(1)
     expect(list).toHaveBeenCalledWith(1, 100)
     expect(getAvailable).toHaveBeenCalled()
+  })
+
+  it('keeps explicit WS, Live and policy-blocked request types in phone summaries', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    query.mockResolvedValue({
+      items: ['ws_v2', 'live', 'cyber'].map((request_type, id) => ({
+        ...usageLog, id, request_type, stream: true,
+      })),
+      total: 3,
+      pages: 1,
+    })
+    const wrapper = mountUsageView()
+    try {
+      await flushPromises()
+      const summaries = wrapper.findAll('.console-mobile-record-body > summary').map((row) => row.text())
+      expect(summaries[0]).toContain('WS')
+      expect(summaries[1]).toContain('usage.live')
+      expect(summaries[2]).toContain('usage.cyber')
+      expect(summaries.join(' ')).not.toContain('Stream')
+      expect(summaries.join(' ')).not.toContain('200 OK')
+    } finally {
+      wrapper.unmount()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    }
   })
 
   it('includes API keys after the first page in both record filters and queries by the selected key', async () => {
@@ -328,6 +365,7 @@ describe('user UsageView', () => {
   it('propagates and resets the native compaction filter across page requests', async () => {
     const wrapper = mountUsageView()
     await flushPromises()
+    await openCharts(wrapper)
 
     expect((wrapper.vm as any).compactionOptions).toEqual([
       { value: null, label: 'All Requests' },
@@ -657,5 +695,88 @@ describe('UsageView subscription feature flag', () => {
     expect(billingTypeSelect(wrapper)).toBeUndefined()
     expect(wrapper.text()).not.toContain('Billing type')
     wrapper.unmount()
+  })
+  it('marks the chart snapshot stale while collapsed and loads it with the latest filters when opened', async () => {
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    ;(wrapper.vm as any).filters.billing_mode = 'per_request'
+    ;(wrapper.vm as any).applyFilters()
+    await flushPromises()
+    expect(getDashboardSnapshotV2).not.toHaveBeenCalled()
+
+    await openCharts(wrapper)
+    expect(getDashboardSnapshotV2).toHaveBeenCalledTimes(1)
+    expect(getDashboardSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ billing_mode: 'per_request' }))
+    expect(wrapper.findComponent({ name: 'TokenUsageTrend' }).exists()).toBe(true)
+
+    // 收起再展开且筛选未变：不重复请求
+    await openCharts(wrapper, false)
+    await openCharts(wrapper)
+    expect(getDashboardSnapshotV2).toHaveBeenCalledTimes(1)
+
+    // 展开状态下改筛选：立即刷新
+    ;(wrapper.vm as any).applyFilters()
+    await flushPromises()
+    expect(getDashboardSnapshotV2).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('renders compact single-line rows with Chinese column labels and keeps pagination inside the record card', async () => {
+    query.mockResolvedValue({ items: [usageLog], total: 40, pages: 2 })
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    const table = wrapper.findComponent(UsageTable)
+    expect(table.attributes('compact')).toBeDefined()
+    expect(table.attributes('flat')).toBeDefined()
+    const labels = Object.fromEntries(table.props('columns').map((column: { key: string; label: string }) => [column.key, column.label]))
+    expect(labels.tokens).toBe('usage.inputOutput')
+    expect(labels.latency).toBe('usage.latencyCompact')
+
+    const card = wrapper.get('section.console-records')
+    expect(card.find('.console-table-foot pagination-stub').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps the primary filters in one pill row and collapses the extra filters behind a counted toggle', async () => {
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    const row = wrapper.get('[data-test="usage-filter-scroll"]')
+    const pillLabels = row.findAllComponents(Select).map((select) => select.attributes('aria-label'))
+    expect(pillLabels).toEqual(['API Key', 'Model', 'Group', 'Type'])
+    const toggle = wrapper.get('[data-test="usage-more-filters"]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect((wrapper.get('#usage-more-filters').element as HTMLElement).style.display).toBe('none')
+
+    ;(wrapper.vm as any).filters.billing_mode = 'token'
+    await flushPromises()
+    expect(toggle.text()).toContain('1')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect((wrapper.get('#usage-more-filters').element as HTMLElement).style.display).toBe('')
+    wrapper.unmount()
+  })
+
+  it('renders phone details as labelled fields instead of a per-row table', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    query.mockResolvedValue({ items: [usageLog, { ...usageLog, id: 2, request_id: 'req-2' }], total: 2, pages: 1 })
+    const wrapper = mountUsageView()
+    try {
+      await flushPromises()
+      expect(wrapper.findComponent(UsageTable).exists()).toBe(false)
+      const fields = wrapper.findAll('[data-test="usage-mobile-fields"]')
+      expect(fields).toHaveLength(2)
+      expect(fields[0].text()).toContain('req-user-export')
+      expect(fields[0].text()).toContain('4,057 / 101')
+      expect(fields[0].text()).toContain('$0.092883')
+      expect(wrapper.get('.console-mobile-record-body > summary').text()).toContain('12ms / 345ms')
+    } finally {
+      wrapper.unmount()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    }
   })
 })

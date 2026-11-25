@@ -1,174 +1,18 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
-
-      <div class="space-y-4">
-        <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker
-                v-model:start-date="startDate"
-                v-model:end-date="endDate"
-                @change="onDateRangeChange"
-              />
-            </div>
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
-              <div class="w-28">
-                <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
-              </div>
-            </div>
-          </div>
+    <div class="console-data-page console-usage">
+      <header class="console-page-heading">
+        <div>
+          <h1 class="page-title">{{ t('usage.title') }}</h1>
+          <p class="page-description">{{ t('usage.description') }}</p>
         </div>
+        <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
+          {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
+        </button>
+      </header>
+      <UsageStatsCards class="console-usage-stats" :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ModelDistributionChart
-            v-model:metric="modelDistributionMetric"
-            :model-stats="requestedModelStats"
-            :loading="modelStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-          <GroupDistributionChart
-            v-model:metric="groupDistributionMetric"
-            :group-stats="groupStats"
-            :loading="chartsLoading"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-        </div>
-
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <EndpointDistributionChart
-            v-model:source="endpointDistributionSource"
-            v-model:metric="endpointDistributionMetric"
-            :endpoint-stats="inboundEndpointStats"
-            :upstream-endpoint-stats="upstreamEndpointStats"
-            :endpoint-path-stats="endpointPathStats"
-            :loading="endpointStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :title="t('usage.endpointDistribution')"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
-        </div>
-      </div>
-
-      <div class="card p-6">
-        <div class="flex flex-wrap items-end justify-between gap-4">
-          <div v-if="activeTab === 'errors'" class="flex flex-1 flex-wrap items-end gap-4">
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.errors.keyName') }}</label>
-              <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.errors.model') }}</label>
-              <Select
-                v-model="errorFilter.model"
-                :options="errorModelOptions"
-                searchable
-                creatable
-                clearable
-                :placeholder="t('usage.errors.modelPlaceholder')"
-                @change="applyErrorFilters"
-              />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('usage.errors.category') }}</label>
-              <Select v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.errors.status') }}</label>
-              <Select v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
-            </div>
-          </div>
-          <div v-else class="flex flex-1 flex-wrap items-end gap-4">
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.model') }}</label>
-              <Select v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.group') }}</label>
-              <Select v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.type') }}</label>
-              <Select v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
-            </div>
-            <div v-if="subscriptionFeatureEnabled" class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-              <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
-            </div>
-          </div>
-
-          <div class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
-            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary">
-              {{ t('common.refresh') }}
-            </button>
-            <button type="button" @click="resetFilters" class="btn btn-secondary">
-              {{ t('common.reset') }}
-            </button>
-            <div class="relative" ref="columnDropdownRef">
-              <button
-                type="button"
-                data-testid="usage-column-settings"
-                @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('admin.users.columnSettings')"
-              >
-                <Icon name="grid" size="sm" />
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-              </button>
-              <div
-                v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-              >
-                <button
-                  v-for="col in currentToggleableColumns"
-                  :key="col.key"
-                  type="button"
-                  :data-testid="`usage-column-toggle-${col.key}`"
-                  @click="toggleCurrentColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                >
-                  <span>{{ col.label }}</span>
-                  <Icon v-if="isCurrentColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
-                </button>
-              </div>
-            </div>
-            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
-              {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
+      <div v-if="errorViewEnabled" class="tabs w-fit">
         <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
           {{ t('usage.tabs.usage') }}
         </button>
@@ -177,29 +21,191 @@
         </button>
       </div>
 
-      <template v-if="activeTab === 'usage'">
-        <UsageTable
-          :data="usageLogs"
-          :loading="loading"
-          :columns="visibleColumns"
-          :server-side-sort="true"
-          :show-account-billing="false"
-          :show-upstream-endpoint="false"
-          default-sort-key="created_at"
-          default-sort-order="desc"
-          @sort="handleSort"
-          @ipGeoBatchFailed="handleIpGeoBatchFailed"
-        />
+      <!-- 一行胶囊筛选（Figma C3）：时间范围 + 密钥 / 模型 / 分组 / 类型，工具按钮在同一行右侧；手机横滑，边缘渐隐提示还有内容。 -->
+      <div class="console-filter-bar">
+        <div
+          ref="filterScrollRef"
+          class="console-filter-scroll"
+          :class="{ 'console-filter-scroll--more-left': filterFade.left, 'console-filter-scroll--more-right': filterFade.right }"
+          role="group"
+          :aria-label="t('usage.filtersScrollHint')"
+          data-test="usage-filter-scroll"
+          @scroll.passive="updateFilterFade"
+        >
+          <div class="console-filter-pill console-filter-date">
+            <span class="sr-only">{{ t('admin.dashboard.timeRange') }}</span>
+            <DateRangePicker
+              v-model:start-date="startDate"
+              v-model:end-date="endDate"
+              @change="onDateRangeChange"
+            />
+          </div>
+          <template v-if="activeTab === 'errors'">
+            <div class="console-filter-pill">
+              <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" :aria-label="t('usage.errors.keyName')" @change="applyErrorFilters" />
+            </div>
+            <div class="console-filter-pill console-filter-pill--wide">
+              <Select
+                v-model="errorFilter.model"
+                :options="errorModelOptions"
+                searchable
+                creatable
+                clearable
+                :aria-label="t('usage.errors.model')"
+                :placeholder="t('usage.errors.modelPlaceholder')"
+                @change="applyErrorFilters"
+              />
+            </div>
+            <div class="console-filter-pill">
+              <Select v-model="errorFilter.category" :options="errorCategoryOptions" :aria-label="t('usage.errors.category')" @change="applyErrorFilters" />
+            </div>
+            <div class="console-filter-pill">
+              <Select v-model="errorFilter.status_code" :options="errorStatusOptions" :aria-label="t('usage.errors.status')" @change="applyErrorFilters" />
+            </div>
+          </template>
+          <template v-else>
+            <div class="console-filter-pill">
+              <Select v-model="filters.api_key_id" :placeholder="t('usage.allApiKeys')" :options="apiKeyOptions" :aria-label="t('usage.apiKeyFilter')" @change="applyFilters" />
+            </div>
+            <div class="console-filter-pill console-filter-pill--wide">
+              <Select v-model="filters.model" :placeholder="t('admin.usage.allModels')" :options="modelOptions" searchable :aria-label="t('usage.model')" @change="applyFilters" />
+            </div>
+            <div class="console-filter-pill">
+              <Select v-model="filters.group_id" :placeholder="t('admin.usage.allGroups')" :options="groupOptions" searchable :aria-label="t('admin.usage.group')" @change="applyFilters" />
+            </div>
+            <div class="console-filter-pill">
+              <Select v-model="filters.request_type" :placeholder="t('admin.usage.allTypes')" :options="requestTypeOptions" :aria-label="t('usage.type')" @change="applyFilters" />
+            </div>
+            <button
+              type="button"
+              class="console-filter-more"
+              :aria-expanded="showMoreFilters"
+              aria-controls="usage-more-filters"
+              data-test="usage-more-filters"
+              @click="showMoreFilters = !showMoreFilters"
+            >
+              <Icon name="filter" size="sm" />
+              <span>{{ t('usage.moreFilters') }}</span>
+              <span v-if="activeExtraFilterCount" class="console-filter-count">{{ activeExtraFilterCount }}</span>
+            </button>
+          </template>
+        </div>
 
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
-        />
-      </template>
+        <div class="console-filter-tools">
+          <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary">
+            {{ t('common.refresh') }}
+          </button>
+          <button type="button" @click="resetFilters" class="btn btn-secondary">
+            {{ t('common.reset') }}
+          </button>
+          <div class="relative" ref="columnDropdownRef">
+            <button
+              type="button"
+              data-testid="usage-column-settings"
+              @click="showColumnDropdown = !showColumnDropdown"
+              class="btn btn-secondary px-2 md:px-3"
+              :title="t('admin.users.columnSettings')"
+              :aria-label="t('admin.users.columnSettings')"
+            >
+              <Icon name="grid" size="sm" />
+              <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+            </button>
+            <div
+              v-if="showColumnDropdown"
+              class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+            >
+              <button
+                v-for="col in currentToggleableColumns"
+                :key="col.key"
+                type="button"
+                :data-testid="`usage-column-toggle-${col.key}`"
+                @click="toggleCurrentColumn(col.key)"
+                class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <span>{{ col.label }}</span>
+                <Icon v-if="isCurrentColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="activeTab === 'usage' && showMoreFilters" id="usage-more-filters" class="console-extra-filter-fields">
+        <div>
+          <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+          <Select v-model="filters.native_compaction_v2" :options="compactionOptions" :aria-label="t('usage.compactionFilter')" @change="applyFilters" />
+        </div>
+        <div v-if="subscriptionFeatureEnabled">
+          <label class="input-label">{{ t('admin.usage.billingType') }}</label>
+          <Select v-model="filters.billing_type" :options="billingTypeOptions" :aria-label="t('admin.usage.billingType')" @change="applyFilters" />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
+          <Select v-model="filters.billing_mode" :options="billingModeOptions" :aria-label="t('admin.usage.billingMode')" @change="applyFilters" />
+        </div>
+      </div>
+
+      <section v-if="activeTab === 'usage'" class="console-records console-usage-records">
+        <ConsoleRecordList :data="usageLogs" :loading="loading" :label="t('usage.title')">
+          <template #summary="{ row }">
+            <span class="console-mobile-record-title"><strong class="font-mono">{{ row.model }}</strong><span class="font-mono text-star-bronze dark:text-star-bronze-night">${{ row.actual_cost.toFixed(4) }}</span><Icon name="chevronDown" size="sm" /></span>
+            <span class="console-mobile-record-meta"><span>{{ formatDateTime(row.created_at) }}</span><span>{{ row.api_key?.name || '—' }}</span></span>
+            <span class="console-mobile-record-meta"><span :class="row.request_type === 'cyber' ? 'badge badge-warning' : ''">{{ getRequestTypeLabel(row) }}</span><span class="font-mono">{{ formatLatency(row.first_token_ms) }} / {{ formatLatency(row.duration_ms) }}</span></span>
+          </template>
+          <template #detail="{ row }">
+            <dl class="console-mobile-fields" data-test="usage-mobile-fields">
+              <div>
+                <dt>{{ t('usage.requestId') }}</dt>
+                <dd class="console-mobile-copy">
+                  <code>{{ row.request_id || '—' }}</code>
+                  <button v-if="row.request_id" type="button" class="console-inline-action" :aria-label="`${t('keys.copyToClipboard')} ${row.request_id}`" @click="copyRequestId(row.request_id)">
+                    <Icon :name="copiedRequestId === row.request_id ? 'check' : 'copy'" size="xs" />
+                    <span>{{ copiedRequestId === row.request_id ? t('common.copied') : t('common.copy') }}</span>
+                  </button>
+                </dd>
+              </div>
+              <div><dt>{{ t('usage.reasoningEffort') }}</dt><dd>{{ formatReasoningEffort(row.reasoning_effort) }}</dd></div>
+              <div><dt>{{ t('usage.inputOutput') }}</dt><dd class="font-mono">{{ row.input_tokens.toLocaleString() }} / {{ row.output_tokens.toLocaleString() }}</dd></div>
+              <div v-if="row.cache_read_tokens > 0"><dt>{{ t('usage.cacheReadTokensLabel') }}</dt><dd class="font-mono">{{ row.cache_read_tokens.toLocaleString() }}</dd></div>
+              <div v-if="row.cache_creation_tokens > 0"><dt>{{ t('usage.cacheCreationTokensLabel') }}</dt><dd class="font-mono">{{ row.cache_creation_tokens.toLocaleString() }}</dd></div>
+              <div><dt>{{ t('usage.cost') }}</dt><dd class="font-mono text-star-bronze dark:text-star-bronze-night">${{ row.actual_cost.toFixed(6) }}</dd></div>
+              <div><dt>{{ t('usage.standardCost') }}</dt><dd class="font-mono">${{ row.total_cost.toFixed(6) }}</dd></div>
+              <div><dt>{{ t('usage.latencyCompact') }}</dt><dd class="font-mono">{{ formatLatency(row.first_token_ms) }} / {{ formatLatency(row.duration_ms) }}</dd></div>
+              <div><dt>{{ t('usage.outputTps') }}</dt><dd class="font-mono">{{ formatUsageOutputRate(row) }}</dd></div>
+              <div><dt>{{ t('usage.cacheRate') }}</dt><dd class="font-mono">{{ formatCacheHitRate(row.cache_hit_rate) }}</dd></div>
+              <div v-if="row.inbound_endpoint"><dt>{{ t('usage.endpoint') }}</dt><dd class="font-mono">{{ row.inbound_endpoint }}</dd></div>
+              <div><dt>{{ t('admin.usage.billingMode') }}</dt><dd>{{ getBillingModeLabel(getDisplayBillingMode(row), t) }}</dd></div>
+              <div v-if="row.native_compaction_v2"><dt>{{ t('usage.compactionFilter') }}</dt><dd>{{ t('usage.nativeCompactionV2') }}</dd></div>
+            </dl>
+          </template>
+          <template #default="{ rows }">
+            <UsageTable
+              flat
+              compact
+              :data="rows"
+              :loading="loading"
+              :columns="visibleColumns"
+              :server-side-sort="true"
+              :show-account-billing="false"
+              :show-upstream-endpoint="false"
+              default-sort-key="created_at"
+              default-sort-order="desc"
+              @sort="handleSort"
+              @ipGeoBatchFailed="handleIpGeoBatchFailed"
+            />
+          </template>
+        </ConsoleRecordList>
+
+        <div v-if="pagination.total > 0" class="console-table-foot">
+          <Pagination
+            :page="pagination.page"
+            :total="pagination.total"
+            :page-size="pagination.page_size"
+            @update:page="handlePageChange"
+            @update:pageSize="handlePageSizeChange"
+          />
+        </div>
+      </section>
 
       <UserErrorRequestsTable
         v-else-if="errorViewEnabled"
@@ -214,19 +220,76 @@
         @update:pageSize="onErrorPageSize"
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
+
+      <!-- 图表默认折叠：折叠时不请求趋势 / 分组快照，展开时再加载；图表在展开后才挂载，Chart.js 能量到真实尺寸。 -->
+      <details class="console-usage-charts" data-test="usage-charts" @toggle="onChartsToggle">
+        <summary>{{ t('usage.analytics') }}</summary>
+        <div v-if="chartsOpen" class="space-y-6 pt-5">
+          <div class="flex items-center justify-end gap-2">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
+            <div class="w-28">
+              <Select v-model="granularity" :options="granularityOptions" :aria-label="t('admin.dashboard.granularity')" @change="loadChartData" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ModelDistributionChart
+              v-model:metric="modelDistributionMetric"
+              :model-stats="requestedModelStats"
+              :loading="modelStatsLoading"
+              :show-source-toggle="false"
+              :show-metric-toggle="true"
+              :enable-breakdown="false"
+              :show-account-cost="false"
+              :start-date="startDate"
+              :end-date="endDate"
+            />
+            <GroupDistributionChart
+              v-model:metric="groupDistributionMetric"
+              :group-stats="groupStats"
+              :loading="chartsLoading"
+              :show-metric-toggle="true"
+              :enable-breakdown="false"
+              :show-account-cost="false"
+              :start-date="startDate"
+              :end-date="endDate"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <EndpointDistributionChart
+              v-model:source="endpointDistributionSource"
+              v-model:metric="endpointDistributionMetric"
+              :endpoint-stats="inboundEndpointStats"
+              :upstream-endpoint-stats="upstreamEndpointStats"
+              :endpoint-path-stats="endpointPathStats"
+              :loading="endpointStatsLoading"
+              :show-source-toggle="false"
+              :show-metric-toggle="true"
+              :enable-breakdown="false"
+              :show-account-cost="false"
+              :title="t('usage.endpointDistribution')"
+              :start-date="startDate"
+              :end-date="endDate"
+            />
+            <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          </div>
+        </div>
+      </details>
     </div>
   </AppLayout>
-
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import '@/styles/console-data-pages.css'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import ConsoleRecordList from '@/components/user/ConsoleRecordList.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -239,7 +302,9 @@ import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatReasoningEffort } from '@/utils/format'
+import { useClipboard } from '@/composables/useClipboard'
+import { formatUsageOutputRate } from '@/utils/latencyHealth'
+import { formatReasoningEffort, formatDateTime } from '@/utils/format'
 import { getBillingModeLabel, getDisplayBillingMode as resolveDisplayBillingMode } from '@/utils/billingMode'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import type {
@@ -259,6 +324,7 @@ import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { copyToClipboard } = useClipboard()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
@@ -508,7 +574,22 @@ const loadModelStats = async () => {
   }
 }
 
+// 图表区默认折叠：折叠时筛选变化只标记过期，展开时再请求趋势 / 分组快照。
+const chartsOpen = ref(false)
+let chartsStale = true
+
+const requestChartData = () => {
+  if (chartsOpen.value) void loadChartData()
+  else chartsStale = true
+}
+
+const onChartsToggle = (event: Event) => {
+  chartsOpen.value = (event.target as HTMLDetailsElement).open
+  if (chartsOpen.value && chartsStale) void loadChartData()
+}
+
 const loadChartData = async () => {
+  chartsStale = false
   const seq = ++chartReqSeq
   chartsLoading.value = true
   try {
@@ -547,7 +628,7 @@ const applyFilters = () => {
   void loadLogs()
   void loadStats()
   void loadModelStats()
-  void loadChartData()
+  requestChartData()
   resetErrorRows()
 }
 
@@ -555,7 +636,7 @@ const refreshData = () => {
   void loadLogs()
   void loadStats()
   void loadModelStats()
-  void loadChartData()
+  requestChartData()
   if (activeTab.value === 'errors') void loadErrors()
 }
 
@@ -609,6 +690,45 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 const handleIpGeoBatchFailed = () => {
   appStore.showError(t('usage.ipGeo.batchFailed'))
 }
+
+const getRequestTypeLabel = (log: UsageLog): string => {
+  const type = resolveUsageRequestType(log)
+  if (type === 'ws_v2') return t('usage.ws')
+  return type ? t(`usage.${type}`) : '—'
+}
+
+const formatLatency = (ms: number | null | undefined): string => {
+  if (ms == null) return '-'
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`
+}
+
+const copiedRequestId = ref<string | null>(null)
+let copiedResetTimer: number | undefined
+const copyRequestId = async (requestId: string) => {
+  if (!(await copyToClipboard(requestId, t('common.copied')))) return
+  copiedRequestId.value = requestId
+  window.clearTimeout(copiedResetTimer)
+  copiedResetTimer = window.setTimeout(() => { copiedRequestId.value = null }, 1800)
+}
+
+// 「更多筛选」里的条件在收起时也要看得出已生效。
+const showMoreFilters = ref(false)
+const activeExtraFilterCount = computed(() => [
+  filters.value.native_compaction_v2,
+  subscriptionFeatureEnabled.value ? filters.value.billing_type : null,
+  filters.value.billing_mode,
+].filter((value) => value != null && value !== '').length)
+
+// 手机筛选条横滑：按滚动位置给左右边缘加渐隐，提示两侧还有筛选项。
+const filterScrollRef = ref<HTMLElement | null>(null)
+const filterFade = reactive({ left: false, right: false })
+const updateFilterFade = () => {
+  const el = filterScrollRef.value
+  if (!el) return
+  filterFade.left = el.scrollLeft > 1
+  filterFade.right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+}
+let filterResizeObserver: ResizeObserver | null = null
 
 const getRequestTypeExportText = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
@@ -735,10 +855,12 @@ const exportToCSV = async () => {
 }
 
 const ALWAYS_VISIBLE = ['created_at']
-const DEFAULT_HIDDEN_COLUMNS = ['user_agent']
+const DEFAULT_HIDDEN_COLUMNS = ['user_agent', 'endpoint', 'ip_address', 'group', 'billing_mode']
 const HIDDEN_COLUMNS_KEY = 'user-usage-hidden-columns'
 
 const allColumns = computed<Column[]>(() => [
+  { key: 'created_at', label: t('usage.time'), sortable: true },
+  { key: 'request_id', label: t('usage.requestId'), sortable: false },
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
   { key: 'model', label: t('usage.model'), sortable: true },
   { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
@@ -747,10 +869,9 @@ const allColumns = computed<Column[]>(() => [
   { key: 'group', label: t('admin.usage.group'), sortable: false },
   { key: 'stream', label: t('usage.type'), sortable: false },
   { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
-  { key: 'tokens', label: t('usage.tokens'), sortable: false },
+  { key: 'tokens', label: t('usage.inputOutput'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
-  { key: 'latency', label: t('usage.latency'), sortable: false },
-  { key: 'created_at', label: t('usage.time'), sortable: true },
+  { key: 'latency', label: t('usage.latencyCompact'), sortable: false },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
 ])
 
@@ -928,12 +1049,21 @@ onMounted(() => {
   document.addEventListener('click', handleColumnClickOutside)
   void loadFilterOptions()
   refreshData()
+  if (typeof ResizeObserver !== 'undefined' && filterScrollRef.value) {
+    filterResizeObserver = new ResizeObserver(updateFilterFade)
+    filterResizeObserver.observe(filterScrollRef.value)
+  }
+  updateFilterFade()
 })
 
 onUnmounted(() => {
   abortController?.abort()
   document.removeEventListener('click', handleColumnClickOutside)
+  filterResizeObserver?.disconnect()
+  window.clearTimeout(copiedResetTimer)
 })
+
+watch(activeTab, () => nextTick(updateFilterFade))
 
 watch(endpointDistributionSource, () => {
   // Endpoint source switching is handled by the chart component using already loaded stats.

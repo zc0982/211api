@@ -709,6 +709,39 @@ describe('admin UsageTable tooltip', () => {
   })
 })
 
+describe('UsageTable compact mode (user usage records v3)', () => {
+  const row = {
+    ...baseImageRow, image_count: 0, billing_mode: 'token', input_tokens: 1284, output_tokens: 356,
+    cache_read_tokens: 820, first_token_ms: 312, duration_ms: 1240, cache_hit_rate: 0.38, actual_cost: 0.0042,
+  }
+  const mountCompact = (compact: boolean) => mount(UsageTable, {
+    props: { data: [row], loading: false, columns: [{ key: 'latency', label: 'Latency' }], compact },
+    global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+  })
+
+  it('renders tokens and latency on one line without the health bar or colored values', () => {
+    const wrapper = mountCompact(true)
+    expect(wrapper.get('[data-testid="compact-tokens"]').text()).toContain('1,284 / 356')
+    const latency = wrapper.get('[data-testid="compact-latency"]')
+    expect(latency.get('[aria-hidden="true"]').text()).toBe('312ms / 1.24s')
+    // TPS 与缓存率进入悬停提示和读屏文本，不再占行高
+    expect(latency.attributes('title')).toContain('Output TPS')
+    expect(latency.attributes('title')).toContain('Cache rate 38.0%')
+    expect(latency.get('.sr-only').text()).toBe(latency.attributes('title'))
+    expect(wrapper.find('[data-testid="output-tps"]').exists()).toBe(false)
+    expect(wrapper.html()).not.toMatch(/bg-gradient-to-b|text-(green|emerald)-\d/)
+    expect(wrapper.text()).toContain('$0.004200')
+  })
+
+  it('keeps the multi-line admin layout when compact is off', () => {
+    const wrapper = mountCompact(false)
+    expect(wrapper.find('[data-testid="compact-latency"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="compact-tokens"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="output-tps"]').exists()).toBe(true)
+    expect(wrapper.html()).toContain('text-green-600')
+  })
+})
+
 describe('admin UsageTable request ID column', () => {
   beforeEach(() => {
     appStoreMocks.showSuccess.mockReset()
