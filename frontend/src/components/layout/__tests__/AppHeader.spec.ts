@@ -21,7 +21,9 @@ describe('AppHeader console v3 top bar', () => {
   })
 
   it('does not repeat the page title in the top bar for pages that render their own heading', () => {
-    expect(source).toMatch(/v-else-if="!route\.meta\.pageHeading"[^>]*data-test="topbar-page-title"/)
+    expect(source).toMatch(/v-else-if="!route\.meta\.pageHeading \|\| monitorV1Heading"[^>]*data-test="topbar-page-title"/)
+    expect(source).toContain("route.name === 'ChannelStatus' && isChannelMonitorV1Mode()")
+    expect(source).toContain('v-if="isPhone && monitorV1Heading"')
     expect(routeBlock('/keys')).toContain('pageHeading: true')
     expect(routeBlock('/usage')).toContain('pageHeading: true')
     // 仪表盘行为不变：顶栏继续显示标题

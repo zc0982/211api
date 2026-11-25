@@ -1,9 +1,16 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import zhV2 from '@/i18n/locales/zh/channelMonitorV2'
+import enV2 from '@/i18n/locales/en/channelMonitorV2'
+import zhCommon from '@/i18n/locales/zh/common'
+import enCommon from '@/i18n/locales/en/common'
 import { describe, expect, it, vi } from 'vitest'
 import { PURCHASE_ROUTE_NAME, resolveDocumentTitle, resolveRouteDocumentTitle, resolveRouteMetaKeys } from '@/router/title'
 
 // 语言包在测试环境是懒加载的，这里只提供本文件用到的几个 key，其余原样返回 key（触发 meta.title 回退）。
 vi.mock('@/i18n', () => {
   const messages: Record<string, string> = {
+    'nav.channelStatus': '渠道状态',
     'nav.recharge': '充值',
     'nav.subscribe': '订阅',
     'nav.buySubscription': '充值/订阅',
@@ -118,5 +125,26 @@ describe('resolveRouteDocumentTitle 站点类型', () => {
   it('充值 & 订阅时保留原标题', () => {
     const title = resolveRouteDocumentTitle(purchaseRoute, 'EzouAPI', [], { billingMode: 'recharge_and_subscription' })
     expect(title).toBe('充值/订阅 - EzouAPI')
+  })
+})
+
+describe('Channel Status title contract', () => {
+  it('keeps V2 heading, sidebar, route metadata and title derivation aligned without changing V1 keys', () => {
+    expect(zhV2.channelMonitorV2.title).toBe('渠道状态')
+    expect(enV2.channelMonitorV2.title).toBe('Channel Status')
+    expect(zhCommon.nav.channelStatus).toBe(zhV2.channelMonitorV2.title)
+    expect(enCommon.nav.channelStatus).toBe(enV2.channelMonitorV2.title)
+    const source = readFileSync(resolve(__dirname, '../index.ts'), 'utf8')
+    const monitor = source.split("path: '/monitor'")[1].split("path:")[0]
+    expect(monitor).toContain("title: 'Channel Status'")
+    expect(monitor).toContain("titleKey: 'nav.channelStatus'")
+    expect(monitor).toContain('pageHeading: true')
+    expect(source.split("path: '/available-channels'")[1].split('path:')[0]).toContain('pageHeading: true')
+    const route = { name: 'ChannelStatus', params: {}, meta: { title: 'Channel Status', titleKey: 'nav.channelStatus' } }
+    expect(resolveRouteMetaKeys(route).titleKey).toBe('nav.channelStatus')
+    expect(resolveRouteDocumentTitle(route, '211API')).toBe('渠道状态 - 211API')
+    expect(resolveDocumentTitle('Channel Status', '211API')).toBe('Channel Status - 211API')
+    const v1 = readFileSync(resolve(__dirname, '../../views/user/ChannelStatusV1View.vue'), 'utf8')
+    expect(v1).not.toContain('channelMonitorV2.')
   })
 })

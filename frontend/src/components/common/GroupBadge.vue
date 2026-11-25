@@ -6,7 +6,7 @@
     ]"
   >
     <!-- Platform logo -->
-    <PlatformIcon v-if="platform" :platform="platform" size="sm" />
+    <PlatformIcon v-if="platform" :platform="platform" :data-console-platform="props.console ? platform : undefined" size="sm" />
     <!-- Group name -->
     <span :class="truncate ? 'truncate' : 'min-w-0 whitespace-normal [overflow-wrap:anywhere]'">{{ name }}</span>
     <!-- Right side label -->
@@ -35,6 +35,8 @@ import { formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import PlatformIcon from './PlatformIcon.vue'
 
 interface Props {
+  /** Neutral Console v3 appearance; all existing callers keep platform colors. */
+  console?: boolean
   name: string
   platform?: GroupPlatform
   subscriptionType?: SubscriptionType
@@ -57,6 +59,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  console: false,
   subscriptionType: 'standard',
   showRate: true,
   truncate: true,
@@ -131,6 +134,7 @@ const labelText = computed(() => {
 // Label style based on type and days remaining
 const labelClass = computed(() => {
   const base = 'px-1.5 py-0.5 rounded text-[10px] font-semibold'
+  if (props.console) return `${base} console-channel-rate${hasCustomRate.value ? ' is-custom' : ''}`
 
   if (!isSubscription.value) {
     // Standard: subtle background (不再为专属倍率使用不同的背景色)
@@ -189,6 +193,7 @@ const peakRateClass = computed(() => {
 
 // Badge color based on platform and subscription type
 const badgeClass = computed(() => {
+  if (props.console) return 'console-channel-group'
   if (props.platform === 'anthropic') {
     // Claude: orange theme
     return isSubscription.value

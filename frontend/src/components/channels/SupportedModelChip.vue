@@ -4,7 +4,7 @@
       ref="triggerEl"
       :class="[
         'inline-flex cursor-help items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors',
-        effectivePlatform
+        props.console ? 'console-channel-model' : effectivePlatform
           ? platformBadgeClass(effectivePlatform)
           : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300',
       ]"
@@ -12,11 +12,17 @@
       @mouseleave="onLeave"
       @focusin="onEnter"
       @focusout="onLeave"
+      @click="togglePinned"
+      @keydown.enter="onTriggerKey"
+      @keydown.space="onTriggerKey"
+      :role="props.console ? 'button' : undefined"
+      :aria-expanded="props.console ? show : undefined"
       tabindex="0"
     >
       <PlatformIcon
         v-if="effectivePlatform"
         :platform="effectivePlatform as GroupPlatform"
+        :data-console-platform="props.console ? effectivePlatform : undefined"
         size="xs"
       />
       <span
@@ -37,7 +43,7 @@
         ref="popoverEl"
         role="tooltip"
         class="pointer-events-none fixed z-[99999] w-80 max-w-[min(22rem,calc(100vw-1rem))] rounded-lg border bg-white text-xs shadow-xl dark:bg-dark-800"
-        :class="[popoverBorderClass]"
+        :class="[popoverBorderClass, { 'console-channel-price': props.console }]"
         :style="popoverStyle"
       >
         <!-- Header：平台主题色背景，含模型名 + 平台徽章 -->
@@ -200,6 +206,7 @@ import { platformBadgeClass, platformBorderClass, platformBadgeLightClass } from
 const props = withDefaults(
   defineProps<{
     model: UserSupportedModel
+    console?: boolean
     /** i18n 前缀：管理端传 `admin.availableChannels.pricing`，用户端传 `availableChannels.pricing`。 */
     pricingKeyPrefix?: string
     noPricingLabel?: string
@@ -211,6 +218,7 @@ const props = withDefaults(
     platformHint?: string
   }>(),
   {
+    console: false,
     pricingKeyPrefix: 'availableChannels.pricing',
     noPricingLabel: '',
     showPlatform: true,
@@ -228,12 +236,12 @@ const perMillionScale = 1_000_000
 // Popover border + header classes echo the platform theme so each card reads
 // at a glance which model family it belongs to.
 const popoverBorderClass = computed(() =>
-  effectivePlatform.value
+  !props.console && effectivePlatform.value
     ? platformBorderClass(effectivePlatform.value)
     : 'border-gray-200 dark:border-dark-600',
 )
 const popoverHeaderClass = computed(() =>
-  effectivePlatform.value
+  !props.console && effectivePlatform.value
     ? platformBadgeLightClass(effectivePlatform.value)
     : 'bg-gray-50 text-gray-700 dark:bg-dark-700/60 dark:text-gray-300',
 )
@@ -283,6 +291,7 @@ function formatInterval(iv: UserPricingInterval, pricing: UserSupportedModelPric
 // with a flip when the viewport edge is near keeps it aligned without a
 // full-blown positioning lib.
 const show = ref(false)
+const pinned = ref(false)
 const triggerEl = ref<HTMLElement | null>(null)
 const popoverEl = ref<HTMLElement | null>(null)
 const popoverStyle = ref<Record<string, string>>({ top: '0px', left: '0px' })
@@ -320,17 +329,45 @@ function onEnter() {
     updatePosition()
     window.addEventListener('scroll', updatePosition, true)
     window.addEventListener('resize', updatePosition)
+    if (props.console) {
+      document.addEventListener('pointerdown', closeOutside)
+      document.addEventListener('keydown', closeOnEscape)
+    }
   })
 }
 
 function onLeave() {
+  if (pinned.value) return
+  close()
+}
+
+function togglePinned() {
+  if (!props.console) return
+  if (pinned.value) close()
+  else {
+    pinned.value = true
+    onEnter()
+  }
+}
+function onTriggerKey(event: KeyboardEvent) {
+  if (!props.console) return
+  event.preventDefault()
+  togglePinned()
+}
+function closeOutside(event: PointerEvent) {
+  if (!triggerEl.value?.contains(event.target as Node) && !popoverEl.value?.contains(event.target as Node)) close()
+}
+function closeOnEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape') close()
+}
+function close() {
+  pinned.value = false
   show.value = false
   window.removeEventListener('scroll', updatePosition, true)
   window.removeEventListener('resize', updatePosition)
+  document.removeEventListener('pointerdown', closeOutside)
+  document.removeEventListener('keydown', closeOnEscape)
 }
 
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', updatePosition, true)
-  window.removeEventListener('resize', updatePosition)
-})
+onBeforeUnmount(close)
 </script>

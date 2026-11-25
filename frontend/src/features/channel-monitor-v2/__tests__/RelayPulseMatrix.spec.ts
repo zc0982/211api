@@ -173,4 +173,32 @@ describe('RelayPulseMatrix axis range', () => {
     // 5 minutes @ 60s buckets → 5 cells spanning the selected range
     expect(wrapper.findAll('.pulse-cell')).toHaveLength(5)
   })
+  it('tracks remaining horizontal columns and leaves phone horizontal wheel native', async () => {
+    const row = { platform: 'openai', metrics: metrics(10), health, buckets: [] }
+    const wrapper = mount(RelayPulseMatrix, { props: { rows: [row], coverage: { requested_start: '2026-08-01T00:00:00Z', requested_end: '2026-08-01T00:03:00Z', coverage_start: '2026-08-01T00:00:00Z', data_through: '2026-08-01T00:03:00Z', computed_at: '2026-08-01T00:03:00Z', aggregation_lag_seconds: 0, coverage_complete: true, bucket_seconds: 60 }, healthMode: 'overall' } })
+    const el = wrapper.get<HTMLElement>('.matrix-scroll').element
+    Object.defineProperties(el, { clientWidth: { value: 324, configurable: true }, scrollWidth: { value: 640, configurable: true } })
+    vi.stubGlobal('innerWidth', 390)
+    window.dispatchEvent(new Event('resize'))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.matrix-scroll-hint').exists()).toBe(true)
+    el.scrollLeft = 316
+    await wrapper.get('.matrix-scroll').trigger('scroll')
+    expect(wrapper.find('.matrix-scroll-hint').exists()).toBe(false)
+    el.scrollLeft = 0
+    await wrapper.get('.matrix-scroll').trigger('scroll')
+    const horizontal = new WheelEvent('wheel', { deltaX: 120, bubbles: true, cancelable: true })
+    el.dispatchEvent(horizontal)
+    expect(horizontal.defaultPrevented).toBe(false)
+    const vertical = new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true })
+    el.dispatchEvent(vertical)
+    expect(vertical.defaultPrevented).toBe(true)
+    Object.defineProperty(el, 'clientWidth', { value: 1000 })
+    window.dispatchEvent(new Event('resize'))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.matrix-scroll-hint').exists()).toBe(false)
+    wrapper.unmount()
+    vi.unstubAllGlobals()
+  })
+
 })

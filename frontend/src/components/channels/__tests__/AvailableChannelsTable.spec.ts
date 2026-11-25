@@ -117,7 +117,7 @@ describe('AvailableChannelsTable responsive surfaces', () => {
     // TablePageLayout has a more-specific `display: table` rule for descendants,
     // so these display utilities must remain important at both breakpoints.
     expect(desktop.classes()).toContain('!hidden')
-    expect(desktop.classes()).toContain('lg:!table')
+    expect(desktop.classes()).toContain('md:!table')
     expect(desktop.findAll('thead th')).toHaveLength(5)
     expect(desktop.text()).toContain('Primary channel')
     expect(desktop.text()).toContain('Fast and reliable access')
@@ -129,7 +129,7 @@ describe('AvailableChannelsTable responsive surfaces', () => {
     const wrapper = mountTable()
     const mobile = wrapper.get('[data-testid="mobile-channels"]')
 
-    expect(mobile.classes()).toContain('lg:hidden')
+    expect(mobile.classes()).toContain('md:hidden')
     expect(mobile.classes()).toContain('overflow-x-hidden')
     expect(mobile.text()).toContain('Primary channel')
     expect(mobile.text()).toContain('Fast and reliable access')

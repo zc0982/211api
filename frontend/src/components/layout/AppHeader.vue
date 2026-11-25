@@ -22,7 +22,7 @@
         </router-link>
 
         <!-- 页面自带页头（meta.pageHeading）时顶栏不再重复标题和描述；仪表盘等其他页面不变。 -->
-        <div v-else-if="!route.meta.pageHeading" class="min-w-0" data-test="topbar-page-title">
+        <div v-else-if="!route.meta.pageHeading || monitorV1Heading" class="min-w-0" data-test="topbar-page-title">
           <h1 class="truncate text-base font-semibold text-gray-900 dark:text-dark-100">
             {{ pageTitle }}
           </h1>
@@ -30,6 +30,7 @@
             {{ pageDescription }}
           </p>
         </div>
+        <h1 v-if="isPhone && monitorV1Heading" class="sr-only">{{ pageTitle }}</h1>
       </div>
 
       <!-- Right: Announcements + Docs + Plaza + Language + Theme + Subscriptions + Balance + Account -->
@@ -273,13 +274,15 @@ import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMi
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
-import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { FeatureFlags, isFeatureFlagEnabled, isChannelMonitorV1Mode } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
 import { resolveBalancePurchaseAction, resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useConsoleViewport } from '@/composables/useConsoleViewport'
 
 const router = useRouter()
 const route = useRoute()
+// /monitor owns its heading only in V2; preserve the untouched V1 fallback title.
+const monitorV1Heading = computed(() => route.name === 'ChannelStatus' && isChannelMonitorV1Mode())
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()

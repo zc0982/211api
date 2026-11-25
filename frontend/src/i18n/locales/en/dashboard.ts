@@ -670,6 +670,11 @@ export default {
 
   // Available Channels (user-facing)
   availableChannels: {
+    filters: 'Channel filters',
+    platformFilter: 'Platform filter',
+    count: '{count} channels',
+    noMatch: 'No matching channels. Try another platform or search.',
+    loadFailed: 'Failed to load available channels',
     title: 'Available Channels',
     description: 'Channels you can access, along with their supported models and pricing',
     searchPlaceholder: 'Search channels or models...',
