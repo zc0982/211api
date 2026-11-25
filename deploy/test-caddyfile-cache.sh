@@ -50,6 +50,11 @@ if ! printf '%s\n' "$normalized_config" | grep -Eq '^reverse_proxy localhost:808
 	exit 1
 fi
 
+if printf '%s\n' "$normalized_config" | grep -Eq '^unhealthy_status([[:space:]]|$)'; then
+	echo "Caddyfile must not eject the sole upstream because of application error responses" >&2
+	exit 1
+fi
+
 if printf '%s\n' "$normalized_config" | grep -Eq '^import([[:space:]]|$)'; then
 	echo "Caddyfile must not import configuration outside this canonical policy check" >&2
 	exit 1
@@ -82,4 +87,4 @@ if [ "$actual_encode_block" != "$expected_encode_block" ]; then
 	exit 1
 fi
 
-echo "Caddyfile preserves backend cache policy, SSE streaming, and non-SSE compression"
+echo "Caddyfile preserves backend cache policy, SSE streaming, non-SSE compression, and single-upstream health"

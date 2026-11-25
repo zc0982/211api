@@ -250,6 +250,22 @@ the TCP peer. It is therefore a direct-to-Caddy baseline. Do not use its
 attributed to a CDN egress address, collapsing rejection aggregation and the
 invalid-auth limiter onto unrelated users.
 
+The template proxies to a single `localhost:8080` upstream. Keep the active
+`/health` check and the transport-failure policy (`fail_duration 30s`,
+`max_fails 3`), but do not set `unhealthy_status`: application 5xx responses
+such as capacity-related JSON 503 errors must not eject the sole upstream and
+make unrelated routes unavailable. With Caddy v2.11.4 and a local mock, three
+consecutive JSON 503 responses must retain their status, body, content type,
+and `Retry-After` header, and subsequent `/` and `/health` requests must still
+return 200. The old `unhealthy_status 500 502 503 504` policy instead returns
+proxy-generated 503 responses for both routes while the mock remains healthy.
+`sh deploy/test-caddyfile-cache.sh` guards against restoring that directive.
+
+The application deployment workflow copies the Compose file and application
+environment; it does not install or reload this template. Host-managed Caddy
+configuration must be maintained separately. Keep host-specific Tunnel
+configuration and credentials out of the repository.
+
 The bundled Caddy configuration leaves `flush_interval` unset so Caddy can
 automatically flush `text/event-stream` responses while still propagating
 client cancellation upstream. Do not set it globally: positive values can add
