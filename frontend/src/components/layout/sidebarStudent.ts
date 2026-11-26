@@ -5,7 +5,7 @@ import type { SpriteCharacter } from '@/features/brand-home/composables/useSprit
 /**
  * 侧栏底部「学院一角」的动态像素学子（docs/spec/console-v3.md「外壳 · 侧栏」）。
  *
- * - 8 位学子：首页首屏的 6 位（HERO_CHARACTERS）+ 只在侧栏出现的 Cursor、Pi，每人带自己工位的道具；
+ * - 8 位学子与首页首屏共用 HERO_CHARACTERS，每人带自己工位的道具；
  * - 每次刷新随机 1 位，并排除上一次（sessionStorage）；点击切到下一位；
  * - 时间线是纯数据（STUDENT_TIMELINE），组件只按步播放：原地干活 4 帧 + 呼吸停顿，
  *   约每二十多秒交替一次「踱步」和「回头看一眼」。
@@ -24,16 +24,10 @@ export interface SidebarStudentSpec {
   badge: HeroCharacter['badge']
 }
 
-/**
- * 轮换池，也是点击切换的顺序：首页 6 位（A 点工位）在前，Cursor、Pi 在后。
- * Cursor / Pi 的帧来自设计仓库 export/sprites/hero/characters，经 build-sprite-sheets.py
- * 打进单独的 hero 图集 actors-3.png（首页不加载）；画布 36×50 / 34×50。
- */
-export const SIDEBAR_STUDENTS: readonly SidebarStudentSpec[] = [
-  ...HERO_CHARACTERS.map((c) => ({ id: c.id, tool: c.stationA, w: c.w, h: c.h, badge: c.badge })),
-  { id: 'cursor', tool: 'cursor', w: 36, h: 50, badge: { tool: 'cursor' } },
-  { id: 'pi', tool: 'pi', w: 34, h: 50, badge: { tool: 'pi' } }
-]
+/** 轮换池，也是点击切换的顺序；每人使用首页 A 点的工位。 */
+export const SIDEBAR_STUDENTS: readonly SidebarStudentSpec[] = HERO_CHARACTERS.map((c) => ({
+  id: c.id, tool: c.stationA, w: c.w, h: c.h, badge: c.badge
+}))
 
 export const STUDENTS: readonly StudentId[] = SIDEBAR_STUDENTS.map((c) => c.id)
 
@@ -56,7 +50,7 @@ export function studentCharacter(id: StudentId): SidebarStudentSpec {
   return SIDEBAR_STUDENTS.find((c) => c.id === id)!
 }
 
-/** 学子自己的工位（首页 6 位取 A 点），道具和工具名都取这里。 */
+/** 学子自己的工位，道具和工具名都取这里。 */
 export function studentStation(id: StudentId): HeroStation {
   const tool = studentCharacter(id).tool
   return HERO_STATIONS.find((s) => s.tool === tool)!

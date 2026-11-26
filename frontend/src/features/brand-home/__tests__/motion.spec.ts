@@ -8,6 +8,7 @@ import {
   SITE_HOOK,
   SITE_WORKERS,
   TRACE_PULSE,
+  type HeroCharacterId,
   type SceneCharacter
 } from '../config'
 import {
@@ -31,7 +32,7 @@ import {
 } from '../composables/motion'
 import { chipAnchor, traceFor } from '../composables/starlink'
 
-const hero = (id: SceneCharacter) => HERO_CHARACTERS.find((c) => c.id === id)!
+const hero = (id: HeroCharacterId) => HERO_CHARACTERS.find((c) => c.id === id)!
 const worker = (id: SceneCharacter) => SITE_WORKERS.find((w) => w.id === id)!
 /** Scene time t at which a character's own timeline reads tb. */
 const at = (tb: number, offset: number) => tb - offset
@@ -47,20 +48,28 @@ describe('hero walk table', () => {
     expect(s(0)).toEqual({ x: 90, kind: 'work', frame: 0, mirror: false, station: 'claudeCode' })
     expect(s(2.79).kind).toBe('work')
     expect(s(2.8)).toMatchObject({ x: 90, kind: 'walk', mirror: false })
-    expect(s(3.8).x).toBeCloseTo((90 + 242) / 2)
-    expect(s(4.8)).toMatchObject({ x: 242, kind: 'work', station: 'cursor' })
-    expect(s(7.6)).toMatchObject({ x: 242, kind: 'walk', mirror: true })
-    expect(s(8.6).x).toBeCloseTo((90 + 242) / 2)
+    expect(s(3.8).x).toBeCloseTo((90 + 222) / 2)
+    expect(s(4.8)).toMatchObject({ x: 222, kind: 'work', station: 'cursor' })
+    expect(s(7.6)).toMatchObject({ x: 222, kind: 'walk', mirror: true })
+    expect(s(8.6).x).toBeCloseTo((90 + 222) / 2)
     expect(s(9.599).x).toBeCloseTo(90, 0)
   })
 
-  it('Grok walks left to the observatory (mirrored) and right back home', () => {
+  it('Grok walks left (mirrored) and right back home', () => {
     const c = hero('grok')
     const s = (tb: number) => heroStateAt(c, at(tb, c.offset))
     expect(s(0)).toMatchObject({ x: 1346, kind: 'work', station: 'openClaw' })
     expect(s(2)).toMatchObject({ kind: 'walk', mirror: true })
-    expect(s(4.8)).toMatchObject({ x: 1102, kind: 'work', station: undefined })
+    expect(s(4.8)).toMatchObject({ x: 1200, kind: 'work', station: undefined })
     expect(s(6.8)).toMatchObject({ kind: 'walk', mirror: false })
+  })
+
+  it('the eight head positions stay in name-row order through a full loop', () => {
+    const ordered = HERO_CHARACTERS.slice().sort((a, b) => a.x - b.x)
+    for (let step = 0; step < 96; step++) {
+      const centres = ordered.map((actor) => heroStateAt(actor, step / 10).x)
+      expect(centres).toEqual(centres.slice().sort((a, b) => a - b))
+    }
   })
 
   it('OpenCode / DSH stay near their stations on the 4.2 / 0.9 / 3.6 / 0.9 rhythm', () => {
@@ -89,11 +98,11 @@ describe('hero walk table', () => {
     expect(heroStateAt(c, 2.6 + 0.01)).toMatchObject({ kind: 'walk', frame: frameAt(2.61, 0.15) })
   })
 
-  it('t = 0 lights the same chips as the Figma still: Claude Code, OpenCode, Codex, Hermes', () => {
+  it('t = 0 lights the existing occupied stations plus Cursor and Pi', () => {
     const lit = litStations(HERO_CHARACTERS.map((c) => heroStateAt(c, 0)))
-    expect([...lit].sort()).toEqual(['claudeCode', 'codex', 'hermes', 'openCode'])
+    expect([...lit].sort()).toEqual(['claudeCode', 'codex', 'cursor', 'hermes', 'openCode', 'pi'])
     const dim = HERO_STATIONS.filter((s) => !lit.has(s.tool)).map((s) => s.tool)
-    expect(dim).toEqual(['cursor', 'pi', 'deepseekHarness', 'openClaw'])
+    expect(dim).toEqual(['deepseekHarness', 'openClaw'])
   })
 
   it('lights Cursor while Claude works there, and keeps the tracked Claude Code chip lit', () => {
@@ -105,12 +114,38 @@ describe('hero walk table', () => {
     expect([...litStations([heroStateAt(c, at(3, c.offset))])]).toEqual(['claudeCode'])
   })
 
+  it.each([
+    { home: 'cursor', visitor: 'claude', gap: 42 },
+    { home: 'pi', visitor: 'gpt', gap: 64 }
+  ] as const)('$home steps away from its desk for the visiting $visitor', ({ home, visitor, gap }) => {
+    const c = hero(home)
+    const guest = hero(visitor)
+    const s = (local: number) => heroStateAt(c, at(local, c.offset))
+    const [a, ab, b, ba] = c.beats
+
+    expect(s(a / 2)).toMatchObject({ x: c.x, kind: 'work', station: home })
+    const outgoing = s(a + ab / 2)
+    expect(outgoing).toMatchObject({ kind: 'walk', mirror: false })
+    expect(outgoing.x).toBeCloseTo((c.x + c.b) / 2)
+    expect(s(a + ab + b / 2)).toMatchObject({ x: c.b, kind: 'work', station: undefined })
+    const returning = s(a + ab + b + ba / 2)
+    expect(returning).toMatchObject({ kind: 'walk', mirror: true })
+    expect(returning.x).toBeCloseTo((c.x + c.b) / 2)
+
+    const [guestWork, guestWalk, guestStay] = guest.beats
+    const arrival = guestWork + guestWalk - guest.offset
+    const departure = arrival + guestStay
+    for (const t of [arrival, (arrival + departure) / 2, departure]) {
+      expect(heroStateAt(c, t).x - heroStateAt(guest, t).x).toBeGreaterThanOrEqual(gap)
+    }
+  })
+
   it('reduced motion: everyone at A on work frame 1, their own stations lit', () => {
     const rest = HERO_CHARACTERS.map(heroRestState)
     for (const [i, c] of HERO_CHARACTERS.entries()) {
       expect(rest[i]).toEqual({ x: c.x, kind: 'work', frame: 0, mirror: false, station: c.stationA })
     }
-    expect([...litStations(rest)].sort()).toEqual(['claudeCode', 'codex', 'deepseekHarness', 'hermes', 'openClaw', 'openCode'])
+    expect([...litStations(rest)].sort()).toEqual(['claudeCode', 'codex', 'cursor', 'deepseekHarness', 'hermes', 'openClaw', 'openCode', 'pi'])
   })
 })
 

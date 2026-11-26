@@ -74,21 +74,20 @@ afterEach(() => {
 })
 
 describe('sidebar student roster', () => {
-  it('rotates eight students: the six home-page students, then Cursor and Pi', () => {
+  it('rotates the same eight students in order', () => {
     expect(STUDENTS).toEqual(['claude', 'gpt', 'gemini', 'grok', 'opencode', 'dsh', 'cursor', 'pi'])
-    expect(STUDENTS.slice(0, 6)).toEqual(HERO_CHARACTERS.map((c) => c.id))
+    expect(STUDENTS).toEqual(HERO_CHARACTERS.map((c) => c.id))
   })
 
-  it('gives Cursor and Pi their own desks, tool badges and a hero atlas the home page never loads', () => {
+  it('shares the existing Cursor and Pi desk props, badges and hero atlas with the homepage', () => {
     expect(studentStation('cursor').prop).toBe('cursor')
     expect(studentStation('pi').prop).toBe('pi')
     expect(SIDEBAR_STUDENTS.find((s) => s.id === 'cursor')?.badge).toEqual({ tool: 'cursor' })
     expect(SIDEBAR_STUDENTS.find((s) => s.id === 'pi')?.badge).toEqual({ tool: 'pi' })
     const hero = SPRITE_SHEETS.hero
-    for (const id of ['cursor', 'pi'] as const) expect(hero.home as readonly number[]).not.toContain(hero.rows[id][0])
     for (const c of HERO_CHARACTERS) expect(hero.home as readonly number[]).toContain(hero.rows[c.id][0])
-    // 首页场景（首屏 6 位）仍按原来的 6 位走位
-    expect(HERO_CHARACTERS.map((c) => c.id)).toEqual(['claude', 'gpt', 'gemini', 'grok', 'opencode', 'dsh'])
+    expect(hero.rows.cursor).toEqual([3, 0])
+    expect(hero.rows.pi).toEqual([3, 1])
   })
 })
 
