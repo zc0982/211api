@@ -9,11 +9,16 @@ bleeds into its neighbour. Rows are grouped greedily into as few atlases as
 keep each one an exact ≤256-colour palette PNG: few requests, small files, and
 each file above Vite's 4KB inline limit so it loads only when the scene asks.
 
+Sidebar-only students (EXTRA: Cursor, Pi in the hero set) are packed after the
+home page's characters and always start their own atlas, so the home page's
+atlases stay byte-identical and the home scene never downloads them
+(`home` in sprites.generated.ts lists the atlases the home page loads).
+
 Output (committed, regenerate when the design repo changes the frames):
   assets/sprites/<scene>/actors-<n>.png
   assets/sprites/<scene>/<id>-<kind>-f1.png  (still frames, same cell size;
-      only those the first paint needs: hero work, footer work and the two
-      workers who hold bricks at t = 0)
+      only those the first paint needs: hero work (incl. the sidebar-only
+      students), footer work and the two workers who hold bricks at t = 0)
   sprites.generated.ts  (cell size and frame order per scene)
 
 Usage: python3 scripts/build-sprite-sheets.py <design-repo>/export/sprites
@@ -27,10 +32,12 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 CHARACTERS = ["claude", "gpt", "gemini", "grok", "opencode", "dsh"]
+# Console sidebar only (docs/spec/console-v3.md): hero frames, no footer set.
+EXTRA = {"hero": ["cursor", "pi"], "footer": []}
 KINDS = {"hero": ["work", "walk"], "footer": ["work", "walk", "empty"]}
 FRAMES = 4
 GUTTER = 2
-STILLS = {"hero": {"work": CHARACTERS}, "footer": {"work": CHARACTERS, "walk": ["opencode", "dsh"]}}
+STILLS = {"hero": {"work": CHARACTERS + EXTRA["hero"]}, "footer": {"work": CHARACTERS, "walk": ["opencode", "dsh"]}}
 
 
 def save(im: Image.Image, out: Path) -> None:
@@ -47,10 +54,11 @@ def save(im: Image.Image, out: Path) -> None:
     pal.save(out, optimize=True, transparency=bytes(c[3] for c in palette))
 
 
-def build(src: Path, scene: str) -> tuple[int, int, list[list[str]]]:
+def build(src: Path, scene: str) -> tuple[int, int, list[list[str]], int]:
+    everyone = CHARACTERS + EXTRA[scene]
     frames = {
         (c, k, n): Image.open(src / scene / "characters" / f"{c}-{k}-f{n}.png").convert("RGBA")
-        for c in CHARACTERS
+        for c in everyone
         for k in KINDS[scene]
         for n in range(1, FRAMES + 1)
     }
@@ -59,7 +67,7 @@ def build(src: Path, scene: str) -> tuple[int, int, list[list[str]]]:
     count = len(KINDS[scene]) * FRAMES
     stride = cell_w + GUTTER
     rows = {}
-    for c in CHARACTERS:
+    for c in everyone:
         row = Image.new("RGBA", (stride * count - GUTTER, cell_h), (0, 0, 0, 0))
         i = 0
         for k in KINDS[scene]:
@@ -70,9 +78,15 @@ def build(src: Path, scene: str) -> tuple[int, int, list[list[str]]]:
         rows[c] = row
     groups: list[list[str]] = []
     palette: set = set()
-    for c in CHARACTERS:
+    home = 0
+    for c in everyone:
         colors = {col for _, col in rows[c].getcolors(256 * 256)}
-        if groups and len(palette | colors) <= 256:
+        if EXTRA[scene] and c == EXTRA[scene][0]:
+            # First sidebar-only student: close the home page's atlases.
+            home = len(groups)
+            groups.append([c])
+            palette = set(colors)
+        elif groups and len(palette | colors) <= 256:
             groups[-1].append(c)
             palette |= colors
         else:
@@ -89,7 +103,7 @@ def build(src: Path, scene: str) -> tuple[int, int, list[list[str]]]:
             cell = Image.new("RGBA", (cell_w, cell_h), (0, 0, 0, 0))
             cell.paste(im, ((cell_w - im.width) // 2, cell_h - im.height))
             save(cell, ROOT / "assets" / "sprites" / scene / f"{c}-{k}-f1.png")
-    return cell_w, cell_h, groups
+    return cell_w, cell_h, groups, home or len(groups)
 
 
 def main() -> None:
@@ -101,15 +115,19 @@ def main() -> None:
         "",
         "/**",
         " * Character atlases (assets/sprites/<scene>/actors-<n>.png): `rows[id]` = [atlas n, row];",
-        " * frames left to right in `kinds` order, bottom-centred in equal cells.",
+        " * frames left to right in `kinds` order, bottom-centred in equal cells. `home` = atlases the home page",
+        " * loads; the rest hold console-sidebar-only students (Cursor, Pi).",
         " */",
         "export const SPRITE_SHEETS = {",
     ]
     for scene in KINDS:
-        w, h, groups = build(src, scene)
+        w, h, groups, home = build(src, scene)
         kinds = ", ".join(f"'{k}'" for k in KINDS[scene])
         rows = ", ".join(f"{c}: [{g + 1}, {r}]" for g, ids in enumerate(groups) for r, c in enumerate(ids))
-        lines.append(f"  {scene}: {{ cellW: {w}, cellH: {h}, gutter: {GUTTER}, frames: {FRAMES}, kinds: [{kinds}], rows: {{ {rows} }} }},")
+        homes = ", ".join(str(g + 1) for g in range(home))
+        lines.append(
+            f"  {scene}: {{ cellW: {w}, cellH: {h}, gutter: {GUTTER}, frames: {FRAMES}, kinds: [{kinds}], home: [{homes}], rows: {{ {rows} }} }},"
+        )
     lines[-1] = lines[-1].rstrip(",")
     lines += ["} as const", ""]
     (ROOT / "sprites.generated.ts").write_text("\n".join(lines))

@@ -140,8 +140,9 @@ export default defineConfig(({ mode }) => {
               return 'vendor-stripe'
             }
 
-            // 品牌首页图标（@lobehub/icons-vue）只在 /home 品牌首页使用，单独成包，
-            // 避免并入每个页面都 modulepreload 的 vendor-misc。见 docs/spec/brand-home.md。
+            // 品牌首页图标（@lobehub/icons-vue）只在 /home 品牌首页和控制台侧栏的像素学子
+            // （异步组件 SidebarStudent）里用，单独成包，避免并入每个页面都 modulepreload 的
+            // vendor-misc。见 docs/spec/brand-home.md、docs/spec/console-v3.md。
             if (id.includes('/@lobehub/icons-vue/')) {
               return 'vendor-brand-icons'
             }

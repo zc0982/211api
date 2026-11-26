@@ -7,9 +7,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { SPRITE_SCALE, type SceneCharacter } from '../config'
+import { SPRITE_SCALE } from '../config'
 import { SPRITE_SHEETS } from '../sprites.generated'
-import { actorSheet, type SpriteScene } from '../composables/useSpriteSheets'
+import { actorSheet, type SpriteCharacter, type SpriteScene } from '../composables/useSpriteSheets'
 import type { ActorState } from '../composables/motion'
 
 /**
@@ -20,7 +20,7 @@ import type { ActorState } from '../composables/motion'
  */
 const props = defineProps<{
   scene: SpriteScene
-  id: SceneCharacter
+  id: SpriteCharacter
   state: ActorState
   /** Feet line in scene pixels (bottom of the cell). */
   feetY: number
@@ -38,8 +38,8 @@ const strideX = computed(() => (spec.value.cellW + spec.value.gutter) * SPRITE_S
 const strideY = computed(() => (spec.value.cellH + spec.value.gutter) * SPRITE_SCALE)
 const sheetW = computed(() => strideX.value * spec.value.kinds.length * spec.value.frames - spec.value.gutter * SPRITE_SCALE)
 const sheetH = computed(() => {
-  const n = spec.value.rows[props.id][0]
-  const rows = Object.values(spec.value.rows).filter(([m]) => m === n).length
+  const n = sheet.value.n
+  const rows = Object.values(spec.value.rows as Readonly<Record<string, readonly [number, number]>>).filter(([m]) => m === n).length
   return strideY.value * rows - spec.value.gutter * SPRITE_SCALE
 })
 

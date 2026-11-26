@@ -20,16 +20,18 @@ const ATLASES = import.meta.glob('../assets/sprites/*/actors-*.png', { eager: tr
 
 export type SpriteScene = keyof typeof SPRITE_SHEETS
 
+/** Any character with frames in some scene: the home cast plus the console-sidebar-only students (hero only). */
+export type SpriteCharacter = SceneCharacter | keyof (typeof SPRITE_SHEETS)['hero']['rows']
+
 /** Atlas URL and row of a character in a scene. */
-export function actorSheet(scene: SpriteScene, id: SceneCharacter): { url: string; row: number } {
-  const [n, row] = SPRITE_SHEETS[scene].rows[id]
-  return { url: ATLASES[`../assets/sprites/${scene}/actors-${n}.png`], row }
+export function actorSheet(scene: SpriteScene, id: SpriteCharacter): { url: string; row: number; n: number } {
+  const [n, row] = (SPRITE_SHEETS[scene].rows as Readonly<Record<string, readonly [number, number]>>)[id]
+  return { url: ATLASES[`../assets/sprites/${scene}/actors-${n}.png`], row, n }
 }
 
+/** Only the atlases the home page uses (`home`); sidebar-only students live in atlases of their own. */
 function sceneAtlases(scene: SpriteScene): string[] {
-  return Object.entries(ATLASES)
-    .filter(([path]) => path.startsWith(`../assets/sprites/${scene}/`))
-    .map(([, url]) => url)
+  return SPRITE_SHEETS[scene].home.map((n) => ATLASES[`../assets/sprites/${scene}/actors-${n}.png`])
 }
 
 function decode(url: string): Promise<void> {

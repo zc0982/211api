@@ -166,17 +166,10 @@
       </template>
     </nav>
 
-    <!-- Pixel vignette: 学院一角（月亮、图书馆、松树、Claude 在书桌前干活） -->
-    <img
-      v-if="!isRail"
-      class="sidebar-vignette"
-      :src="vignetteUrl"
-      alt=""
-      width="248"
-      height="122"
-      loading="lazy"
-      decoding="async"
-    />
+    <!-- Pixel vignette: 学院一角。背景（月亮、图书馆、松树、地面线）是 CSS 里的 SVG；左侧舞台是随机的像素学子，点击换下一位 -->
+    <div v-if="!isRail" class="sidebar-vignette" data-testid="sidebar-vignette">
+      <SidebarStudent :active="!isHidden" />
+    </div>
 
     <!-- Bottom: collapse / expand -->
     <div class="sidebar-footer">
@@ -202,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
@@ -214,7 +207,9 @@ import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 import { consoleSidebarWidth, useConsoleViewport } from '@/composables/useConsoleViewport'
-import vignetteUrl from './assets/sidebar-vignette.png'
+
+// 像素学子（含首页精灵组件和图标）异步加载，不进侧栏首包；未到之前只显示 CSS 背景
+const SidebarStudent = defineAsyncComponent(() => import('./SidebarStudent.vue'))
 
 interface NavItem {
   path: string
@@ -1285,24 +1280,26 @@ onBeforeUnmount(() => {
 
 /* ---- Vignette + footer ---- */
 .sidebar-vignette {
+  position: relative;
   display: block;
   flex: none;
-  /* 不参与侧栏的内容宽度；跟着侧栏宽，窄了从两边裁、宽了轻微放大 */
+  /* 不参与侧栏的内容宽度（max-content 只量菜单 / 品牌区 / 底栏），跟着侧栏宽；内部全是绝对定位，不拉伸 */
   width: 0;
   min-width: 100%;
   height: 122px;
-  object-fit: cover;
-  object-position: center bottom;
-  pointer-events: none;
+  overflow: hidden;
   user-select: none;
-}
-
-.sidebar--overlay .sidebar-vignette {
-  /* 抽屉比 248 宽：地面接着往右铺 */
-  width: 100%;
-  object-fit: none;
-  object-position: left top;
-  background: linear-gradient(to top, #0b1427 0 14px, #1f2d48 14px 16px, transparent 16px);
+  /*
+   * 背景三层，全是固定像素、不缩放：
+   * 1. 月亮 + 光晕：贴右上（中心距右 42px），任何宽度都完整；
+   * 2. 图书馆 + 松树（assets/sidebar-scenery.svg，144×106，即原整图 x≥104 的部分）：宽 248 时与原整图同位，
+   *    更窄时向左收到 84、再窄从右边裁松树；更宽（288 / 抽屉 304）停在 104，地面线向右延展；
+   * 3. 地面：2px 线 + 14px 条带，铺满整宽。
+   */
+  background:
+    radial-gradient(circle at calc(100% - 42px) 21px, #f2f5fb 0 8.5px, rgb(241 241 255 / 0.07) 9px 16.5px, transparent 17px),
+    url('./assets/sidebar-scenery.svg') no-repeat clamp(84px, calc(100% - 144px), 104px) 0 / 144px 106px,
+    linear-gradient(to top, #0b1427 0 14px, #1f2d48 14px 16px, transparent 16px);
 }
 
 .sidebar-footer {
