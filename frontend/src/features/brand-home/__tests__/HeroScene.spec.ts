@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
 import { HERO_CHARACTERS, MOTION_LOOP } from '../config'
+import { fitHeroLabels } from '../composables/heroLabels'
 import { heroStateAt } from '../composables/motion'
 import HeroScene from '../components/HeroScene.vue'
 
@@ -13,7 +14,7 @@ vi.mock('../composables/useSpriteSheets', async (original) => ({
   useSpriteSheets: () => ({ ready: ref(true) })
 }))
 
-const names = ['Claude Code', 'Codex', 'Hermes', 'OpenClaw', 'OpenCode', 'DeepSeek Harness']
+const names = ['Claude Code', 'Codex', 'Hermes', 'OpenClaw', 'OpenCode', 'DSH', 'Cursor', 'Pi']
 
 afterEach(() => {
   time.value = 0
@@ -21,12 +22,32 @@ afterEach(() => {
 })
 
 describe('hero labels below the character', () => {
+  it('puts all eight names in a single shared row on desktop, phone and in reduced motion', async () => {
+    const wrapper = mount(HeroScene, { props: { switchLabel: '', creditLabel: '' } })
+    const row = wrapper.get('.bh-hs__names')
+    const orderedNames = ['Claude Code', 'Cursor', 'OpenCode', 'Codex', 'Pi', 'Hermes', 'DSH', 'OpenClaw']
+
+    for (const width of [1440, 390, 320]) {
+      await wrapper.setProps({ scale: width / 1440 })
+      for (const reduced of [false, true]) {
+        reducedMotion.value = reduced
+        time.value = 4.2
+        await nextTick()
+        const labels = row.findAll('.bh-hs__label')
+        expect(labels.map((label) => label.text())).toEqual(orderedNames)
+        expect(labels.every((label) => label.element.parentElement === row.element)).toBe(true)
+        expect(labels.every((label) => !label.attributes('style').includes('label-row'))).toBe(true)
+      }
+    }
+    wrapper.unmount()
+  })
+
   it('moves the original label through A, B and both walking directions, with one copy of each label', async () => {
     const wrapper = mount(HeroScene, { props: { switchLabel: 'switched', creditLabel: 'sample' } })
     const findLabel = (name: string) => wrapper.findAll('.bh-hs__label').filter((label) => label.text() === name)
     expect(wrapper.findAll('.bh-hs__label')).toHaveLength(8)
-    expect(wrapper.findAll('.bh-hs__label--moving')).toHaveLength(6)
-    expect(wrapper.findAll('.bh-hs__badge')).toHaveLength(6)
+    expect(wrapper.findAll('.bh-hs__label--moving')).toHaveLength(8)
+    expect(wrapper.findAll('.bh-hs__badge')).toHaveLength(8)
     expect(wrapper.find('.bh-hs__name').exists()).toBe(false)
 
     for (const [index, c] of HERO_CHARACTERS.entries()) {
@@ -39,11 +60,6 @@ describe('hero labels below the character', () => {
         await nextTick()
         expect(parseFloat(label.style.getPropertyValue('--actor-x'))).toBeCloseTo(heroStateAt(c, time.value).x)
       }
-    }
-    for (const station of ['Cursor', 'Pi']) {
-      const [label] = findLabel(station)
-      expect(label.classes()).not.toContain('bh-hs__label--moving')
-      expect((label.element as HTMLElement).style.left).toMatch(/px$/)
     }
     reducedMotion.value = true
     await nextTick()
@@ -87,5 +103,42 @@ describe('hero labels below the character', () => {
       expect(traceY()).toBeCloseTo(desktopY + groundShift)
     }
     wrapper.unmount()
+  })
+})
+
+describe('fitting the hero name row', () => {
+  const fit = (anchors: number[], widths: number[], right = 100) => fitHeroLabels(
+    anchors.map((anchor, i) => ({ anchor, width: widths[i], fadeDistance: 10 })),
+    4, { left: 0, right }, 4, 10
+  )
+
+  it('shares the space between close actors without moving an isolated name', () => {
+    expect(fit([20, 25, 80], [20, 20, 20])).toEqual([4, 28, 70])
+  })
+
+  it('fits all fading text and releases its clearance continuously at either edge', () => {
+    const left = (x: number) => fit([x, 15], [20, 20], 80)
+    expect(left(-9.99)).toEqual([4, 28])
+    expect(left(-10)[0]).toBeUndefined()
+    expect(left(-10)[1]).toBe(28)
+    expect(left(-10.01)[1]).toBeCloseTo(28, 3)
+    expect(left(-15)[1]).toBe(16)
+    expect(left(-20)[1]).toBe(5)
+
+    const right = (x: number) => fit([65, x], [20, 20], 80)
+    expect(right(89.99)).toEqual([32, 56])
+    expect(right(90)[1]).toBeUndefined()
+    expect(right(90)[0]).toBe(32)
+    expect(right(90.01)[0]).toBeCloseTo(32, 3)
+    expect(right(95)[0]).toBe(44)
+    expect(right(100)[0]).toBe(55)
+  })
+
+  it('fits visible neighbours without a slot for either offscreen name', () => {
+    const positions = fit([-73, -37, 2, 202], [67, 35, 55, 33], 390)
+    expect(positions[0]).toBeUndefined()
+    expect(positions[1]).toBeUndefined()
+    expect(positions[2]).toBe(4)
+    expect(positions[3]).toBe(185.5)
   })
 })

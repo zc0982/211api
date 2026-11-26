@@ -1,5 +1,4 @@
 import { onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
-import type { SceneCharacter } from '../config'
 import { SPRITE_SHEETS } from '../sprites.generated'
 import { reducedMotion, watchMotionPreference } from './useSceneClock'
 
@@ -20,8 +19,8 @@ const ATLASES = import.meta.glob('../assets/sprites/*/actors-*.png', { eager: tr
 
 export type SpriteScene = keyof typeof SPRITE_SHEETS
 
-/** Any character with frames in some scene: the home cast plus the console-sidebar-only students (hero only). */
-export type SpriteCharacter = SceneCharacter | keyof (typeof SPRITE_SHEETS)['hero']['rows']
+/** Any character with atlas frames. The footer uses a subset of the hero cast. */
+export type SpriteCharacter = keyof (typeof SPRITE_SHEETS)['hero']['rows']
 
 /** Atlas URL and row of a character in a scene. */
 export function actorSheet(scene: SpriteScene, id: SpriteCharacter): { url: string; row: number; n: number } {
@@ -29,7 +28,7 @@ export function actorSheet(scene: SpriteScene, id: SpriteCharacter): { url: stri
   return { url: ATLASES[`../assets/sprites/${scene}/actors-${n}.png`], row, n }
 }
 
-/** Only the atlases the home page uses (`home`); sidebar-only students live in atlases of their own. */
+/** Atlas URLs for the requested home scene. */
 function sceneAtlases(scene: SpriteScene): string[] {
   return SPRITE_SHEETS[scene].home.map((n) => ATLASES[`../assets/sprites/${scene}/actors-${n}.png`])
 }
@@ -60,6 +59,7 @@ export function useSpriteSheets(scene: SpriteScene, target: Ref<HTMLElement | nu
   watchMotionPreference()
   const ready = ref(false)
   let started = false
+  let paintFrame: number | undefined
   let cancel: (() => void) | null = null
   let observer: IntersectionObserver | null = null
 
@@ -79,7 +79,16 @@ export function useSpriteSheets(scene: SpriteScene, target: Ref<HTMLElement | nu
     if (started || reducedMotion.value || typeof window === 'undefined') return
     if (scene === 'hero') {
       // Two frames: the still frame has painted before the sheets are requested.
-      requestAnimationFrame(() => requestAnimationFrame(() => (cancel = whenIdle(load))))
+      if (paintFrame !== undefined || cancel) return
+      paintFrame = requestAnimationFrame(() => {
+        paintFrame = requestAnimationFrame(() => {
+          paintFrame = undefined
+          cancel = whenIdle(() => {
+            cancel = null
+            load()
+          })
+        })
+      })
       return
     }
     if (typeof IntersectionObserver === 'undefined') return load()
@@ -92,6 +101,7 @@ export function useSpriteSheets(scene: SpriteScene, target: Ref<HTMLElement | nu
   const stop = watch(reducedMotion, (reduced) => !reduced && arm())
   onBeforeUnmount(() => {
     stop()
+    if (paintFrame !== undefined) cancelAnimationFrame(paintFrame)
     cancel?.()
     observer?.disconnect()
   })

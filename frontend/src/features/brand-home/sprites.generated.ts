@@ -2,10 +2,10 @@
 
 /**
  * Character atlases (assets/sprites/<scene>/actors-<n>.png): `rows[id]` = [atlas n, row];
- * frames left to right in `kinds` order, bottom-centred in equal cells. `home` = atlases the home page
- * loads; the rest hold console-sidebar-only students (Cursor, Pi).
+ * frames left to right in `kinds` order, bottom-centred in equal cells. `home` lists the atlases
+ * the home page loads for each scene.
  */
 export const SPRITE_SHEETS = {
-  hero: { cellW: 45, cellH: 55, gutter: 2, frames: 4, kinds: ['work', 'walk'], home: [1, 2], rows: { claude: [1, 0], gpt: [1, 1], gemini: [1, 2], grok: [1, 3], opencode: [2, 0], dsh: [2, 1], cursor: [3, 0], pi: [3, 1] } },
+  hero: { cellW: 45, cellH: 55, gutter: 2, frames: 4, kinds: ['work', 'walk'], home: [1, 2, 3], rows: { claude: [1, 0], gpt: [1, 1], gemini: [1, 2], grok: [1, 3], opencode: [2, 0], dsh: [2, 1], cursor: [3, 0], pi: [3, 1] } },
   footer: { cellW: 47, cellH: 54, gutter: 2, frames: 4, kinds: ['work', 'walk', 'empty'], home: [1, 2, 3], rows: { claude: [1, 0], gpt: [1, 1], gemini: [1, 2], grok: [2, 0], opencode: [2, 1], dsh: [3, 0] } }
 } as const

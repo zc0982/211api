@@ -85,7 +85,6 @@
         <span class="bh-mono bh-hs__model">{{ station.chipModel }}</span>
         <span class="bh-mono bh-hs__meta">{{ station.chipMeta }}</span>
       </span>
-      <span class="bh-hs__label" :class="{ 'bh-hs__label--moving': station.actorIndex >= 0, 'bh-hs__label--lower': station.lowerLabel }" :style="labelStyle(station)">{{ station.name }}</span>
     </template>
 
     <template v-for="(character, index) in HERO_CHARACTERS" :key="character.id">
@@ -103,13 +102,21 @@
       </span>
     </template>
 
+    <svg class="bh-hs__name-guides" width="1440" height="1" aria-hidden="true">
+      <line v-for="guide in nameGuides" :key="guide.index"
+        :x1="guide.anchor" :x2="guide.centre" :y1="HERO_FEET_Y + 2" :y2="guide.endY" :opacity="guide.opacity" />
+    </svg>
+    <div ref="nameRow" class="bh-hs__names" :style="{ '--name-width-scale': nameWidthScale }">
+      <span v-for="index in nameOrder" :key="HERO_CHARACTERS[index].id" class="bh-hs__label bh-hs__label--moving"
+        :style="labelStyle(index)">{{ labels[index] }}</span>
+    </div>
     <span class="bh-hs__credit">{{ creditLabel }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import VendorIcon from './VendorIcon.vue'
 import ToolIcon from './ToolIcon.vue'
 import SpriteActor from './SpriteActor.vue'
@@ -134,6 +141,7 @@ import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../compo
 import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations, pulseStateAt } from '../composables/motion'
 import { useSceneClock } from '../composables/useSceneClock'
 import { useSpriteSheets } from '../composables/useSpriteSheets'
+import { fitHeroLabels } from '../composables/heroLabels'
 import { SPRITE_SHEETS } from '../sprites.generated'
 
 /**
@@ -152,8 +160,9 @@ const props = withDefaults(defineProps<{
   viewport?: { left: number; right: number }
 }>(), { height: HERO_SCENE_HEIGHT, scale: 1, viewport: () => ({ left: 0, right: SCENE_WIDTH }) })
 
-const phoneLabels = computed(() => Math.round((props.viewport.right - props.viewport.left) * props.scale) <= 480)
-// The band below the feet needs room for three 14px name rows and the smaller tool labels.
+const viewportWidth = computed(() => (props.viewport.right - props.viewport.left) * props.scale)
+const phoneLabels = computed(() => Math.round(viewportWidth.value) <= 480)
+// Preserve the ground strip and credit positions when the name row changes.
 const groundLift = computed(() => phoneLabels.value
   ? Math.max(0, 60 / props.scale - (HERO_SCENE_HEIGHT - HERO_FEET_Y))
   : 0)
@@ -187,12 +196,12 @@ const boxStyle = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `
 
 const stations = HERO_STATIONS.map((s) => ({
   ...s,
-  box: propBox(s),
-  // The original label of each actor's home station travels with that actor.
-  actorIndex: HERO_CHARACTERS.findIndex((c) => c.stationA === s.tool),
-  // Separate neighbouring actors when the camera pushes their labels together.
-  lowerLabel: s.tool === 'claudeCode' || s.tool === 'deepseekHarness'
+  box: propBox(s)
 }))
+const labels = HERO_CHARACTERS.map(({ stationA }) => {
+  const station = HERO_STATIONS.find((s) => s.tool === stationA)!
+  return station.label ?? station.name
+})
 
 const traces = computed(() =>
   HERO_STATIONS.slice()
@@ -245,27 +254,88 @@ const dot = computed(() => {
   return animated.value ? d : { x: d.x, y: d.y, opacity: 1 }
 })
 
-/** Head-side badge, fixed to the character's work-frame head whichever way it faces. */
-const badgeStyle = (c: HeroCharacter, x: number) => ({
-  transform: `translate(${x + (c.w * SPRITE_SCALE) / 2 - 6}px, ${HERO_FEET_Y - c.h * SPRITE_SCALE + 8}px)`
-})
+/** Badge keeps its orientation when the sprite turns. */
+const badgeStyle = (c: HeroCharacter, x: number) => {
+  const halfWidth = c.w * SPRITE_SCALE / 2
+  const headY = HERO_FEET_Y - c.h * SPRITE_SCALE
+  // Cursor stands between Claude and OpenCode during the desk visit.
+  // Raise Cursor's mark and give Claude room on the outward side of the group.
+  if (c.id === 'cursor') return { transform: `translate(${x}px, ${headY - 11}px)` }
+  const badgeX = c.id === 'claude' && x > c.b - 38 ? x - halfWidth - 12 : x + halfWidth - 6
+  return { transform: `translate(${badgeX}px, ${headY + 8}px)` }
+}
 
 const actorHalfWidth = SPRITE_SHEETS.hero.cellW * SPRITE_SCALE / 2
-const labelStyle = (station: typeof stations[number]) => {
-  if (station.actorIndex < 0) return { left: `${station.box.left + station.box.width / 2}px` }
+// The artwork is narrower than its padded atlas cell. These widths cover all work/walk frames.
+const nameFadeDistances = HERO_CHARACTERS.map((character) => character.w * SPRITE_SCALE / 2)
+const nameOrder = HERO_CHARACTERS.map((_, i) => i).sort((a, b) => HERO_CHARACTERS[a].x - HERO_CHARACTERS[b].x)
+const nameRow = useTemplateRef<HTMLDivElement>('nameRow')
+const nameWidths = ref<number[]>([])
+watch(nameRow, (row, _, onCleanup) => {
+  if (!row) return
+  const elements = Array.from(row.children)
+  const sizes = elements.map((element) => element.getBoundingClientRect().width / props.scale)
+  nameWidths.value = sizes.slice()
+  if (typeof ResizeObserver === 'undefined') return
+  // Intrinsic widths include the actual browser font and are unaffected by transforms.
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) sizes[elements.indexOf(entry.target)] = entry.contentRect.width
+    nameWidths.value = sizes.slice()
+  })
+  elements.forEach((element) => observer.observe(element))
+  onCleanup(() => observer.disconnect())
+}, { flush: 'post' })
 
-  const { x } = states.value[station.actorIndex]
+const namesMeasured = computed(() => nameWidths.value.length === nameOrder.length && nameWidths.value.every((width) => width > 0))
+const nameInset = computed(() => phoneLabels.value ? 4 / props.scale : 8)
+const nameGap = computed(() => (phoneLabels.value ? (viewportWidth.value <= 340 ? 3 : 4) / props.scale : 6))
+const nameWidthScale = computed(() => {
+  if (!namesMeasured.value) return 1
+  const total = nameWidths.value.reduce((sum, width) => sum + width, 0)
+  const available = props.viewport.right - props.viewport.left - 2 * nameInset.value - (nameOrder.length - 1) * nameGap.value
+  return Math.min(1, Math.max(0, available) / total)
+})
+const fittedNames = computed(() => {
+  if (!namesMeasured.value) return []
+  const slots = nameOrder.map((index, i) => ({
+    anchor: states.value[index].x,
+    width: nameWidths.value[i] * nameWidthScale.value,
+    fadeDistance: nameFadeDistances[index]
+  }))
+  const positions = fitHeroLabels(slots, nameGap.value, props.viewport, nameInset.value, actorHalfWidth)
+  const names: { left: number; width: number }[] = []
+  nameOrder.forEach((index, i) => {
+    const left = positions[i]
+    if (left !== undefined) names[index] = { left, width: slots[i].width }
+  })
+  return names
+})
+
+const nameOpacity = (x: number, index: number) => {
   const { left, right } = props.viewport
-  // Fade only once the actor's centre leaves the viewport, until the sprite cell leaves it too.
   const outside = Math.max(left - x, x - right, 0)
+  return Math.max(0, 1 - outside / nameFadeDistances[index])
+}
+const labelStyle = (index: number) => {
+  const x = states.value[index].x
+  const fitted = fittedNames.value[index]
   return {
     '--actor-x': `${x}px`,
-    '--camera-left': `${left}px`,
-    '--camera-right': `${right}px`,
-    '--phone-label-row': station.tool === 'openClaw' ? 2 : Number(station.tool === 'openCode' || station.tool === 'deepseekHarness'),
-    opacity: Math.max(0, 1 - outside / actorHalfWidth)
+    '--name-left': fitted ? `${fitted.left}px` : undefined,
+    '--camera-left': `${props.viewport.left}px`,
+    '--camera-right': `${props.viewport.right}px`,
+    opacity: nameOpacity(x, index)
   }
 }
+const nameGuides = computed(() => fittedNames.value.flatMap(({ left, width }, index) => {
+  const anchor = states.value[index].x
+  const centre = left + width / 2
+  // A short guide keeps the name identifiable when it has to leave the actor's centre.
+  const strength = (Math.abs(centre - anchor) * props.scale - 8) / 6
+  const opacity = nameOpacity(anchor, index) * Math.max(0, Math.min(1, strength))
+  const endY = phoneLabels.value ? HERO_FEET_Y + 15 / props.scale : 846
+  return opacity > 0 ? [{ index, anchor, centre, endY, opacity }] : []
+}))
 </script>
 
 <style scoped>
@@ -421,43 +491,54 @@ const labelStyle = (station: typeof stations[number]) => {
   font-weight: 500;
 }
 
-.bh-hs__label {
+.bh-hs__names {
+  left: 0;
+  right: 0;
   top: 848px;
-  transform: translateX(-50%);
   color: var(--bh-night-text);
   font-size: 13px;
   font-weight: 500;
   line-height: 16px;
+}
+
+.bh-hs__label {
+  position: absolute;
+  top: 0;
+  width: max-content;
   white-space: nowrap;
 }
 
 .bh-hs__label--moving {
   left: 0;
-  /* Transform percentages resolve to this label's own width. */
-  transform: translateX(clamp(
+  transform-origin: left center;
+  /* Before measuring, clamp with percentages of the label's own width. */
+  transform: translateX(var(--name-left, clamp(
     calc(var(--camera-left) + var(--label-inset, 8px)),
     calc(var(--actor-x) - 50%),
     calc(var(--camera-right) - var(--label-inset, 8px) - 100%)
-  ));
+  ))) scaleX(var(--name-width-scale, 1));
 }
 
-.bh-hs__label--lower {
-  top: 865px;
-}
-
-/* Tool-only labels have a separate row below the passing actors' labels. */
-.bh-hs__label:not(.bh-hs__label--moving) {
-  top: 882px;
-}
-
-.bh-hs--phone-labels .bh-hs__label--moving {
+.bh-hs--phone-labels .bh-hs__names {
   --label-inset: calc(4 * var(--caption-screen-px));
-  top: calc(var(--caption-feet) + (4 + 14 * var(--phone-label-row)) * var(--caption-screen-px));
+  top: calc(var(--caption-feet) + 18 * var(--caption-screen-px));
   font-size: calc(11 * var(--caption-screen-px));
   line-height: calc(13 * var(--caption-screen-px));
 }
 
-.bh-hs--phone-labels .bh-hs__label:not(.bh-hs__label--moving),
+.bh-hs__name-guides {
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bh-hs__name-guides line {
+  stroke: var(--bh-night-text);
+  stroke-opacity: 0.34;
+  vector-effect: non-scaling-stroke;
+}
+
 .bh-hs--phone-labels .bh-hs__credit {
   top: calc(var(--caption-feet) + 47 * var(--caption-screen-px));
 }

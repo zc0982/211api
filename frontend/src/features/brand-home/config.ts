@@ -113,6 +113,8 @@ export const SPRITE_SCALE = 1.5
 export interface HeroStation {
   tool: EcosystemTool
   name: string
+  /** Optional short label for the illustration. The scene summary uses the full name. */
+  label?: string
   /** Prop file under assets/sprites/hero (prop-<file>.png). */
   prop: string
   /** Prop left edge; the prop's bottom sits on the ground line. */
@@ -141,7 +143,7 @@ export const HERO_STATIONS: readonly HeroStation[] = [
   { tool: 'codex', name: 'Codex', prop: 'codex', propX: 566, propW: 34, propH: 33, chipX: 519, chipY: 728, chipW: 146, chipModel: 'gpt-6.2-sol', chipMeta: '640ms', traceOpacity: 0.55 },
   { tool: 'pi', name: 'Pi', prop: 'pi', propX: 718, propW: 34, propH: 28, chipX: 651, chipY: 696, chipW: 186, chipModel: 'deepseek-v4-flash', chipMeta: '286ms' },
   { tool: 'hermes', name: 'Hermes', prop: 'hermes', propX: 868, propW: 28, propH: 41, chipX: 803, chipY: 728, chipW: 172, chipModel: 'gemini-4-carbon', chipMeta: '530ms' },
-  { tool: 'deepseekHarness', name: 'DeepSeek Harness', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms' },
+  { tool: 'deepseekHarness', name: 'DeepSeek Harness', label: 'DSH', prop: 'deepseek-harness', propX: 1232, propW: 37, propH: 30, chipX: 1214, chipY: 696, chipW: 93, chipModel: '200', chipMeta: '198ms' },
   { tool: 'openClaw', name: 'OpenClaw', prop: 'openclaw', propX: 1372, propW: 28, propH: 42, chipX: 1298, chipY: 728, chipW: 126, chipModel: 'grok-4.7', chipMeta: '276ms' }
 ]
 
@@ -149,9 +151,10 @@ export const HERO_STATIONS: readonly HeroStation[] = [
 export const SWITCH_MARKER_TOOL: EcosystemTool = 'codex'
 
 export type SceneCharacter = 'claude' | 'gpt' | 'gemini' | 'grok' | 'opencode' | 'dsh'
+export type HeroCharacterId = SceneCharacter | 'cursor' | 'pi'
 
 export interface HeroCharacter {
-  id: SceneCharacter
+  id: HeroCharacterId
   /** Centre x at point A (its own station) and point B. */
   x: number
   b: number
@@ -165,18 +168,22 @@ export interface HeroCharacter {
   /** 1x size of the work frame (badge position). */
   w: number
   h: number
-  /** Head-side badge: model vendor icon, or a tool icon for OpenCode / DSH. */
+  /** Head-side badge: a model vendor icon or the character's tool icon. */
   badge: { vendor: BrandVendor } | { tool: EcosystemTool }
 }
 
 /** Walk table from the v3 handoff (PR 2 §2). */
 export const HERO_CHARACTERS: readonly HeroCharacter[] = [
-  { id: 'claude', x: 90, b: 242, stationA: 'claudeCode', stationB: 'cursor', beats: [2.8, 2.0, 2.8, 2.0], offset: 2.4, w: 36, h: 50, badge: { vendor: 'claude' } },
+  { id: 'claude', x: 90, b: 222, stationA: 'claudeCode', stationB: 'cursor', beats: [2.8, 2.0, 2.8, 2.0], offset: 2.4, w: 36, h: 50, badge: { vendor: 'claude' } },
   { id: 'gpt', x: 540, b: 692, stationA: 'codex', stationB: 'pi', beats: [2.8, 2.0, 2.8, 2.0], offset: 1.2, w: 34, h: 50, badge: { vendor: 'openai' } },
   { id: 'gemini', x: 842, b: 1028, stationA: 'hermes', beats: [2.6, 2.2, 2.6, 2.2], offset: 0, w: 45, h: 50, badge: { vendor: 'gemini' } },
-  { id: 'grok', x: 1346, b: 1102, stationA: 'openClaw', beats: [2.0, 2.8, 2.0, 2.8], offset: 4.8, w: 37, h: 55, badge: { vendor: 'grok' } },
-  { id: 'opencode', x: 390, b: 326, stationA: 'openCode', beats: [4.2, 0.9, 3.6, 0.9], offset: 3.0, w: 33, h: 52, badge: { tool: 'openCode' } },
-  { id: 'dsh', x: 1206, b: 1270, stationA: 'deepseekHarness', beats: [4.2, 0.9, 3.6, 0.9], offset: 6.0, w: 38, h: 50, badge: { tool: 'deepseekHarness' } }
+  // DSH steps left as Grok approaches, keeping the two name anchors in order.
+  { id: 'grok', x: 1346, b: 1200, stationA: 'openClaw', beats: [2.0, 2.8, 2.0, 2.8], offset: 4.8, w: 37, h: 55, badge: { vendor: 'grok' } },
+  { id: 'opencode', x: 390, b: 350, stationA: 'openCode', beats: [4.2, 0.9, 3.6, 0.9], offset: 3.0, w: 33, h: 52, badge: { tool: 'openCode' } },
+  { id: 'dsh', x: 1206, b: 1138, stationA: 'deepseekHarness', beats: [4.2, 0.9, 3.6, 0.9], offset: 6.0, w: 38, h: 50, badge: { tool: 'deepseekHarness' } },
+  // Step away from the home position before Claude or Codex reaches the desk.
+  { id: 'cursor', x: 252, b: 284, stationA: 'cursor', beats: [4.1, 0.9, 3.7, 0.9], offset: 2.7, w: 36, h: 50, badge: { tool: 'cursor' } },
+  { id: 'pi', x: 694, b: 776, stationA: 'pi', beats: [3.9, 1.2, 3.3, 1.2], offset: 2.1, w: 34, h: 50, badge: { tool: 'pi' } }
 ]
 
 /** Seconds per frame on the hero: working and walking. */
