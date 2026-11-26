@@ -189,7 +189,9 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 - **页脚舞台**仍是固定的 1440×380，按宽度缩放；窄屏 0.75 倍加平移。
 - **背景**：夜空渐变、地平线雾、月光、月亮光晕用 CSS；星星和「远景剪影 + 学院建筑 + 松树 + 地面」是从 Figma 分组导出后合成的两张 SVG（`assets/scene/hero-stars.svg`、`hero-skyline.svg`；页脚 `footer-stars.svg`、`footer-skyline.svg`），运行时不逐块绘制。重新导出时按文件头注释的坐标合成。
 - **工位与连线**（`config.HERO_STATIONS`、`composables/starlink.ts`）：8 个工位道具 1.5 倍、底边贴地（脚线 y=838）；状态牌是 HTML 胶囊；连线是一张内联 SVG，从月亮底 (1060, 264) 到状态牌顶部中点，`c1 = s + (dx·0.22, dy·0.42)`、`c2 = e − (dx·0.18, dy·0.48)`。只有 Claude Code 是金线（One Star Rule；线宽 1.5、不透明度 0.62、3px 淡金光晕，比 Figma 的 1.75 / 1.0 / 8px 收敛，避免过于醒目），Codex 线在 t=0.5 挂「429 → 已自动切换」。
-- **角色**：`components/SpriteActor.vue`，中心 x、脚底贴脚线，头侧 18px 圆标（Claude / GPT / Gemini / Grok 用 `@lobehub/icons-vue` 模型图标，OpenCode / DSH 用工具图标）随人移动。页脚参数牌随人移动，按状态显示首字 / tok/s / token / 费用。
+- **角色**：`components/SpriteActor.vue`，中心 x、脚底贴脚线，头侧 18px 圆标（Claude / GPT / Gemini / Grok 用 `@lobehub/icons-vue` 模型图标，OpenCode / DSH 用工具图标）随人移动。首屏脚线下方，六个起始工位原有的文字（Claude Code、Codex、Hermes、OpenClaw、OpenCode、DeepSeek Harness）随各自角色的 x 移动，保持原文案、字体和颜色。Claude Code 和 DeepSeek Harness 使用第二行，为窄屏镜头边缘和 Grok / DSH 交错留出间距。没有专属角色的 Cursor、Pi 文字固定在道具横坐标的第三行。文字不跟随精灵翻转。页脚参数牌随人移动，按状态显示首字 / tok/s / token / 费用。
+- **镜头边缘**：随动文字按实际宽度约束在镜头内，宽屏左右至少各留 8 世界像素。角色中心移出镜头后，文字在半个精灵格宽度内渐隐。减少动态效果时，文字对齐角色的 A 点静帧。
+- **手机标签字号**：舞台宽度 ≤ 480px 时，用当前场景缩放反算六条随动文字的尺寸，屏幕上为 11 CSS px。每条文字按自身实际宽度限制在镜头内，左右各留至少 4 CSS px。脚线下预留 60 CSS px，三行名字分隔相邻走位；固定道具名与示意说明沿用原字号。地景、工位和连线终点共用这块留白所产生的偏移，镜头与 A 点坐标沿用原时间线。
 - **图片**：一律 `<img>` + `image-rendering: pixelated`，宽高写死为 1x × 倍数，`decoding="async"`，`alt=""`；首屏不懒加载，页脚 `loading="lazy"`。
 - **角色精灵图**：设计仓库 `export/sprites/{hero,footer}/characters/` 的逐帧 PNG 由 `scripts/build-sprite-sheets.py <设计仓库>/export/sprites`（需 Pillow）打包，产物入库：
   - `assets/sprites/<场景>/actors-<n>.png`：每行一个角色，帧从左到右按 `kinds` 顺序（首屏 work、walk；页脚 work、walk、empty），每格为该场景最大帧尺寸、帧底边居中，格间 2px 透明间隔防串帧。行按「每张 ≤ 256 色」贪心分组，存为无损调色板 PNG（首屏 2 张、页脚 3 张，共约 71KB），且每张都大于 Vite 的 4KB 内联阈值，所以是独立文件、按需加载。

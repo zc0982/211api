@@ -1,7 +1,7 @@
 <template>
   <section id="bh-top" class="bh-hero" aria-labelledby="bh-hero-title">
-    <PixelStage v-slot="{ height }" class="bh-hero__stage" :width="SCENE_WIDTH" :height="HERO_SCENE_HEIGHT" fit>
-      <HeroScene :height="height" :switch-label="t('brandHome.hero.switched')" :credit-label="t('brandHome.hero.illustrative')" />
+    <PixelStage v-slot="{ height, viewport, scale }" class="bh-hero__stage" :width="SCENE_WIDTH" :height="HERO_SCENE_HEIGHT" fit>
+      <HeroScene :height="height" :viewport="viewport" :scale="scale" :switch-label="t('brandHome.hero.switched')" :credit-label="t('brandHome.hero.illustrative')" />
     </PixelStage>
 
     <div class="bh-container bh-hero__copy">

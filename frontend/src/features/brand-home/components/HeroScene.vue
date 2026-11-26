@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="bh-hs">
+  <div ref="root" class="bh-hs" :class="{ 'bh-hs--phone-labels': phoneLabels }" :style="captionStyle">
     <div class="bh-hs__sky" />
     <img class="bh-hs__layer" :src="starsUrl" alt="" width="1440" height="742" decoding="async" />
     <div class="bh-hs__moon-glow" />
@@ -11,7 +11,7 @@
     </svg>
 
     <!-- Ground strip, back layer: anchored to the bottom of the stage (moves by dy). -->
-    <div class="bh-hs__ground" :style="groundStyle">
+    <div class="bh-hs__ground bh-hs__ground--back" :style="groundStyle">
       <div class="bh-hs__haze" />
       <img
         class="bh-hs__layer bh-pixel"
@@ -85,7 +85,7 @@
         <span class="bh-mono bh-hs__model">{{ station.chipModel }}</span>
         <span class="bh-mono bh-hs__meta">{{ station.chipMeta }}</span>
       </span>
-      <span class="bh-hs__label" :style="{ left: `${station.box.left + station.box.width / 2}px` }">{{ station.name }}</span>
+      <span class="bh-hs__label" :class="{ 'bh-hs__label--moving': station.actorIndex >= 0, 'bh-hs__label--lower': station.lowerLabel }" :style="labelStyle(station)">{{ station.name }}</span>
     </template>
 
     <template v-for="(character, index) in HERO_CHARACTERS" :key="character.id">
@@ -121,6 +121,7 @@ import {
   HERO_SCENE_HEIGHT,
   HERO_STATIONS,
   MOON,
+  SCENE_WIDTH,
   SPRITE_SCALE,
   SWITCH_MARKER_TOOL,
   TRACE_LIT,
@@ -133,6 +134,7 @@ import { chipAnchor, pointOnTrace, propBox, traceFor, tracePath } from '../compo
 import { arcTable, dotPhase, dotStateAt, heroRestState, heroStateAt, litStations, pulseStateAt } from '../composables/motion'
 import { useSceneClock } from '../composables/useSceneClock'
 import { useSpriteSheets } from '../composables/useSpriteSheets'
+import { SPRITE_SHEETS } from '../sprites.generated'
 
 /**
  * 首屏「星链」夜空场景（Figma 46:2720），画在 1440×900 的设计坐标里，由
@@ -142,10 +144,26 @@ import { useSpriteSheets } from '../composables/useSpriteSheets'
  * 精灵表后才开始动；减少动态效果时停在每人 A 点的第 1 帧。场景整体 aria-hidden，
  * 可读文本在 HeroStarlink 的读屏列表里。两种主题下都不变。
  */
-const props = withDefaults(defineProps<{ switchLabel: string; creditLabel: string; height?: number }>(), { height: HERO_SCENE_HEIGHT })
+const props = withDefaults(defineProps<{
+  switchLabel: string
+  creditLabel: string
+  height?: number
+  scale?: number
+  viewport?: { left: number; right: number }
+}>(), { height: HERO_SCENE_HEIGHT, scale: 1, viewport: () => ({ left: 0, right: SCENE_WIDTH }) })
 
-/** World height beyond the 900 design: the ground strip moves down (or up) by this much. */
-const dy = computed(() => props.height - HERO_SCENE_HEIGHT)
+const phoneLabels = computed(() => Math.round((props.viewport.right - props.viewport.left) * props.scale) <= 480)
+// The band below the feet needs room for three 14px name rows and the smaller tool labels.
+const groundLift = computed(() => phoneLabels.value
+  ? Math.max(0, 60 / props.scale - (HERO_SCENE_HEIGHT - HERO_FEET_Y))
+  : 0)
+const captionStyle = computed(() => phoneLabels.value ? {
+  '--caption-feet': `${HERO_FEET_Y}px`,
+  '--caption-screen-px': `${1 / props.scale}px`,
+  '--caption-ground-lift': `${groundLift.value}px`
+} : undefined)
+// Chips, traces and the landscape share the same ground offset.
+const dy = computed(() => props.height - HERO_SCENE_HEIGHT - groundLift.value)
 const groundStyle = computed(() => ({ transform: `translateY(${dy.value}px)` }))
 /** Trace for a station with its chip where the ground strip puts it. */
 const stationTrace = (s: HeroStation, shift: number) => {
@@ -167,7 +185,14 @@ const still = (id: string) => STILLS[`../assets/sprites/hero/${id}-work-f1.png`]
 type Box = { left: number; top: number; width: number; height: number }
 const boxStyle = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px` })
 
-const stations = HERO_STATIONS.map((s) => ({ ...s, box: propBox(s) }))
+const stations = HERO_STATIONS.map((s) => ({
+  ...s,
+  box: propBox(s),
+  // The original label of each actor's home station travels with that actor.
+  actorIndex: HERO_CHARACTERS.findIndex((c) => c.stationA === s.tool),
+  // Separate neighbouring actors when the camera pushes their labels together.
+  lowerLabel: s.tool === 'claudeCode' || s.tool === 'deepseekHarness'
+}))
 
 const traces = computed(() =>
   HERO_STATIONS.slice()
@@ -224,6 +249,23 @@ const dot = computed(() => {
 const badgeStyle = (c: HeroCharacter, x: number) => ({
   transform: `translate(${x + (c.w * SPRITE_SCALE) / 2 - 6}px, ${HERO_FEET_Y - c.h * SPRITE_SCALE + 8}px)`
 })
+
+const actorHalfWidth = SPRITE_SHEETS.hero.cellW * SPRITE_SCALE / 2
+const labelStyle = (station: typeof stations[number]) => {
+  if (station.actorIndex < 0) return { left: `${station.box.left + station.box.width / 2}px` }
+
+  const { x } = states.value[station.actorIndex]
+  const { left, right } = props.viewport
+  // Fade only once the actor's centre leaves the viewport, until the sprite cell leaves it too.
+  const outside = Math.max(left - x, x - right, 0)
+  return {
+    '--actor-x': `${x}px`,
+    '--camera-left': `${left}px`,
+    '--camera-right': `${right}px`,
+    '--phone-label-row': station.tool === 'openClaw' ? 2 : Number(station.tool === 'openCode' || station.tool === 'deepseekHarness'),
+    opacity: Math.max(0, 1 - outside / actorHalfWidth)
+  }
+}
 </script>
 
 <style scoped>
@@ -254,6 +296,13 @@ const badgeStyle = (c: HeroCharacter, x: number) => ({
 }
 .bh-hs__ground > * {
   position: absolute;
+}
+.bh-hs--phone-labels .bh-hs__ground--back::after {
+  content: '';
+  position: absolute;
+  inset: 100% 0 auto;
+  height: var(--caption-ground-lift);
+  background: #0a1222;
 }
 .bh-hs__haze {
   left: 0;
@@ -382,6 +431,37 @@ const badgeStyle = (c: HeroCharacter, x: number) => ({
   white-space: nowrap;
 }
 
+.bh-hs__label--moving {
+  left: 0;
+  /* Transform percentages resolve to this label's own width. */
+  transform: translateX(clamp(
+    calc(var(--camera-left) + var(--label-inset, 8px)),
+    calc(var(--actor-x) - 50%),
+    calc(var(--camera-right) - var(--label-inset, 8px) - 100%)
+  ));
+}
+
+.bh-hs__label--lower {
+  top: 865px;
+}
+
+/* Tool-only labels have a separate row below the passing actors' labels. */
+.bh-hs__label:not(.bh-hs__label--moving) {
+  top: 882px;
+}
+
+.bh-hs--phone-labels .bh-hs__label--moving {
+  --label-inset: calc(4 * var(--caption-screen-px));
+  top: calc(var(--caption-feet) + (4 + 14 * var(--phone-label-row)) * var(--caption-screen-px));
+  font-size: calc(11 * var(--caption-screen-px));
+  line-height: calc(13 * var(--caption-screen-px));
+}
+
+.bh-hs--phone-labels .bh-hs__label:not(.bh-hs__label--moving),
+.bh-hs--phone-labels .bh-hs__credit {
+  top: calc(var(--caption-feet) + 47 * var(--caption-screen-px));
+}
+
 .bh-hs__badge {
   left: 0;
   top: 0;
@@ -474,7 +554,7 @@ const badgeStyle = (c: HeroCharacter, x: number) => ({
 
 .bh-hs__credit {
   right: 120px;
-  top: 874px;
+  top: 884px;
   color: var(--bh-night-mist);
   font-size: 12px;
   line-height: 14px;
