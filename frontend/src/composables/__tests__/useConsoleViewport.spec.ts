@@ -15,7 +15,7 @@ describe('resolveConsoleViewport', () => {
 })
 
 describe('resolveConsoleMainOffset', () => {
-  it('follows the measured desktop sidebar width (content-sized, not a fixed 248)', () => {
+  it('follows the measured desktop sidebar width, including intermediate animation frames', () => {
     expect(resolveConsoleMainOffset({ viewport: 'desktop', collapsed: false, measured: 210.2 })).toBe(210.2)
     expect(resolveConsoleMainOffset({ viewport: 'desktop', collapsed: true, measured: 72 })).toBe(72)
   })

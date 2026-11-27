@@ -1,8 +1,9 @@
 <template>
   <!--
     v3「星链」夜空侧栏（Figma「211API · Console v3」C0 / C1 / C13–C15，DESIGN.md · Console）：
-    桌面 ≥1280 为按内容自适应宽度的侧栏（min 200 / max 288，可收成 72px 图标栏），平板 768–1279 固定为图标栏、展开按钮以浮层打开整栏，
-    手机 <768 为 304px 抽屉。当前项 = 月白 8% 底 + 左侧 3px 月白竖条（蓝色外发光），不用金色。
+    桌面 ≥1280 侧栏固定为简中 184px / 英文 236px，可收成 72px 图标栏。
+    平板 768–1279 默认是图标栏，可打开浮层；手机 <768 使用抽屉。
+    当前项 = 月白 8% 底 + 左侧 3px 月白竖条（蓝色外发光），不用金色。
   -->
   <aside
     ref="sidebarRef"
@@ -26,7 +27,7 @@
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
       </router-link>
       <div v-if="!isRail" class="sidebar-brand">
-        <router-link :to="homePath" class="sidebar-brand-title" @click="handleMenuItemClick(homePath)">
+        <router-link :to="homePath" class="sidebar-brand-title" :title="siteName" @click="handleMenuItemClick(homePath)">
           {{ siteName }}
         </router-link>
         <!-- Version Badge -->
@@ -59,7 +60,8 @@
                   'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
                   'sidebar-link-collapsed': isRail
                 }"
-                :title="isRail ? item.label : undefined"
+                :title="item.label"
+                :aria-expanded="isRail ? undefined : isGroupExpanded(item)"
                 @click="handleGroupClick(item)"
               >
                 <component :is="item.icon" class="sidebar-icon" />
@@ -71,7 +73,7 @@
                   />
                 </span>
               </button>
-              <!-- Children：收起的分组也留在 DOM（折叠 + inert），侧栏宽度按全部菜单算，展开分组时不跳宽 -->
+              <!-- 收起的分组保留在 DOM 中，以 inert 退出键盘和读屏导航 -->
               <div
                 v-if="!isRail"
                 class="sidebar-children"
@@ -85,6 +87,7 @@
                   :to="child.path"
                   class="sidebar-link sidebar-link-child"
                   :class="{ 'sidebar-link-active': route.path === child.path }"
+                  :title="child.label"
                   @click="handleMenuItemClick(child.path)"
                 >
                   <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
@@ -98,7 +101,7 @@
               :to="item.path"
               class="sidebar-link"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
-              :title="isRail ? item.label : undefined"
+              :title="item.label"
               :id="
                 item.path === '/admin/accounts'
                   ? 'sidebar-channel-manage'
@@ -130,7 +133,7 @@
             :to="item.path"
             class="sidebar-link"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
-            :title="isRail ? item.label : undefined"
+            :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
@@ -154,7 +157,7 @@
             :to="item.path"
             class="sidebar-link"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
-            :title="isRail ? item.label : undefined"
+            :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
@@ -269,7 +272,7 @@ const sidebarNavRef = ref<HTMLElement | null>(null)
 const sidebarRef = ref<HTMLElement | null>(null)
 const { isPhone, isTablet, isDesktop } = useConsoleViewport()
 
-// 桌面侧栏宽度（展开态 max-content，收起 72，动画中逐帧）同步给 AppLayout 定主内容区左边距
+// 将桌面侧栏宽度（含收起与展开时的每一帧）同步给 AppLayout
 let sidebarResizeObserver: ResizeObserver | null = null
 function syncSidebarWidth(width?: number) {
   if (!isDesktop.value) return
@@ -1017,12 +1020,10 @@ onBeforeUnmount(() => {
 <style scoped>
 /*
  * v3 夜空侧栏。数值取自 Figma「211API · Console v3」C0 脚本（L.sidebar / L.rail / L.navItem）：
- * 展开态宽度按内容自适应（Figma 为 248，实际取最长菜单 / 品牌区 / 底栏所需，限定 200–288）、夜空渐变 #050b18 → #091430 → #13244b、种子星空、导航项高 38 胶囊、分组标题 12px #7f8ca5。
+ * 桌面展开宽度随界面语言固定，导航项使用高 38 的胶囊，分组标题为 12px #7f8ca5。
  * 深色主题只多一条右侧描边，写在 style.css 的全局 .sidebar 里（scoped 的 :global(.dark) 会编译成光秃的 .dark {}）。
  */
 .sidebar {
-  /* 收起 / 展开时宽度可在 72 ↔ max-content 之间过渡（不支持的浏览器直接切换） */
-  interpolate-size: allow-keywords;
   color: #aab6cb;
   background-color: #091430;
   background-image:
@@ -1033,9 +1034,7 @@ onBeforeUnmount(() => {
 }
 
 .sidebar--full {
-  width: max-content;
-  min-width: 200px;
-  max-width: 288px;
+  width: 236px;
 }
 
 .sidebar--rail {
@@ -1048,8 +1047,6 @@ onBeforeUnmount(() => {
 
 .sidebar--overlay {
   width: min(304px, 86vw);
-  min-width: 0;
-  max-width: none;
   box-shadow: 0 18px 40px -14px rgb(0 0 0 / 0.55);
 }
 
@@ -1106,6 +1103,21 @@ onBeforeUnmount(() => {
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
+}
+
+@media (min-width: 1280px) {
+  .sidebar--full:lang(zh) {
+    width: 184px;
+  }
+
+  .sidebar--full:lang(zh) .sidebar-header {
+    column-gap: 6px;
+    padding-inline: 16px 6px;
+  }
+
+  .sidebar--full:lang(zh) .sidebar-brand {
+    gap: 4px;
+  }
 }
 
 .sidebar-close {
@@ -1243,7 +1255,7 @@ onBeforeUnmount(() => {
   border-left: 1px solid #1f2d48;
 }
 
-/* 收起的分组：不占高度、不可见、不可聚焦（inert），但仍参与侧栏的 max-content 宽度 */
+/* 收起的分组不占高度，并由 inert 禁止聚焦 */
 .sidebar-children--collapsed {
   height: 0;
   margin-bottom: 0;
@@ -1283,7 +1295,7 @@ onBeforeUnmount(() => {
   position: relative;
   display: block;
   flex: none;
-  /* 不参与侧栏的内容宽度（max-content 只量菜单 / 品牌区 / 底栏），跟着侧栏宽；内部全是绝对定位，不拉伸 */
+  /* 贴合侧栏宽度，内部用绝对定位保持原像素大小 */
   width: 0;
   min-width: 100%;
   height: 122px;
@@ -1293,7 +1305,7 @@ onBeforeUnmount(() => {
    * 背景三层，全是固定像素、不缩放：
    * 1. 月亮 + 光晕：贴右上（中心距右 42px），任何宽度都完整；
    * 2. 图书馆 + 松树（assets/sidebar-scenery.svg，144×106，即原整图 x≥104 的部分）：宽 248 时与原整图同位，
-   *    更窄时向左收到 84、再窄从右边裁松树；更宽（288 / 抽屉 304）停在 104，地面线向右延展；
+   *    更窄时向左收到 84、再窄从右边裁松树；抽屉 304 时停在 104，地面线向右延展；
    * 3. 地面：2px 线 + 14px 条带，铺满整宽。
    */
   background:

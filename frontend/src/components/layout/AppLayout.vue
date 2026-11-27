@@ -3,7 +3,7 @@
     <!-- Sidebar（夜空侧栏 / 图标栏 / 抽屉，见 AppSidebar.vue） -->
     <AppSidebar />
 
-    <!-- Main Content Area：桌面跟随侧栏实测宽度（展开态按内容自适应），平板 72、手机 0 -->
+    <!-- Main Content Area：桌面跟随侧栏实测宽度，平板 72、手机 0 -->
     <div class="relative min-h-screen" :style="{ marginLeft: mainOffset }">
       <!-- Header -->
       <AppHeader />
