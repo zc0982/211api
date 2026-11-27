@@ -31,16 +31,16 @@
 
 | 档位 | 侧栏 | 顶栏 | 内容区边距 |
 |---|---|---|---|
-| 桌面 ≥ 1280 | 夜空侧栏，宽度按内容自适应（200–288px，Figma 为 248），可收成 72px 图标栏（`appStore.sidebarCollapsed`） | 64px 暖纸底 + 底线 | 28 40 56 |
+| 桌面 ≥ 1280 | 夜空侧栏，简中 184px、英文 236px，可收成 72px 图标栏（`appStore.sidebarCollapsed`） | 64px 暖纸底 + 底线 | 28 40 56 |
 | 平板 768–1279 | 固定 72px 图标栏；底部「展开」以浮层打开整栏（复用 `appStore.mobileOpen`） | 同上，左右 32 | 24 32 48 |
 | 手机 < 768 | 304px 抽屉（`mobileOpen`），带遮罩和关闭按钮 | 52px 夜空顶栏：菜单、星狐横版、余额、头像 | 20 16 36 |
 
 - **侧栏**（`AppSidebar.vue`）：夜空渐变 `#050b18 → #091430 → #13244b` + 种子星空（`components/layout/assets/*-stars.svg`，与 Figma 同一种子）；顶部星狐 + 白色站点名（后台上传了标志则垫白底）；用户菜单按 概览 / 调用 / 账户 / 设置 分组（`NavItem.group`），图标栏里组之间用短横线；当前项月白 8% 底 + 左侧 3px 月白竖条、蓝色外发光，不用金色；底部像素「学院一角」（见下条「侧栏像素学子」）和收起按钮。管理员菜单不分组，样式相同。
 - **顶栏**（`AppHeader.vue`）：左侧页面标题（路由 `meta.pageHeading: true` 的页面自带 h1 页头，顶栏不再重复标题和描述；目前是 `/keys`、`/usage`、`/purchase`、`/subscriptions`、`/orders`、`/redeem`、`/affiliate`、`/profile`、`/available-channels`、`/monitor`（V1 回退保留顶栏标题），仪表盘不受影响）；右侧公告、文档、模型广场、语言、主题切换（从侧栏移来，仍读写 `localStorage.theme`）、订阅进度、余额胶囊（余额 + 等宽金额 + 「充值」）、账户菜单。手机夜空顶栏也保留公告铃铛：后端默认公告是 `silent`，不自动弹出，铃铛是唯一入口。
 - **余额旁的购买入口**统一用 `utils/siteBillingMode.ts` 的 `resolveBalancePurchaseAction`：支付关闭或简易模式不给；关了余额充值（`payment_balance_disabled`，仅订阅站点）时 `/purchase` 没有充值标签，顶栏不显示「充值」，仪表盘余额卡改成「订阅」；订阅也关了就都不给。
-- **侧栏宽度**：展开态 `.sidebar--full` 为 `width: max-content`，`min-width: 200px`、`max-width: 288px`，取最长菜单项 / 品牌区（Logo + 站点名 + 版本号）/ 底栏所需，中英文、管理员 / 用户菜单各自贴合；收起的分组子菜单仍留在 DOM（折叠 + `inert`），所以宽度按全部菜单算，展开分组不跳宽。像素「学院一角」`width: 0; min-width: 100%` 不参与宽度。`.sidebar--rail` 72、`.sidebar--overlay` `min(304px, 86vw)` 不变。
+- **侧栏宽度**：桌面展开态固定为简中 184px（按页面语言 `zh` 匹配）、英文 236px，用户端与管理端共用。侧栏宽度与菜单展开状态、品牌及底栏内容独立。菜单标签单行省略，链接和分组按钮保留完整文字与原生 `title`。简中桌面收紧品牌区间距，保留站点名、版本号与管理员版本菜单。分组收起后以 `inert` 退出键盘和读屏导航。图标栏 72px，浮层和抽屉为 `min(304px, 86vw)`。
 - **侧栏像素学子**（「学院一角」，高 122px，用户端和管理端相同）：
-  - **分层**：背景全在 `.sidebar-vignette` 的 CSS 里，固定像素、不缩放——月亮 + 光晕（径向渐变，中心距右 42px，任何宽度都完整）、图书馆 + 松树（`assets/sidebar-scenery.svg`，144×106，由原 Figma 整图逐像素矢量化）、地面（2px 线 `#1f2d48` + 14px 条带 `#0b1427`，铺满整宽）。图书馆在宽 248 时与原稿同位，更窄时左移到 84、再窄从右边裁松树；288 / 抽屉 304 停在 104，地面线向右延展。前景是异步组件 `SidebarStudent.vue`：1 位学子 + 专属工位道具（首页同一套 `prop-*.png`）+ 头侧 18px 圆标（复用首页 `VendorIcon` / `ToolIcon`，按 `SIDEBAR_STUDENTS[].badge`），精灵渲染复用首页 `SpriteActor`。尺寸与首页一致：1.5 倍像素（2x 屏上每个像素点是 3 个物理像素）、`image-rendering: pixelated`，精灵格左边 8px、脚线 y=108（地面线下 2px）、道具左边 = 人物中心 + 26。容器保持 `width: 0; min-width: 100%`，内部全是绝对定位，不参与侧栏 `max-content` 宽度，也不影响 `ResizeObserver` 上报的主内容区左边距。
+  - **分层**：背景全在 `.sidebar-vignette` 的 CSS 里，固定像素、不缩放——月亮 + 光晕（径向渐变，中心距右 42px，任何宽度都完整）、图书馆 + 松树（`assets/sidebar-scenery.svg`，144×106，由原 Figma 整图逐像素矢量化）、地面（2px 线 `#1f2d48` + 14px 条带 `#0b1427`，铺满整宽）。图书馆在宽 248 时与原稿同位，更窄时左移到 84、再窄从右边裁松树；抽屉 304 停在 104，地面线向右延展。前景是异步组件 `SidebarStudent.vue`：1 位学子 + 专属工位道具（首页同一套 `prop-*.png`）+ 头侧 18px 圆标（复用首页 `VendorIcon` / `ToolIcon`，按 `SIDEBAR_STUDENTS[].badge`），精灵渲染复用首页 `SpriteActor`。尺寸与首页一致：1.5 倍像素（2x 屏上每个像素点是 3 个物理像素）、`image-rendering: pixelated`，精灵格左边 8px、脚线 y=108（地面线下 2px）、道具左边 = 人物中心 + 26。容器通过 `width: 0; min-width: 100%` 贴合侧栏，内部绝对定位。切换学子时侧栏宽度和主内容区左边距保持稳定。
   - **学子**（`sidebarStudent.ts` 的 `SIDEBAR_STUDENTS`，也是点击顺序）：Claude / GPT / Gemini / Grok / OpenCode / DSH / Cursor / Pi。八位学子共用首页首屏的角色配置、A 点工位道具和标志。Cursor 用黑板 `prop-cursor` 与 `ToolIcon tool="cursor"`，Pi 用茶歇角 `prop-pi` 与 `ToolIcon tool="pi"`。两位的 work / walk 帧留在原有 `hero/actors-3.png`（约 6.4KB），由首页首屏与侧栏共同使用。
   - **随机与切换**：每次刷新从 8 位里随机 1 位并排除上一次（`sessionStorage['console-sidebar-student']`，读写失败不影响显示）；选中的人放在模块里，侧栏随路由重挂载、收起再展开都不重抽。左侧舞台（学子 + 道具，宽 140）是一个 `<button>`，`aria-label`「像素学子 {name}，在 {tool} 工位。点击换下一位」，点击按固定顺序换下一位并写回 `sessionStorage`；悬停 `title` 只写「{name} · 在 {tool} 工位」，不放示意数据。焦点环用夜空蓝，不加金色（One Star Rule：只有 Claude 自带的金色帽穗）。
   - **动效**（`STUDENT_TIMELINE`，纯数据）：原地干活 4 帧、每帧 0.32s，之后停在第 1 帧 0.64s 作呼吸；干活约 23s 后交替一次小动作——转身朝左踱 3 步（每步 2px、0.3s）停 1.2s 再走回，或原地回头看 1.4s；整轮约 50s。帧时钟是按步 `setTimeout`，不跑 `requestAnimationFrame`。

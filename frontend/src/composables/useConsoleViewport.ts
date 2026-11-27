@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
  * Console shell breakpoints (DESIGN.md · Console; Figma「211API · Console v3」C13–C15):
  * - phone   (< 768):  night app bar + 304px drawer
  * - tablet  (768–1279): 72px icon rail, the expand button opens the full sidebar as an overlay
- * - desktop (≥ 1280): 248px night sidebar, user can collapse it to the rail
+ * - desktop (≥ 1280): 184px (Simplified Chinese) or 236px sidebar, collapsible to the rail
  *
  * Kept in sync with Tailwind's `md` (768) and `xl` (1280) so templates can mirror it in CSS.
  */
@@ -51,8 +51,7 @@ export function useConsoleViewport() {
 
 /**
  * 桌面侧栏的实测宽度（AppSidebar 用 ResizeObserver 写入，AppLayout 读来定主内容区的左边距）。
- * 展开态按内容自适应（`width: max-content` + min/max），所以不能再写死 248；
- * 没量到时（首帧、jsdom）回退到 248 / 72。
+ * 桌面收起或展开时逐帧跟随。没量到时（首帧、jsdom）回退到 248 / 72。
  */
 export const consoleSidebarWidth = ref<number | null>(null)
 

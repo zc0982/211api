@@ -117,11 +117,17 @@ describe('AppSidebar v3 night sidebar', () => {
   })
 })
 
-describe('AppSidebar content-sized width', () => {
-  it('sizes the expanded sidebar to its content within 200–288px, leaving rail and overlay widths alone', () => {
-    expect(componentSource).toMatch(/\.sidebar--full \{\s*width: max-content;\s*min-width: 200px;\s*max-width: 288px;/)
+describe('AppSidebar width by mode', () => {
+  it('uses stable expanded widths by language and preserves the rail and overlay sizes', () => {
+    expect(componentSource).toMatch(/\.sidebar--full \{\s*width: 236px;/)
+    expect(componentSource).toMatch(/@media \(min-width: 1280px\) \{\s*\.sidebar--full:lang\(zh\) \{\s*width: 184px;/)
     expect(componentSource).toMatch(/\.sidebar--rail \{\s*width: 72px;/)
-    expect(componentSource).toMatch(/\.sidebar--overlay \{\s*width: min\(304px, 86vw\);\s*min-width: 0;\s*max-width: none;/)
+    expect(componentSource).toMatch(/\.sidebar--overlay \{\s*width: min\(304px, 86vw\);/)
+  })
+
+  it('truncates menu labels to a single line while letting the flex items shrink', () => {
+    expect(componentSource).toMatch(/\.sidebar-label \{[^}]*min-width: 0;[^}]*overflow: hidden;\s*text-overflow: ellipsis;\s*white-space: nowrap;/)
+    expect(componentSource).toContain('<span class="min-w-0 truncate">{{ item.label }}</span>')
   })
 
   it('keeps the vignette out of the intrinsic width and reports the measured width to the layout', () => {

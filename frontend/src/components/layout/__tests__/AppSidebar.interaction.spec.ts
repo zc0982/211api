@@ -106,7 +106,7 @@ describe('AppSidebar groups across viewports', () => {
     expect(router.currentRoute.value.path).toBe('/admin/orders/plans')
   })
 
-  it('keeps collapsed groups in the DOM but inert, so expanding one does not change the content width', async () => {
+  it('keeps collapsed groups in the DOM and makes their links inert', async () => {
     const { wrapper } = await mountSidebar()
     const collapsed = wrapper.findAll('.sidebar-children.sidebar-children--collapsed')
     expect(collapsed.length).toBeGreaterThan(0)
@@ -114,6 +114,25 @@ describe('AppSidebar groups across viewports', () => {
       expect(group.attributes('inert')).toBeDefined()
       expect(group.attributes('aria-hidden')).toBe('true')
     }
+  })
+
+  it('keeps the complete label and hover title on links and group buttons', async () => {
+    const { wrapper } = await mountSidebar()
+    const group = groupButton(wrapper, 'nav.channelManagement')
+    expect(group.attributes('title')).toBe('nav.channelManagement')
+    expect(group.attributes('aria-expanded')).toBe('false')
+    await group.trigger('click')
+    expect(group.attributes('aria-expanded')).toBe('true')
+    for (const [path, label] of [
+      ['/admin/dashboard', 'nav.dashboard'],
+      ['/admin/channels/pricing', 'nav.channelPricing'],
+      ['/keys', 'nav.apiKeys'],
+    ]) {
+      const link = wrapper.get(`.sidebar-nav a[href="${path}"]`)
+      expect(link.attributes('title')).toBe(label)
+      expect(link.text()).toBe(label)
+    }
+    wrapper.unmount()
   })
 
   it('keeps group clicks inert while the sidebar is an icon rail', async () => {
