@@ -202,7 +202,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { isNavigationFailure, NavigationFailureType, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
@@ -918,20 +918,21 @@ function closeMobile() {
 
 function handleMenuItemClick(itemPath: string, event: MouseEvent) {
   if (mobileOpen.value) {
+    const navigation = appStore.beginMobileMenuNavigation()
     if (isPhone.value && !event.defaultPrevented && event.button === 0 &&
       !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey) {
       event.preventDefault()
+      const source = router.currentRoute.value
       void router.push(itemPath).then(async (failure) => {
-        if (failure) {
-          closeMobile()
-          return
-        }
+        if (isNavigationFailure(failure, NavigationFailureType.cancelled)) return
         // The new header must be mounted even if the old drawer was closed during navigation.
-        await nextTick()
-        appStore.finishMobileMenuNavigation()
-      }, closeMobile)
+        if (!failure) await nextTick()
+        appStore.finishMobileMenuNavigation(navigation, !failure)
+      }, () => {
+        if (router.currentRoute.value === source) appStore.finishMobileMenuNavigation(navigation)
+      })
     } else {
-      setTimeout(closeMobile, 150)
+      setTimeout(() => appStore.finishMobileMenuNavigation(navigation), 150)
     }
   }
 
@@ -983,6 +984,7 @@ function handleGroupClick(item: NavItem) {
   }
   // Push to path and ensure expanded
   if (route.path !== item.path) {
+    if (mobileOpen.value) appStore.beginMobileMenuNavigation()
     router.push(item.path)
   }
   groupExpandOverrides.value.set(item.path, true)

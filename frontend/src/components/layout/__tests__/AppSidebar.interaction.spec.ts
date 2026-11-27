@@ -1,36 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { h, reactive, ref } from 'vue'
-import { createRouter, createMemoryHistory, useRoute } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
+import { createRouter, createMemoryHistory, isNavigationFailure, NavigationFailureType, useRoute } from 'vue-router'
+import { useAppStore } from '@/stores/app'
 
 const viewport = { isPhone: ref(false), isTablet: ref(false), isDesktop: ref(true) }
-
-const appStore = reactive({
-  sidebarCollapsed: false,
-  mobileOpen: false,
-  mobileMenuFocusRequest: 0,
-  backendModeEnabled: false,
-  siteName: '211API',
-  siteLogo: '',
-  siteVersion: '',
-  docUrl: '',
-  publicSettingsLoaded: true,
-  cachedPublicSettings: {} as Record<string, unknown>,
-  sidebarScrollTop: 0,
-  toggleSidebar() {
-    appStore.sidebarCollapsed = !appStore.sidebarCollapsed
-  },
-  toggleMobileSidebar() {
-    appStore.mobileOpen = !appStore.mobileOpen
-  },
-  setMobileOpen(open: boolean) {
-    appStore.mobileOpen = open
-  },
-  finishMobileMenuNavigation() {
-    appStore.mobileOpen = false
-    appStore.mobileMenuFocusRequest++
-  }
-})
+let appStore: ReturnType<typeof useAppStore>
 const authStore = reactive({ isAdmin: true, isSimpleMode: false, user: { role: 'admin' } })
 const adminSettingsStore = reactive({ opsMonitoringEnabled: true, paymentEnabled: true, customMenuItems: [], fetch: vi.fn() })
 const onboardingStore = reactive({ isCurrentStep: () => false, nextStep: vi.fn() })
@@ -41,7 +17,6 @@ vi.mock('@/stores', () => ({
   useAdminSettingsStore: () => adminSettingsStore,
   useOnboardingStore: () => onboardingStore
 }))
-vi.mock('@/stores/app', () => ({ useAppStore: () => appStore }))
 vi.mock('@/stores/adminSettings', () => ({ useAdminSettingsStore: () => adminSettingsStore }))
 vi.mock('@/composables/useConsoleViewport', () => ({ useConsoleViewport: () => viewport }))
 vi.mock('@/composables/useBatchImageAccess', () => ({
@@ -56,6 +31,13 @@ import AppSidebar from '../AppSidebar.vue'
 import AppHeader from '../AppHeader.vue'
 
 enableAutoUnmount(afterEach)
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  appStore = useAppStore()
+  appStore.siteName = '211API'
+  appStore.publicSettingsLoaded = true
+})
 
 function setViewport(kind: 'phone' | 'tablet' | 'desktop') {
   viewport.isPhone.value = kind === 'phone'
@@ -84,8 +66,6 @@ function groupButton(wrapper: Awaited<ReturnType<typeof mountSidebar>>['wrapper'
 
 describe('AppSidebar groups across viewports', () => {
   beforeEach(() => {
-    appStore.sidebarCollapsed = false
-    appStore.mobileOpen = false
     setViewport('desktop')
   })
 
@@ -162,8 +142,6 @@ describe('phone drawer focus', () => {
   const nativeInert = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'inert')
 
   beforeEach(() => {
-    appStore.mobileOpen = false
-    appStore.mobileMenuFocusRequest = 0
     setViewport('phone')
     // jsdom lacks native inert; reflect the DOM property for the native-path assertions.
     Object.defineProperty(HTMLElement.prototype, 'inert', {
@@ -246,6 +224,83 @@ describe('phone drawer focus', () => {
     expect(oldMenu.element.isConnected).toBe(false)
     expect(wrapper.get('aside.sidebar').attributes('inert')).toBeDefined()
     expect(document.activeElement).toBe(newMenu.element)
+  })
+
+  it.each([true, false])('keeps a reopened drawer independent of the old navigation (superseded: %s)', async (superseded) => {
+    const { wrapper, router } = await mountPhoneShell()
+    let releaseKeys!: () => void
+    const keysPending = new Promise<void>((resolve) => { releaseKeys = resolve })
+    const keysStarted = vi.fn()
+    const keysFinished = vi.fn()
+    router.beforeEach((to) => {
+      if (to.path !== '/keys') return
+      keysStarted()
+      return keysPending
+    })
+    router.afterEach((to, _, failure) => {
+      if (to.path === '/keys') keysFinished(failure)
+    })
+
+    const firstMenu = wrapper.get('.console-topbar__menu')
+    await firstMenu.trigger('click')
+    await wrapper.get('.sidebar-nav a[href="/keys"]').trigger('click')
+    await flushPromises()
+    expect(keysStarted).toHaveBeenCalledOnce()
+    if (superseded) {
+      await wrapper.get('.sidebar-nav a[href="/usage"]').trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.path).toBe('/usage')
+    } else {
+      await wrapper.get('.sidebar-close').trigger('click')
+      expect(router.currentRoute.value.path).toBe('/admin/dashboard')
+    }
+
+    const menu = wrapper.get('.console-topbar__menu')
+    expect(document.activeElement).toBe(menu.element)
+    await menu.trigger('click')
+    const logo = wrapper.get<HTMLAnchorElement>('.sidebar-logo').element
+    logo.focus()
+    const previousFocusRequest = appStore.mobileMenuFocusRequest
+    releaseKeys()
+    await flushPromises()
+
+    expect(keysFinished).toHaveBeenCalledOnce()
+    expect(router.currentRoute.value.path).toBe(superseded ? '/usage' : '/keys')
+    expect(wrapper.get('.console-topbar__menu').attributes('aria-expanded')).toBe('true')
+    expect(appStore.mobileMenuFocusRequest).toBe(previousFocusRequest)
+    if (superseded) {
+      expect(isNavigationFailure(keysFinished.mock.calls[0][0], NavigationFailureType.cancelled)).toBe(true)
+      expect(document.activeElement).toBe(logo)
+    } else {
+      expect(logo.isConnected).toBe(false)
+      expect(keysFinished).toHaveBeenCalledWith(undefined)
+      expect(document.activeElement).not.toBe(wrapper.get('.console-topbar__menu').element)
+    }
+  })
+
+  it('lets a newer pending drawer navigation return focus after the older one settles', async () => {
+    const { wrapper, router } = await mountPhoneShell()
+    let releaseKeys!: () => void
+    let releaseUsage!: () => void
+    const keysPending = new Promise<void>((resolve) => { releaseKeys = resolve })
+    const usagePending = new Promise<void>((resolve) => { releaseUsage = resolve })
+    router.beforeEach((to) => to.path === '/keys' ? keysPending : usagePending)
+
+    await wrapper.get('.console-topbar__menu').trigger('click')
+    await wrapper.get('.sidebar-nav a[href="/keys"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('.sidebar-nav a[href="/usage"]').trigger('click')
+    await flushPromises()
+    releaseKeys()
+    await flushPromises()
+    expect(appStore.mobileOpen).toBe(true)
+    releaseUsage()
+    await flushPromises()
+
+    const menu = wrapper.get('.console-topbar__menu')
+    expect(router.currentRoute.value.path).toBe('/usage')
+    expect(menu.attributes('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(menu.element)
   })
 
   it('hides the whole closed phone drawer when native inert is unavailable', async () => {

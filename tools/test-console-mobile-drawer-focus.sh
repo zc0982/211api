@@ -4,13 +4,17 @@ set -euo pipefail
 preview_url=$(node -e '
   const input = process.argv[1].trim()
   const authority = /^https?:\/\/([^/?#\\\s]+)/i.exec(input)?.[1]
-  const url = URL.parse(input)
-  if (!url || !authority || authority.includes("@") || url.username || url.password ||
-      !["http:", "https:"].includes(url.protocol) || !["127.0.0.1", "localhost"].includes(url.hostname)) {
+  try {
+    const url = new URL(input)
+    if (!authority || authority.includes("@") || url.username || url.password ||
+        !["http:", "https:"].includes(url.protocol) || !["127.0.0.1", "localhost"].includes(url.hostname)) {
+      throw new TypeError("Disallowed preview URL")
+    }
+    console.log(url.href)
+  } catch {
     console.error("Expected an HTTP/HTTPS loopback URL without user information")
     process.exit(2)
   }
-  console.log(url.href)
 ' -- "${1:-}")
 
 export AGENT_BROWSER_SESSION="console-mobile-drawer-focus-$$"

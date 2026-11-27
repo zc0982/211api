@@ -74,6 +74,7 @@ test('drawer browser runner restricts input and redirect requests to loopback na
 
   await t.test('rejects invalid protocol, host and URL user information before requests', async () => {
     for (const url of [
+      'http://localhost:invalid/drawer',
       `ftp://localhost:${allowedPort}/drawer`,
       `${blockedOrigin}/invalid-host`,
       `http://127.0.0.1:9@[::1]:${blockedPort}/invalid-userinfo-host`,
