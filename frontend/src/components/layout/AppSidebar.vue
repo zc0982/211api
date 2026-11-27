@@ -13,7 +13,8 @@
       isOverlay ? 'sidebar--overlay' : '',
       { '-translate-x-full': isHidden }
     ]"
-    :inert="isHidden || undefined"
+    :style="{ display: !supportsInert && isHidden ? 'none' : undefined }"
+    :inert="(supportsInert && isHidden) || undefined"
     :aria-hidden="isHidden ? 'true' : undefined"
     :tabindex="isPhone && mobileOpen ? -1 : undefined"
   >
@@ -273,6 +274,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const sidebarRef = ref<HTMLElement | null>(null)
 const { isPhone, isTablet, isDesktop } = useConsoleViewport()
+const supportsInert = typeof HTMLElement !== 'undefined' && 'inert' in HTMLElement.prototype
 
 // 将桌面侧栏宽度（含收起与展开时的每一帧）同步给 AppLayout
 let sidebarResizeObserver: ResizeObserver | null = null
@@ -918,9 +920,16 @@ function handleMenuItemClick(itemPath: string, event: MouseEvent) {
   if (mobileOpen.value) {
     if (isPhone.value && !event.defaultPrevented && event.button === 0 &&
       !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey) {
-      // Close after the destination has mounted its header, including lazy-loaded routes.
       event.preventDefault()
-      void router.push(itemPath).then(closeMobile, closeMobile)
+      void router.push(itemPath).then(async (failure) => {
+        if (failure) {
+          closeMobile()
+          return
+        }
+        // The new header must be mounted even if the old drawer was closed during navigation.
+        await nextTick()
+        appStore.finishMobileMenuNavigation()
+      }, closeMobile)
     } else {
       setTimeout(closeMobile, 150)
     }

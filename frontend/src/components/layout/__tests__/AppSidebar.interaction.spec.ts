@@ -8,6 +8,7 @@ const viewport = { isPhone: ref(false), isTablet: ref(false), isDesktop: ref(tru
 const appStore = reactive({
   sidebarCollapsed: false,
   mobileOpen: false,
+  mobileMenuFocusRequest: 0,
   backendModeEnabled: false,
   siteName: '211API',
   siteLogo: '',
@@ -24,6 +25,10 @@ const appStore = reactive({
   },
   setMobileOpen(open: boolean) {
     appStore.mobileOpen = open
+  },
+  finishMobileMenuNavigation() {
+    appStore.mobileOpen = false
+    appStore.mobileMenuFocusRequest++
   }
 })
 const authStore = reactive({ isAdmin: true, isSimpleMode: false, user: { role: 'admin' } })
@@ -154,9 +159,23 @@ describe('AppSidebar groups across viewports', () => {
 })
 
 describe('phone drawer focus', () => {
+  const nativeInert = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'inert')
+
   beforeEach(() => {
     appStore.mobileOpen = false
+    appStore.mobileMenuFocusRequest = 0
     setViewport('phone')
+    // jsdom lacks native inert; reflect the DOM property for the native-path assertions.
+    Object.defineProperty(HTMLElement.prototype, 'inert', {
+      configurable: true,
+      get(this: HTMLElement) { return this.hasAttribute('inert') },
+      set(this: HTMLElement, value: boolean) { this.toggleAttribute('inert', value) }
+    })
+  })
+
+  afterEach(() => {
+    if (nativeInert) Object.defineProperty(HTMLElement.prototype, 'inert', nativeInert)
+    else Reflect.deleteProperty(HTMLElement.prototype, 'inert')
   })
 
   async function mountPhoneShell() {
@@ -202,7 +221,7 @@ describe('phone drawer focus', () => {
     }
   )
 
-  it('returns focus to the destination menu when a drawer link remounts the shell', async () => {
+  it.each([false, true])('returns focus to the remounted menu (closed during navigation: %s)', async (closeDuringNavigation) => {
     const { wrapper, router } = await mountPhoneShell()
     const oldMenu = wrapper.get('.console-topbar__menu')
     await oldMenu.trigger('click')
@@ -212,14 +231,45 @@ describe('phone drawer focus', () => {
     router.beforeEach(() => pending)
     await wrapper.get('.sidebar-nav a[href="/keys"]').trigger('click')
     expect(appStore.mobileOpen).toBe(true)
+    if (closeDuringNavigation) {
+      await wrapper.get('.sidebar-close').trigger('click')
+      expect(appStore.mobileOpen).toBe(false)
+      expect(router.currentRoute.value.path).toBe('/admin/dashboard')
+      expect(document.activeElement).toBe(oldMenu.element)
+    }
     finishNavigation()
     await flushPromises()
 
     const newMenu = wrapper.get('.console-topbar__menu')
     expect(router.currentRoute.value.path).toBe('/keys')
     expect(newMenu.element).not.toBe(oldMenu.element)
+    expect(oldMenu.element.isConnected).toBe(false)
     expect(wrapper.get('aside.sidebar').attributes('inert')).toBeDefined()
     expect(document.activeElement).toBe(newMenu.element)
+  })
+
+  it('hides the whole closed phone drawer when native inert is unavailable', async () => {
+    Reflect.deleteProperty(HTMLElement.prototype, 'inert')
+    const { wrapper } = await mountPhoneShell()
+    const drawer = wrapper.get<HTMLElement>('aside.sidebar')
+    const menu = wrapper.get('.console-topbar__menu')
+    expect(drawer.element.style.display).toBe('none')
+    expect(drawer.attributes('aria-hidden')).toBe('true')
+    expect(drawer.attributes('inert')).toBeUndefined()
+
+    const focusDrawer = drawer.element.focus.bind(drawer.element)
+    vi.spyOn(drawer.element, 'focus').mockImplementation((options) => {
+      expect(drawer.element.style.display).not.toBe('none')
+      focusDrawer(options)
+    })
+    await menu.trigger('click')
+    expect(drawer.element.style.display).toBe('')
+    expect(drawer.attributes('aria-hidden')).toBeUndefined()
+    expect(document.activeElement).toBe(drawer.element)
+
+    await wrapper.get('.sidebar-close').trigger('click')
+    expect(drawer.element.style.display).toBe('none')
+    expect(document.activeElement).toBe(menu.element)
   })
 
   it.each(['tablet', 'desktop'] as const)('leaves focus on the page when switching to %s', async (viewportKind) => {

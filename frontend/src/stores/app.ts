@@ -19,6 +19,7 @@ export const useAppStore = defineStore('app', () => {
 
   const sidebarCollapsed = ref<boolean>(false)
   const mobileOpen = ref<boolean>(false)
+  const mobileMenuFocusRequest = ref(0)
   const sidebarScrollTop = ref<number>(0)
   const loading = ref<boolean>(false)
   const toasts = ref<Toast[]>([])
@@ -84,6 +85,11 @@ export const useAppStore = defineStore('app', () => {
    */
   function setMobileOpen(open: boolean): void {
     mobileOpen.value = open
+  }
+
+  function finishMobileMenuNavigation(): void {
+    setMobileOpen(false)
+    mobileMenuFocusRequest.value++
   }
 
   /**
@@ -441,6 +447,7 @@ export const useAppStore = defineStore('app', () => {
     // State
     sidebarCollapsed,
     mobileOpen,
+    mobileMenuFocusRequest,
     sidebarScrollTop,
     loading,
     toasts,
@@ -473,6 +480,7 @@ export const useAppStore = defineStore('app', () => {
     setSidebarCollapsed,
     toggleMobileSidebar,
     setMobileOpen,
+    finishMobileMenuNavigation,
     setLoading,
     showToast,
     showSuccess,

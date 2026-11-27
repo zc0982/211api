@@ -295,11 +295,15 @@ const user = computed(() => authStore.user)
 const { isPhone } = useConsoleViewport()
 const menuButton = ref<HTMLButtonElement | null>(null)
 
-watch([isPhone, () => appStore.mobileOpen], ([phone, open], [wasPhone, wasOpen]) => {
-  if (phone && wasPhone && wasOpen && !open) {
-    menuButton.value?.focus({ preventScroll: true })
-  }
-}, { flush: 'post' })
+watch(
+  [isPhone, () => appStore.mobileOpen, () => appStore.mobileMenuFocusRequest],
+  ([phone, open, request], [wasPhone, wasOpen, previousRequest]) => {
+    if (phone && wasPhone && !open && (wasOpen || request !== previousRequest)) {
+      menuButton.value?.focus({ preventScroll: true })
+    }
+  },
+  { flush: 'post' }
+)
 
 const homePath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
