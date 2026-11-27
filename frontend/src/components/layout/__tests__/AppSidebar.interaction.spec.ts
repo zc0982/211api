@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { reactive, ref } from 'vue'
-import { createRouter, createMemoryHistory } from 'vue-router'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { h, reactive, ref } from 'vue'
+import { createRouter, createMemoryHistory, useRoute } from 'vue-router'
 
 const viewport = { isPhone: ref(false), isTablet: ref(false), isDesktop: ref(true) }
 
@@ -12,11 +12,15 @@ const appStore = reactive({
   siteName: '211API',
   siteLogo: '',
   siteVersion: '',
+  docUrl: '',
   publicSettingsLoaded: true,
   cachedPublicSettings: {} as Record<string, unknown>,
   sidebarScrollTop: 0,
   toggleSidebar() {
     appStore.sidebarCollapsed = !appStore.sidebarCollapsed
+  },
+  toggleMobileSidebar() {
+    appStore.mobileOpen = !appStore.mobileOpen
   },
   setMobileOpen(open: boolean) {
     appStore.mobileOpen = open
@@ -33,6 +37,7 @@ vi.mock('@/stores', () => ({
   useOnboardingStore: () => onboardingStore
 }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => appStore }))
+vi.mock('@/stores/adminSettings', () => ({ useAdminSettingsStore: () => adminSettingsStore }))
 vi.mock('@/composables/useConsoleViewport', () => ({ useConsoleViewport: () => viewport }))
 vi.mock('@/composables/useBatchImageAccess', () => ({
   useBatchImageAccess: () => ({ canUseBatchImage: ref(false), refreshBatchImageAccess: vi.fn() })
@@ -43,6 +48,9 @@ vi.mock('vue-i18n', async () => {
 })
 
 import AppSidebar from '../AppSidebar.vue'
+import AppHeader from '../AppHeader.vue'
+
+enableAutoUnmount(afterEach)
 
 function setViewport(kind: 'phone' | 'tablet' | 'desktop') {
   viewport.isPhone.value = kind === 'phone'
@@ -104,6 +112,7 @@ describe('AppSidebar groups across viewports', () => {
     await plans!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/admin/orders/plans')
+    await vi.waitFor(() => expect(appStore.mobileOpen).toBe(false))
   })
 
   it('keeps collapsed groups in the DOM and makes their links inert', async () => {
@@ -141,5 +150,89 @@ describe('AppSidebar groups across viewports', () => {
     await flushPromises()
     expect(wrapper.find('.sidebar--rail').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('nav.channelPricing')
+  })
+})
+
+describe('phone drawer focus', () => {
+  beforeEach(() => {
+    appStore.mobileOpen = false
+    setViewport('phone')
+  })
+
+  async function mountPhoneShell() {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }]
+    })
+    await router.push('/admin/dashboard')
+    const wrapper = mount({
+      setup() {
+        const route = useRoute()
+        // Console pages remount the shell when navigating between routes.
+        return () => h('div', { key: route.path }, [h(AppSidebar), h(AppHeader)])
+      }
+    }, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: { VersionBadge: true, Icon: true, AnnouncementBell: true, LocaleSwitcher: true, SubscriptionProgressMini: true }
+      }
+    })
+    return { wrapper, router }
+  }
+
+  it.each(['.sidebar-close', '.sidebar-backdrop', '.sidebar-footer button', '.console-topbar__menu'])(
+    'returns focus to the phone menu after closing with %s',
+    async (closeSelector) => {
+      const { wrapper } = await mountPhoneShell()
+      const drawer = wrapper.get('aside.sidebar')
+      const menu = wrapper.get('.console-topbar__menu')
+      expect(drawer.attributes('inert')).toBeDefined()
+      expect(drawer.attributes('aria-hidden')).toBe('true')
+      expect(document.activeElement).toBe(document.body)
+
+      await menu.trigger('click')
+      expect(drawer.attributes('inert')).toBeUndefined()
+      expect(drawer.attributes('aria-hidden')).toBeUndefined()
+      expect(document.activeElement).toBe(drawer.element)
+
+      await wrapper.get(closeSelector).trigger('click')
+      expect(drawer.attributes('inert')).toBeDefined()
+      expect(document.activeElement).toBe(menu.element)
+    }
+  )
+
+  it('returns focus to the destination menu when a drawer link remounts the shell', async () => {
+    const { wrapper, router } = await mountPhoneShell()
+    const oldMenu = wrapper.get('.console-topbar__menu')
+    await oldMenu.trigger('click')
+
+    let finishNavigation!: () => void
+    const pending = new Promise<void>((resolve) => { finishNavigation = resolve })
+    router.beforeEach(() => pending)
+    await wrapper.get('.sidebar-nav a[href="/keys"]').trigger('click')
+    expect(appStore.mobileOpen).toBe(true)
+    finishNavigation()
+    await flushPromises()
+
+    const newMenu = wrapper.get('.console-topbar__menu')
+    expect(router.currentRoute.value.path).toBe('/keys')
+    expect(newMenu.element).not.toBe(oldMenu.element)
+    expect(wrapper.get('aside.sidebar').attributes('inert')).toBeDefined()
+    expect(document.activeElement).toBe(newMenu.element)
+  })
+
+  it.each(['tablet', 'desktop'] as const)('leaves focus on the page when switching to %s', async (viewportKind) => {
+    const { wrapper } = await mountPhoneShell()
+    await wrapper.get('.console-topbar__menu').trigger('click')
+    const pageButton = wrapper.get<HTMLButtonElement>('.console-topbar button:not(.console-topbar__menu)')
+    pageButton.element.focus()
+
+    setViewport(viewportKind)
+    appStore.mobileOpen = false
+    await flushPromises()
+    expect(wrapper.find('.console-topbar__menu').exists()).toBe(false)
+    expect(wrapper.get('aside.sidebar').attributes('inert')).toBeUndefined()
+    expect(document.activeElement).toBe(pageButton.element)
   })
 })

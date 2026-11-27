@@ -9,9 +9,11 @@
       <div class="flex min-w-0 shrink items-center gap-2">
         <button
           v-if="isPhone"
+          ref="menuButton"
           @click="toggleMobileSidebar"
           class="console-topbar__menu"
           :aria-label="t('common.toggleMenu')"
+          :aria-expanded="appStore.mobileOpen"
         >
           <Icon name="menu" size="md" />
         </button>
@@ -264,7 +266,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
@@ -291,6 +293,14 @@ const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)
 const { isPhone } = useConsoleViewport()
+const menuButton = ref<HTMLButtonElement | null>(null)
+
+watch([isPhone, () => appStore.mobileOpen], ([phone, open], [wasPhone, wasOpen]) => {
+  if (phone && wasPhone && wasOpen && !open) {
+    menuButton.value?.focus({ preventScroll: true })
+  }
+}, { flush: 'post' })
+
 const homePath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 // 顶栏余额旁的「充值」：开启支付、非简易模式、且没关余额充值（仅订阅站点走侧栏的「订阅」）才显示

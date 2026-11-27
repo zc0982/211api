@@ -13,7 +13,9 @@
       isOverlay ? 'sidebar--overlay' : '',
       { '-translate-x-full': isHidden }
     ]"
+    :inert="isHidden || undefined"
     :aria-hidden="isHidden ? 'true' : undefined"
+    :tabindex="isPhone && mobileOpen ? -1 : undefined"
   >
     <!-- Logo / Brand -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': isRail }">
@@ -22,12 +24,12 @@
         class="sidebar-logo transition-opacity hover:opacity-85"
         :class="{ 'sidebar-logo--uploaded': !!siteLogo }"
         :aria-label="siteName"
-        @click="handleMenuItemClick(homePath)"
+        @click.capture="handleMenuItemClick(homePath, $event)"
       >
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
       </router-link>
       <div v-if="!isRail" class="sidebar-brand">
-        <router-link :to="homePath" class="sidebar-brand-title" :title="siteName" @click="handleMenuItemClick(homePath)">
+        <router-link :to="homePath" class="sidebar-brand-title" :title="siteName" @click.capture="handleMenuItemClick(homePath, $event)">
           {{ siteName }}
         </router-link>
         <!-- Version Badge -->
@@ -88,7 +90,7 @@
                   class="sidebar-link sidebar-link-child"
                   :class="{ 'sidebar-link-active': route.path === child.path }"
                   :title="child.label"
-                  @click="handleMenuItemClick(child.path)"
+                  @click.capture="handleMenuItemClick(child.path, $event)"
                 >
                   <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
                   <span class="sidebar-label">{{ child.label }}</span>
@@ -111,7 +113,7 @@
                       ? 'sidebar-wallet'
                       : undefined
               "
-              @click="handleMenuItemClick(item.path)"
+              @click.capture="handleMenuItemClick(item.path, $event)"
             >
               <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
               <component v-else :is="item.icon" class="sidebar-icon" />
@@ -135,7 +137,7 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
             :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click.capture="handleMenuItemClick(item.path, $event)"
           >
             <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="sidebar-icon" />
@@ -159,7 +161,7 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
             :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click.capture="handleMenuItemClick(item.path, $event)"
           >
             <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="sidebar-icon" />
@@ -912,11 +914,16 @@ function closeMobile() {
   appStore.setMobileOpen(false)
 }
 
-function handleMenuItemClick(itemPath: string) {
+function handleMenuItemClick(itemPath: string, event: MouseEvent) {
   if (mobileOpen.value) {
-    setTimeout(() => {
-      appStore.setMobileOpen(false)
-    }, 150)
+    if (isPhone.value && !event.defaultPrevented && event.button === 0 &&
+      !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey) {
+      // Close after the destination has mounted its header, including lazy-loaded routes.
+      event.preventDefault()
+      void router.push(itemPath).then(closeMobile, closeMobile)
+    } else {
+      setTimeout(closeMobile, 150)
+    }
   }
 
   // Map paths to tour selectors
@@ -984,6 +991,10 @@ watch(
 )
 
 watch(isDesktop, () => void nextTick(() => syncSidebarWidth()))
+
+watch(mobileOpen, (open) => {
+  if (open && isPhone.value) sidebarRef.value?.focus({ preventScroll: true })
+}, { flush: 'post' })
 
 onMounted(() => {
   if (sidebarRef.value && typeof ResizeObserver !== 'undefined') {
