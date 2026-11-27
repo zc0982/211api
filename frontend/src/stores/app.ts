@@ -19,6 +19,8 @@ export const useAppStore = defineStore('app', () => {
 
   const sidebarCollapsed = ref<boolean>(false)
   const mobileOpen = ref<boolean>(false)
+  const mobileMenuFocusRequest = ref(0)
+  let pendingMobileMenuNavigation: symbol | undefined
   const sidebarScrollTop = ref<number>(0)
   const loading = ref<boolean>(false)
   const toasts = ref<Toast[]>([])
@@ -75,7 +77,7 @@ export const useAppStore = defineStore('app', () => {
    * Toggle mobile sidebar open state
    */
   function toggleMobileSidebar(): void {
-    mobileOpen.value = !mobileOpen.value
+    setMobileOpen(!mobileOpen.value)
   }
 
   /**
@@ -83,7 +85,21 @@ export const useAppStore = defineStore('app', () => {
    * @param open - Whether mobile sidebar should be open
    */
   function setMobileOpen(open: boolean): void {
+    if (open && !mobileOpen.value) pendingMobileMenuNavigation = undefined
     mobileOpen.value = open
+  }
+
+  function beginMobileMenuNavigation(): symbol {
+    const navigation = Symbol()
+    pendingMobileMenuNavigation = navigation
+    return navigation
+  }
+
+  function finishMobileMenuNavigation(navigation: symbol, restoreFocus = false): void {
+    if (pendingMobileMenuNavigation !== navigation) return
+    pendingMobileMenuNavigation = undefined
+    setMobileOpen(false)
+    if (restoreFocus) mobileMenuFocusRequest.value++
   }
 
   /**
@@ -441,6 +457,7 @@ export const useAppStore = defineStore('app', () => {
     // State
     sidebarCollapsed,
     mobileOpen,
+    mobileMenuFocusRequest,
     sidebarScrollTop,
     loading,
     toasts,
@@ -473,6 +490,8 @@ export const useAppStore = defineStore('app', () => {
     setSidebarCollapsed,
     toggleMobileSidebar,
     setMobileOpen,
+    beginMobileMenuNavigation,
+    finishMobileMenuNavigation,
     setLoading,
     showToast,
     showSuccess,

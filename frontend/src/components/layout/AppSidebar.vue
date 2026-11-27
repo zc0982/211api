@@ -13,7 +13,10 @@
       isOverlay ? 'sidebar--overlay' : '',
       { '-translate-x-full': isHidden }
     ]"
+    :style="{ display: !supportsInert && isHidden ? 'none' : undefined }"
+    :inert="(supportsInert && isHidden) || undefined"
     :aria-hidden="isHidden ? 'true' : undefined"
+    :tabindex="isPhone && mobileOpen ? -1 : undefined"
   >
     <!-- Logo / Brand -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': isRail }">
@@ -22,12 +25,12 @@
         class="sidebar-logo transition-opacity hover:opacity-85"
         :class="{ 'sidebar-logo--uploaded': !!siteLogo }"
         :aria-label="siteName"
-        @click="handleMenuItemClick(homePath)"
+        @click.capture="handleMenuItemClick(homePath, $event)"
       >
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
       </router-link>
       <div v-if="!isRail" class="sidebar-brand">
-        <router-link :to="homePath" class="sidebar-brand-title" :title="siteName" @click="handleMenuItemClick(homePath)">
+        <router-link :to="homePath" class="sidebar-brand-title" :title="siteName" @click.capture="handleMenuItemClick(homePath, $event)">
           {{ siteName }}
         </router-link>
         <!-- Version Badge -->
@@ -88,7 +91,7 @@
                   class="sidebar-link sidebar-link-child"
                   :class="{ 'sidebar-link-active': route.path === child.path }"
                   :title="child.label"
-                  @click="handleMenuItemClick(child.path)"
+                  @click.capture="handleMenuItemClick(child.path, $event)"
                 >
                   <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
                   <span class="sidebar-label">{{ child.label }}</span>
@@ -111,7 +114,7 @@
                       ? 'sidebar-wallet'
                       : undefined
               "
-              @click="handleMenuItemClick(item.path)"
+              @click.capture="handleMenuItemClick(item.path, $event)"
             >
               <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
               <component v-else :is="item.icon" class="sidebar-icon" />
@@ -135,7 +138,7 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
             :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click.capture="handleMenuItemClick(item.path, $event)"
           >
             <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="sidebar-icon" />
@@ -159,7 +162,7 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': isRail }"
             :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click.capture="handleMenuItemClick(item.path, $event)"
           >
             <span v-if="item.iconSvg" class="sidebar-icon sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="sidebar-icon" />
@@ -197,9 +200,15 @@
   </transition>
 </template>
 
+<script lang="ts">
+// Console pages remount the shell on every route change. When the phone drawer is open and the
+// old drawer takes the focused control with it, the next drawer picks up focus in the same task.
+let drawerFocusHandoff: { key: string | null } | undefined
+</script>
+
 <script setup lang="ts">
 import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { isNavigationFailure, NavigationFailureType, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
@@ -271,6 +280,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const sidebarRef = ref<HTMLElement | null>(null)
 const { isPhone, isTablet, isDesktop } = useConsoleViewport()
+const supportsInert = typeof HTMLElement !== 'undefined' && 'inert' in HTMLElement.prototype
 
 // 将桌面侧栏宽度（含收起与展开时的每一帧）同步给 AppLayout
 let sidebarResizeObserver: ResizeObserver | null = null
@@ -912,11 +922,24 @@ function closeMobile() {
   appStore.setMobileOpen(false)
 }
 
-function handleMenuItemClick(itemPath: string) {
+function handleMenuItemClick(itemPath: string, event: MouseEvent) {
   if (mobileOpen.value) {
-    setTimeout(() => {
-      appStore.setMobileOpen(false)
-    }, 150)
+    const navigation = appStore.beginMobileMenuNavigation()
+    if (isPhone.value && !event.defaultPrevented && event.button === 0 &&
+      !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey) {
+      event.preventDefault()
+      const source = router.currentRoute.value
+      void router.push(itemPath).then(async (failure) => {
+        if (isNavigationFailure(failure, NavigationFailureType.cancelled)) return
+        // The new header must be mounted even if the old drawer was closed during navigation.
+        if (!failure) await nextTick()
+        appStore.finishMobileMenuNavigation(navigation, !failure)
+      }, () => {
+        if (router.currentRoute.value === source) appStore.finishMobileMenuNavigation(navigation)
+      })
+    } else {
+      setTimeout(() => appStore.finishMobileMenuNavigation(navigation), 150)
+    }
   }
 
   // Map paths to tour selectors
@@ -967,6 +990,7 @@ function handleGroupClick(item: NavItem) {
   }
   // Push to path and ensure expanded
   if (route.path !== item.path) {
+    if (mobileOpen.value) appStore.beginMobileMenuNavigation()
     router.push(item.path)
   }
   groupExpandOverrides.value.set(item.path, true)
@@ -985,6 +1009,50 @@ watch(
 
 watch(isDesktop, () => void nextTick(() => syncSidebarWidth()))
 
+watch(mobileOpen, (open) => {
+  if (open && isPhone.value) sidebarRef.value?.focus({ preventScroll: true })
+}, { flush: 'post' })
+
+const drawerControlSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function drawerControlKey(control: Element): string {
+  return [control.tagName, ...['href', 'title', 'aria-label', 'data-testid'].map((name) => control.getAttribute(name))].join('\n')
+}
+
+function drawerControls(drawer: HTMLElement): HTMLElement[] {
+  return Array.from(drawer.querySelectorAll<HTMLElement>(drawerControlSelector))
+    .filter((control) => control.tabIndex >= 0 && !control.closest('[inert], [aria-hidden="true"]'))
+}
+
+function rememberDrawerFocus() {
+  const drawer = sidebarRef.value
+  if (!drawer || !isPhone.value || !mobileOpen.value) return
+  const focused = document.activeElement
+  const control = focused instanceof Element && focused !== drawer && drawer.contains(focused)
+    ? focused.closest(drawerControlSelector)
+    : null
+  const handoff = { key: control ? drawerControlKey(control) : null }
+  drawerFocusHandoff = handoff
+  setTimeout(() => {
+    if (drawerFocusHandoff === handoff) drawerFocusHandoff = undefined
+  })
+}
+
+function adoptDrawerFocus() {
+  const handoff = drawerFocusHandoff
+  drawerFocusHandoff = undefined
+  const drawer = sidebarRef.value
+  const focused = document.activeElement
+  if (!handoff || !drawer || !isPhone.value || !mobileOpen.value) return
+  if (focused && focused !== document.body && focused.isConnected) return
+  const controls = drawerControls(drawer)
+  const target = controls.find((control) => handoff.key !== null && drawerControlKey(control) === handoff.key) ??
+    controls.find((control) => control.classList.contains('sidebar-logo')) ??
+    controls[0] ??
+    drawer
+  target.focus({ preventScroll: true })
+}
+
 onMounted(() => {
   if (sidebarRef.value && typeof ResizeObserver !== 'undefined') {
     sidebarResizeObserver = new ResizeObserver((entries) => {
@@ -994,6 +1062,7 @@ onMounted(() => {
     sidebarResizeObserver.observe(sidebarRef.value)
   }
   syncSidebarWidth()
+  adoptDrawerFocus()
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
@@ -1009,6 +1078,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  rememberDrawerFocus()
   sidebarResizeObserver?.disconnect()
   sidebarResizeObserver = null
   if (sidebarNavRef.value) {
