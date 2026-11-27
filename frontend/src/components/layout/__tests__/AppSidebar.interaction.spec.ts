@@ -274,8 +274,97 @@ describe('phone drawer focus', () => {
     } else {
       expect(logo.isConnected).toBe(false)
       expect(keysFinished).toHaveBeenCalledWith(undefined)
-      expect(document.activeElement).not.toBe(wrapper.get('.console-topbar__menu').element)
+      const newLogo = wrapper.get('.sidebar-logo').element
+      expect(newLogo).not.toBe(logo)
+      expect(document.activeElement).toBe(newLogo)
     }
+  })
+
+  it.each([
+    ['.sidebar-logo', '.sidebar-logo'],
+    ['.sidebar-close', '.sidebar-close'],
+    ['.sidebar-nav a[href="/usage"]', '.sidebar-nav a[href="/usage"]'],
+    ['.sidebar-footer button', '.sidebar-footer button'],
+    ['.console-topbar button:not(.console-topbar__menu)', '.sidebar-logo'],
+    ['aside.sidebar', '.sidebar-logo']
+  ])('hands focus on %s to %s in the remounted open drawer', async (focusedSelector, expectedSelector) => {
+    const { wrapper, router } = await mountPhoneShell()
+    await wrapper.get('.console-topbar__menu').trigger('click')
+    const focused = wrapper.get<HTMLElement>(focusedSelector).element
+    focused.focus()
+    expect(document.activeElement).toBe(focused)
+
+    await router.push('/keys')
+    await flushPromises()
+
+    expect(focused.isConnected).toBe(false)
+    expect(appStore.mobileOpen).toBe(true)
+    const expected = wrapper.get(expectedSelector).element
+    expect(expected).not.toBe(focused)
+    expect(document.activeElement).toBe(expected)
+  })
+
+  it('focuses the remounted drawer itself when it has no focusable control', async () => {
+    const { wrapper, router } = await mountPhoneShell()
+    await wrapper.get('.console-topbar__menu').trigger('click')
+    wrapper.get<HTMLElement>('.sidebar-close').element.focus()
+    // Simulate a drawer whose controls are all unavailable so only the container can take focus.
+    const noControls = vi.spyOn(Element.prototype, 'querySelectorAll').mockImplementation(
+      () => document.createDocumentFragment().querySelectorAll('*')
+    )
+
+    try {
+      await router.push('/keys')
+      await flushPromises()
+    } finally {
+      noControls.mockRestore()
+    }
+
+    expect(document.activeElement).toBe(wrapper.get('aside.sidebar').element)
+  })
+
+  it('leaves focus alone when the new page already focused a control', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }]
+    })
+    await router.push('/admin/dashboard')
+    const wrapper = mount({
+      setup() {
+        const route = useRoute()
+        return () => h('div', { key: route.path }, [
+          h(AppSidebar),
+          h(AppHeader),
+          route.path === '/keys' ? h('input', { class: 'page-autofocus', onVnodeMounted: ({ el }: { el: HTMLInputElement }) => el.focus() }) : null
+        ])
+      }
+    }, {
+      attachTo: document.body,
+      global: {
+        plugins: [router],
+        stubs: { VersionBadge: true, Icon: true, AnnouncementBell: true, LocaleSwitcher: true, SubscriptionProgressMini: true }
+      }
+    })
+    await wrapper.get('.console-topbar__menu').trigger('click')
+    wrapper.get<HTMLElement>('.sidebar-logo').element.focus()
+
+    await router.push('/keys')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('.page-autofocus').element)
+  })
+
+  it('does not move focus into a drawer that was closed when the shell remounted', async () => {
+    const { wrapper, router } = await mountPhoneShell()
+    const menu = wrapper.get<HTMLElement>('.console-topbar__menu').element
+    menu.focus()
+
+    await router.push('/keys')
+    await flushPromises()
+
+    expect(appStore.mobileOpen).toBe(false)
+    expect(wrapper.get('aside.sidebar').element.contains(document.activeElement)).toBe(false)
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('lets a newer pending drawer navigation return focus after the older one settles', async () => {

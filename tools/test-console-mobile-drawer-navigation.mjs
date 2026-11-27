@@ -2,30 +2,31 @@ import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { launchOriginGuardedChrome, parseLoopbackPreview, restrictContextToOrigin } from './console-mobile-drawer-network-guard.mjs'
 
-const preview = new URL(process.argv[2] ?? '')
-assert.ok(
-  ['http:', 'https:'].includes(preview.protocol) &&
-  ['127.0.0.1', 'localhost'].includes(preview.hostname) &&
-  !preview.username && !preview.password,
-  'Expected a loopback HTTP/HTTPS synthetic preview URL'
-)
+const preview = parseLoopbackPreview(process.argv[2])
+assert.ok(preview, 'Expected a loopback HTTP/HTTPS synthetic preview URL')
 const screenshots = process.argv[3]
 if (screenshots) await mkdir(screenshots, { recursive: true })
 
 const { chromium } = createRequire(import.meta.url)('playwright')
 const menu = '.console-topbar__menu'
 const logo = '.sidebar-logo'
-const browser = await chromium.launch({ channel: 'chrome' })
+const guarded = await launchOriginGuardedChrome(chromium, preview.origin)
+const { browser } = guarded
 const failures = []
+const blockedByContext = []
 
 async function snapshot(page, name) {
-  const state = await page.evaluate(() => ({
-    path: location.pathname,
-    expanded: document.querySelector('.console-topbar__menu').getAttribute('aria-expanded'),
-    focused: document.activeElement.className,
-    keysFailure: window.keysNavigationOutcome
-  }))
+  const state = await page.evaluate(() => {
+    const focused = document.activeElement
+    return {
+      path: location.pathname,
+      expanded: document.querySelector('.console-topbar__menu').getAttribute('aria-expanded'),
+      focused: focused ? focused.tagName + '.' + [...focused.classList].join('.') : null,
+      keysFailure: window.keysNavigationOutcome
+    }
+  })
   console.log(JSON.stringify({ name, ...state }))
   if (screenshots) await page.screenshot({ path: join(screenshots, name + '.png') })
   return state
@@ -34,25 +35,20 @@ async function snapshot(page, name) {
 async function checkDrawerNavigation(superseded) {
   const scenario = superseded ? 'superseded' : 'reopened'
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
-  const page = await context.newPage()
-  page.setDefaultTimeout(12_000)
-  const cdp = await context.newCDPSession(page)
   let releaseKeys
   const keysHeld = new Promise(resolve => { releaseKeys = resolve })
   let keysRequests = 0
-  await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] })
-  cdp.on('Fetch.requestPaused', async ({ requestId, request }) => {
-    const url = new URL(request.url)
-    if (url.origin !== preview.origin) {
-      await cdp.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' })
-      return
+  await restrictContextToOrigin(context, preview.origin, {
+    blocked: blockedByContext,
+    async beforeContinue(url) {
+      if (/\/KeysView-[^/]+\.js$/.test(url.pathname)) {
+        keysRequests++
+        await keysHeld
+      }
     }
-    if (/\/KeysView-[^/]+\.js$/.test(url.pathname)) {
-      keysRequests++
-      await keysHeld
-    }
-    if (!page.isClosed()) await cdp.send('Fetch.continueRequest', { requestId })
   })
+  const page = await context.newPage()
+  page.setDefaultTimeout(12_000)
 
   try {
     await page.goto(preview.href)
@@ -85,7 +81,11 @@ async function checkDrawerNavigation(superseded) {
 
     await page.locator(menu).press('Enter')
     await page.keyboard.press('Tab')
-    assert.equal(await page.locator(logo).evaluate(node => node === document.activeElement), true)
+    // Mark the focused Logo so the settled state can tell the old node from a remounted one.
+    assert.equal(await page.locator(logo).evaluate((node) => {
+      node.dataset.drawerFocusProbe = 'before-release'
+      return node === document.activeElement
+    }), true)
     const before = await snapshot(page, scenario + '-before-release')
     assert.equal(before.expanded, 'true')
     assert.ok(keysRequests > 0, 'The KeysView request must have reached the gate')
@@ -96,8 +96,18 @@ async function checkDrawerNavigation(superseded) {
     assert.equal(after.path, superseded ? '/usage' : '/keys')
     assert.equal(after.keysFailure, superseded ? 8 : null) // Vue Router cancelled / success
     assert.equal(after.expanded, 'true')
-    if (superseded) assert.match(after.focused, /\bsidebar-logo\b/)
-    else assert.doesNotMatch(after.focused, /\bconsole-topbar__menu\b/)
+    const focus = await page.evaluate(() => {
+      const focused = document.activeElement
+      const logos = document.querySelectorAll('aside.sidebar .sidebar-logo')
+      return {
+        onDrawerLogo: logos.length === 1 && focused === logos[0],
+        sameNode: focused?.getAttribute('data-drawer-focus-probe') === 'before-release',
+        connected: Boolean(focused?.isConnected)
+      }
+    })
+    // Superseded: the page never changed, so the very same Logo keeps focus.
+    // Reopened: /keys remounted the shell, so the new drawer's Logo receives focus.
+    assert.deepEqual(focus, { onDrawerLogo: true, sameNode: superseded, connected: true })
   } finally {
     releaseKeys()
     await context.close()
@@ -114,7 +124,8 @@ try {
       console.error(error)
     }
   }
+  console.log(JSON.stringify({ blockedByContext: blockedByContext.length, blockedByProxy: guarded.blocked.length }))
   if (failures.length) process.exitCode = 1
 } finally {
-  await browser.close()
+  await guarded.close()
 }

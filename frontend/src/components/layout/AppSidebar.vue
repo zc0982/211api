@@ -200,6 +200,12 @@
   </transition>
 </template>
 
+<script lang="ts">
+// Console pages remount the shell on every route change. When the phone drawer is open and the
+// old drawer takes the focused control with it, the next drawer picks up focus in the same task.
+let drawerFocusHandoff: { key: string | null } | undefined
+</script>
+
 <script setup lang="ts">
 import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { isNavigationFailure, NavigationFailureType, useRoute, useRouter } from 'vue-router'
@@ -1007,6 +1013,46 @@ watch(mobileOpen, (open) => {
   if (open && isPhone.value) sidebarRef.value?.focus({ preventScroll: true })
 }, { flush: 'post' })
 
+const drawerControlSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function drawerControlKey(control: Element): string {
+  return [control.tagName, ...['href', 'title', 'aria-label', 'data-testid'].map((name) => control.getAttribute(name))].join('\n')
+}
+
+function drawerControls(drawer: HTMLElement): HTMLElement[] {
+  return Array.from(drawer.querySelectorAll<HTMLElement>(drawerControlSelector))
+    .filter((control) => control.tabIndex >= 0 && !control.closest('[inert], [aria-hidden="true"]'))
+}
+
+function rememberDrawerFocus() {
+  const drawer = sidebarRef.value
+  if (!drawer || !isPhone.value || !mobileOpen.value) return
+  const focused = document.activeElement
+  const control = focused instanceof Element && focused !== drawer && drawer.contains(focused)
+    ? focused.closest(drawerControlSelector)
+    : null
+  const handoff = { key: control ? drawerControlKey(control) : null }
+  drawerFocusHandoff = handoff
+  setTimeout(() => {
+    if (drawerFocusHandoff === handoff) drawerFocusHandoff = undefined
+  })
+}
+
+function adoptDrawerFocus() {
+  const handoff = drawerFocusHandoff
+  drawerFocusHandoff = undefined
+  const drawer = sidebarRef.value
+  const focused = document.activeElement
+  if (!handoff || !drawer || !isPhone.value || !mobileOpen.value) return
+  if (focused && focused !== document.body && focused.isConnected) return
+  const controls = drawerControls(drawer)
+  const target = controls.find((control) => handoff.key !== null && drawerControlKey(control) === handoff.key) ??
+    controls.find((control) => control.classList.contains('sidebar-logo')) ??
+    controls[0] ??
+    drawer
+  target.focus({ preventScroll: true })
+}
+
 onMounted(() => {
   if (sidebarRef.value && typeof ResizeObserver !== 'undefined') {
     sidebarResizeObserver = new ResizeObserver((entries) => {
@@ -1016,6 +1062,7 @@ onMounted(() => {
     sidebarResizeObserver.observe(sidebarRef.value)
   }
   syncSidebarWidth()
+  adoptDrawerFocus()
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
@@ -1031,6 +1078,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  rememberDrawerFocus()
   sidebarResizeObserver?.disconnect()
   sidebarResizeObserver = null
   if (sidebarNavRef.value) {
