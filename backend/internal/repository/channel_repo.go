@@ -119,6 +119,30 @@ func (r *channelRepository) GetByID(ctx context.Context, id int64) (*service.Cha
 	return ch, nil
 }
 
+func (r *channelRepository) ListResponseModelExposureEnabled(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id FROM channels
+		WHERE id = ANY($1) AND features_config -> 'expose_response_model' = 'true'::jsonb
+	`, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("read channel response model exposure: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	enabled := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		enabled[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return enabled, nil
+}
+
 func (r *channelRepository) Update(ctx context.Context, channel *service.Channel) error {
 	return r.runInTx(ctx, func(tx *sql.Tx) error {
 		modelMappingJSON, err := marshalModelMapping(channel.ModelMapping)

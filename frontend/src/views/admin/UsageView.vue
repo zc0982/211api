@@ -589,7 +589,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
       t('usage.firstToken'), t('usage.duration'),
-      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress'), t('usage.cacheHitRate')
+      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress'), t('usage.cacheHitRate'), t('admin.usage.username')
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
@@ -612,6 +612,7 @@ const exportToExcel = async () => {
           ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
           log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || '',
           rate == null ? null : { t: 'n', v: rate, z: '0.0%' },
+          log.user?.username?.trim() || '',
         ]
       })
       if (rows.length) {
@@ -643,6 +644,7 @@ const HIDDEN_COLUMNS_CURRENT_VERSION = 'upstream-request-id-hidden-by-default'
 
 const allColumns = computed(() => [
   { key: 'user', label: t('admin.usage.user'), sortable: false },
+  { key: 'username', label: t('admin.usage.username'), sortable: false },
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
   { key: 'account', label: t('admin.usage.account'), sortable: false },
   { key: 'model', label: t('usage.model'), sortable: true },

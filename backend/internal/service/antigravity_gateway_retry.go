@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // antigravityRetryLoopParams 重试循环的参数
@@ -127,6 +128,43 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 				action: smartRetryActionBreakWithResp,
 				resp:   result.resp,
 			}
+		}
+	}
+
+	// 免费配额耗尽（QUOTA_EXHAUSTED）：上游已明确该账号在配额重置前不可用（重置时间通常以小时计），
+	// 同号指数退避重试只会多打必然失败的请求并白等数秒，积分路径还会被逐次重复尝试。
+	// 积分未接住时，按重试用尽时的同一套规则冷却账号，并像 RATE_LIMIT_EXCEEDED 长延迟一样立即切换账号。
+	if resp.StatusCode == http.StatusTooManyRequests &&
+		category == antigravity429QuotaExhausted &&
+		p.account.Platform == PlatformAntigravity {
+		logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d quota_exhausted account=%d (cool down and switch account, skip same-account retries)",
+			p.prefix, resp.StatusCode, p.account.ID)
+		// 切换信号到上层只剩 503，在这里保留上游 429 的原因供运维排查。
+		appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+			ProxyID:            opsUpstreamProxyID(p.account),
+			ProxyName:          opsUpstreamProxyName(p.account),
+			Platform:           p.account.Platform,
+			AccountID:          p.account.ID,
+			AccountName:        p.account.Name,
+			UpstreamStatusCode: resp.StatusCode,
+			UpstreamRequestID:  resp.Header.Get("x-request-id"),
+			Kind:               "failover",
+			Reason:             "quota_exhausted",
+			Message:            "Upstream quota exhausted",
+			Detail:             antigravityQuotaExhaustedOpsDetail(respBody),
+		})
+		cooldown := p
+		// A mixed quota and model-limit response can also reach legacy sticky cleanup.
+		cooldown.sessionHash = ""
+		s.applyAntigravity429Cooldown(cooldown, resp, respBody)
+		s.clearStickySessionIfAccount(p.ctx, p.groupID, p.sessionHash, p.account.ID)
+		return &smartRetryResult{
+			action: smartRetryActionBreakWithResp,
+			switchError: &AntigravityAccountSwitchError{
+				OriginalAccountID: p.account.ID,
+				RateLimitedModel:  p.requestedModel,
+				IsStickySession:   p.isStickySession,
+			},
 		}
 	}
 
@@ -251,10 +289,13 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 				_ = retryResp.Body.Close()
 			}
 
-			// 解析新的重试信息，用于下次重试的等待时间（MODEL_CAPACITY_EXHAUSTED 使用固定循环，跳过）
-			if !isModelCapacityExhausted && attempt < maxAttempts && lastRetryBody != nil {
-				newShouldRetry, _, newWaitDuration, _, _ := shouldTriggerAntigravitySmartRetry(p.account, lastRetryBody)
-				if newShouldRetry && newWaitDuration > 0 {
+			// Honor updated reset information even on the final attempt: it also
+			// determines the cooldown below. A long delay requests model limiting
+			// rather than another in-place retry, but is still authoritative.
+			// Capacity exhaustion retains its separate fixed retry/cooldown policy.
+			if !isModelCapacityExhausted && lastRetryBody != nil {
+				newShouldRetry, newShouldRateLimit, newWaitDuration, newModelName, newIsCapacity := shouldTriggerAntigravitySmartRetry(p.account, lastRetryBody)
+				if !newIsCapacity && (newShouldRetry || newShouldRateLimit) && newModelName == modelName && newWaitDuration > 0 {
 					waitDuration = newWaitDuration
 				}
 			}
@@ -643,11 +684,7 @@ urlFallbackLoop:
 					}
 
 					// 重试用尽，标记账户限流（无原因的 429 每个请求最多冷却一个账号）
-					if isBareAntigravity429(resp.StatusCode, respBody) && !claimBare429Cooldown(p.c, p.account.ID) {
-						logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d bare_429_cooldown_skipped account=%d (this request already cooled another account; the request is the likely cause)", p.prefix, resp.StatusCode, p.account.ID)
-					} else {
-						p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
-					}
+					s.applyAntigravity429Cooldown(p, resp, respBody)
 					logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d rate_limited base_url=%s body=%s", p.prefix, resp.StatusCode, baseURL, truncateForLog(respBody, 200))
 					resp = &http.Response{
 						StatusCode: resp.StatusCode,
@@ -899,6 +936,38 @@ func (s *AntigravityGatewayService) setAntigravityModelRateLimits(ctx context.Co
 		}
 	}
 	return success
+}
+
+// applyAntigravity429Cooldown 对 429/503 的账号执行冷却（p.handleError）。
+// 无原因、无重置时间的裸 429 每个请求最多冷却一个账号：它更可能由请求本身触发，
+// 不能让同一个请求把它碰到的每个账号都冷却掉。
+func (s *AntigravityGatewayService) applyAntigravity429Cooldown(p antigravityRetryLoopParams, resp *http.Response, respBody []byte) {
+	if isBareAntigravity429(resp.StatusCode, respBody) && !claimBare429Cooldown(p.c, p.account.ID) {
+		logger.LegacyPrintf("service.antigravity_gateway", "%s status=%d bare_429_cooldown_skipped account=%d (this request already cooled another account; the request is the likely cause)", p.prefix, resp.StatusCode, p.account.ID)
+		return
+	}
+	p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
+}
+
+func antigravityQuotaExhaustedOpsDetail(body []byte) string {
+	var parts []string
+	if gjson.GetBytes(body, "error.status").String() == "RESOURCE_EXHAUSTED" {
+		parts = append(parts, "upstream_status=RESOURCE_EXHAUSTED")
+	}
+	if gjson.GetBytes(body, `error.details.#(reason=="QUOTA_EXHAUSTED").reason`).String() == "QUOTA_EXHAUSTED" {
+		parts = append(parts, "upstream_code=QUOTA_EXHAUSTED")
+	}
+	return strings.Join(parts, " ")
+}
+
+func (s *AntigravityGatewayService) clearStickySessionIfAccount(ctx context.Context, groupID int64, sessionHash string, accountID int64) {
+	cache, ok := s.cache.(GatewayStickySessionCompareDeleteCache)
+	if !ok || strings.TrimSpace(sessionHash) == "" {
+		return
+	}
+	if _, err := cache.CompareAndDeleteSessionAccountID(ctx, groupID, sessionHash, accountID); err != nil {
+		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] sticky_session_compare_clear_failed group_id=%d session=%s err=%v", groupID, shortSessionHash(sessionHash), err)
+	}
 }
 
 func (s *AntigravityGatewayService) clearStickySession(ctx context.Context, groupID int64, sessionHash string) {

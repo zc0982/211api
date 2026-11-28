@@ -44,6 +44,11 @@
           </div>
         </template>
 
+        <template #cell-username="{ row }">
+          <span v-if="row.user?.username?.trim()" class="text-sm text-gray-900 dark:text-white">{{ row.user.username.trim() }}</span>
+          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+        </template>
+
         <template #cell-api_key="{ row }">
           <span class="text-sm text-gray-900 dark:text-white">{{ row.api_key?.name || '-' }}</span>
         </template>
@@ -54,7 +59,7 @@
 
         <template #cell-model="{ row }">
           <div class="space-y-0.5 text-xs">
-            <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
+            <div v-if="showModelAudit && row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
               <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
                    class="break-all"
                    :class="i === 0 ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'"
@@ -62,7 +67,7 @@
                 <span v-if="i > 0" class="mr-0.5">↳</span>{{ step }}
               </div>
             </div>
-            <div v-else-if="row.upstream_model && row.upstream_model !== row.model" class="space-y-0.5">
+            <div v-else-if="showModelAudit && row.upstream_model && row.upstream_model !== row.model" class="space-y-0.5">
               <div class="break-all font-medium text-gray-900 dark:text-white">
                 {{ row.model }}
               </div>
@@ -70,9 +75,17 @@
                 <span class="mr-0.5">↳</span>{{ row.upstream_model }}
               </div>
             </div>
+            <div v-else-if="row.response_model && row.response_model !== row.model" class="space-y-0.5">
+              <div class="break-all font-medium text-gray-900 dark:text-white">
+                {{ row.model }}
+              </div>
+              <div class="break-all text-gray-500 dark:text-gray-400" :title="t('usage.responseModel')">
+                <span class="mr-0.5">↳</span>{{ row.response_model }}
+              </div>
+            </div>
             <span v-else class="font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
             <div
-              v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
+              v-if="showModelAudit && row.upstream_model_mismatch === true && row.upstream_response_model"
               class="break-all pl-3 text-[11px]"
               :class="isLikelyModelVariant(row) ? 'text-amber-600 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'"
               :title="modelAuditTitle(row)"
@@ -342,7 +355,8 @@
   <Teleport to="body">
     <div
       v-if="tokenTooltipVisible"
-      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
+      ref="tokenTooltipEl"
+      class="fixed z-[9999] pointer-events-none"
       :style="{
         left: tokenTooltipPosition.x + 'px',
         top: tokenTooltipPosition.y + 'px'
@@ -435,7 +449,8 @@
   <Teleport to="body">
     <div
       v-if="tooltipVisible"
-      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
+      ref="tooltipEl"
+      class="fixed z-[9999] pointer-events-none"
       :style="{
         left: tooltipPosition.x + 'px',
         top: tooltipPosition.y + 'px'
@@ -570,11 +585,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatCacheHitRate } from '@/utils/usageCacheHitRate'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
+import { getTooltipPosition } from '@/utils/floatingPanel'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
@@ -634,6 +650,7 @@ interface Props {
   defaultSortKey?: string
   defaultSortOrder?: 'asc' | 'desc'
   showAccountBilling?: boolean
+  showModelAudit?: boolean
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
@@ -647,6 +664,7 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortKey: '',
   defaultSortOrder: 'asc',
   showAccountBilling: true,
+  showModelAudit: true,
   showUpstreamEndpoint: true,
   flat: false,
   compact: false
@@ -734,11 +752,13 @@ const copyUpstreamRequestId = (upstreamRequestId: string) =>
 // Tooltip state - cost
 const tooltipVisible = ref(false)
 const tooltipPosition = ref({ x: 0, y: 0 })
+const tooltipEl = ref<HTMLElement | null>(null)
 const tooltipData = ref<AdminUsageLog | null>(null)
 
 // Tooltip state - token
 const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
+const tokenTooltipEl = ref<HTMLElement | null>(null)
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
 
 const getRequestTypeLabel = (row: AdminUsageLog): string => {
@@ -785,14 +805,34 @@ const latencySummary = (row: AdminUsageLog): string => [
   `${t('usage.cacheRate')} ${formatCacheHitRate(row.cache_hit_rate)}`,
 ].join(' · ')
 
+// 浮层默认放在图标右侧，放不下时翻到左侧或贴视口边缘（见 getTooltipPosition）
+const placeTooltip = async (
+  rect: DOMRect,
+  tipEl: Ref<HTMLElement | null>,
+  position: Ref<{ x: number; y: number }>
+) => {
+  // 先放在左上角渲染，测量时宽度不受右侧剩余空间挤压
+  position.value = { x: 0, y: 0 }
+  await nextTick()
+  if (!tipEl.value) return
+  const { width, height } = tipEl.value.getBoundingClientRect()
+  const { left, top } = getTooltipPosition(
+    rect,
+    { width, height },
+    document.documentElement.clientWidth || window.innerWidth,
+    window.innerHeight,
+    'right'
+  )
+  position.value = { x: left, y: top }
+}
+
 // Cost tooltip functions
 const showTooltip = (event: MouseEvent, row: AdminUsageLog) => {
   const target = event.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   tooltipData.value = row
-  tooltipPosition.value.x = rect.right + 8
-  tooltipPosition.value.y = rect.top + rect.height / 2
   tooltipVisible.value = true
+  placeTooltip(rect, tooltipEl, tooltipPosition)
 }
 
 const hideTooltip = () => {
@@ -805,9 +845,8 @@ const showTokenTooltip = (event: MouseEvent, row: AdminUsageLog) => {
   const target = event.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   tokenTooltipData.value = row
-  tokenTooltipPosition.value.x = rect.right + 8
-  tokenTooltipPosition.value.y = rect.top + rect.height / 2
   tokenTooltipVisible.value = true
+  placeTooltip(rect, tokenTooltipEl, tokenTooltipPosition)
 }
 
 const hideTokenTooltip = () => {

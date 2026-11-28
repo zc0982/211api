@@ -33,6 +33,8 @@ const messages: Record<string, string> = {
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
   'admin.usage.failedToLoadUser': 'Failed to load user',
+  'admin.usage.user': 'User',
+  'admin.usage.username': 'Username',
 	'admin.usage.requestId': 'Request ID',
 	'admin.usage.upstreamRequestId': 'Upstream ID',
 	'usage.requestedModel': 'Requested model',
@@ -565,6 +567,46 @@ describe('admin UsageView request ID column visibility', () => {
       expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id', label: 'Upstream ID' })]),
     )
   })
+
+  it('shows username column by default and allows hiding it from column settings', async () => {
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: UsageTableStub,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          AuditLogModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
+          UserTokenRanking: true,
+        },
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    const usageTable = wrapper.findComponent(UsageTableStub)
+    expect(usageTable.props('columns')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'username', label: 'Username' })]),
+    )
+
+    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
+    const usernameToggle = wrapper.get('[data-testid="usage-column-toggle-username"]')
+    await usernameToggle.trigger('click')
+
+    expect(usageTable.props('columns')).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'username' })]),
+    )
+  })
 })
 
 describe('admin UsageView handleUserClick', () => {
@@ -745,6 +787,8 @@ describe('admin UsageView model audit export', () => {
 			items: [{
 				id: 1,
 				created_at: '2026-08-04T00:00:00Z',
+				user: { id: 7, email: 'alice@test.com', username: 'Alice' },
+				api_key: { name: 'key-A' },
 				model: 'gpt-5.6-sol',
 				upstream_model: 'gpt-5.5',
 				upstream_response_model: 'gpt-5.4',
@@ -791,6 +835,8 @@ describe('admin UsageView model audit export', () => {
 		)
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
+		expect(headers[1]).toBe('User')
+		expect(headers[2]).toBe('usage.apiKeyFilter') // C
 		expect(headers.slice(4, 8)).toEqual([
 			'Requested model',
 			'Sent upstream model',
@@ -798,8 +844,15 @@ describe('admin UsageView model audit export', () => {
 			'Upstream model mismatch',
 		])
 		const row = sheetAddAoa.mock.calls[0][1][0]
-		expect(row[headers.indexOf('Cache hit rate')]).toEqual({ t: 'n', v: 0.25, z: '0.0%' })
+		expect(row).toHaveLength(headers.length)
+		expect(row[1]).toBe('alice@test.com')
+		expect(row[2]).toBe('key-A')
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(headers[33]).toBe('Cache hit rate') // AH
+		expect(row[33]).toEqual({ t: 'n', v: 0.25, z: '0.0%' })
+		expect(headers).toHaveLength(35)
+		expect(headers[34]).toBe('Username')
+		expect(row[34]).toBe('Alice')
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 })

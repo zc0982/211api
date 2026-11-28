@@ -98,7 +98,6 @@ func TestCalculateCostUnified_PerRequestMode(t *testing.T) {
 		wildcardByGroupPlatform: map[channelGroupPlatformKey][]*wildcardPricingEntry{},
 		mappingByGroupModel:     map[channelModelKey]string{},
 		wildcardMappingByGP:     map[channelGroupPlatformKey][]*wildcardMappingEntry{},
-		byID:                    map[int64]*Channel{},
 	})
 
 	bs := newTestBillingService()
@@ -140,7 +139,6 @@ func TestCalculateCostUnified_ImageMode(t *testing.T) {
 		wildcardByGroupPlatform: map[channelGroupPlatformKey][]*wildcardPricingEntry{},
 		mappingByGroupModel:     map[channelModelKey]string{},
 		wildcardMappingByGP:     map[channelGroupPlatformKey][]*wildcardMappingEntry{},
-		byID:                    map[int64]*Channel{},
 	})
 
 	bs := &BillingService{

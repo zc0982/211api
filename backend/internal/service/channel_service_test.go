@@ -82,6 +82,10 @@ func (m *mockChannelRepository) ListAll(ctx context.Context) ([]Channel, error) 
 	return nil, nil
 }
 
+func (m *mockChannelRepository) ListResponseModelExposureEnabled(context.Context, []int64) (map[int64]bool, error) {
+	return nil, nil
+}
+
 func (m *mockChannelRepository) ExistsByName(ctx context.Context, name string) (bool, error) {
 	if m.existsByNameFn != nil {
 		return m.existsByNameFn(ctx, name)

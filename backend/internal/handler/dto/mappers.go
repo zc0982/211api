@@ -562,6 +562,7 @@ func ProxyWithAccountCountFromService(p *service.ProxyWithAccountCount) *ProxyWi
 		QualityGrade:   p.QualityGrade,
 		QualitySummary: p.QualitySummary,
 		QualityChecked: p.QualityChecked,
+		LatencyChecked: p.LatencyChecked,
 	}
 }
 
@@ -607,6 +608,7 @@ func ProxyWithAccountCountFromServiceAdmin(p *service.ProxyWithAccountCount) *Ad
 		QualityGrade:   p.QualityGrade,
 		QualitySummary: p.QualitySummary,
 		QualityChecked: p.QualityChecked,
+		LatencyChecked: p.LatencyChecked,
 	}
 }
 
@@ -760,6 +762,20 @@ func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	}
 	u := usageLogFromServiceUser(l)
 	return &u
+}
+
+// ApplyResponseModel fills ResponseModel only when the upstream actually
+// reported a different model from the client-facing requested model.
+func (u *UsageLog) ApplyResponseModel(l *service.UsageLog) {
+	if u == nil || l == nil {
+		return
+	}
+	final := strings.TrimSpace(derefString(l.UpstreamResponseModel))
+	if final == "" || final == strings.TrimSpace(u.Model) {
+		u.ResponseModel = nil
+		return
+	}
+	u.ResponseModel = &final
 }
 
 // UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.

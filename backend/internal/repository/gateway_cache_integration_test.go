@@ -27,6 +27,31 @@ func (s *GatewayCacheSuite) TestGetSessionAccountID_Missing() {
 	require.True(s.T(), errors.Is(err, service.ErrStickySessionNotFound), "expected ErrStickySessionNotFound for missing session")
 }
 
+func (s *GatewayCacheSuite) TestCompareAndDeleteSessionAccountIDPreservesHealthyBinding() {
+	const groupID, failedID, healthyID = int64(91), int64(13), int64(72)
+	const session = "quota-exhausted"
+	comparable := s.cache.(service.GatewayStickySessionCompareDeleteCache)
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, session, healthyID, time.Minute))
+	ttlBefore, err := s.rdb.PTTL(s.ctx, buildSessionKey(groupID, session)).Result()
+	require.NoError(s.T(), err)
+	deleted, err := comparable.CompareAndDeleteSessionAccountID(s.ctx, groupID, session, failedID)
+	require.NoError(s.T(), err)
+	require.False(s.T(), deleted)
+	got, err := s.cache.GetSessionAccountID(s.ctx, groupID, session)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), healthyID, got)
+	ttlAfter, err := s.rdb.PTTL(s.ctx, buildSessionKey(groupID, session)).Result()
+	require.NoError(s.T(), err)
+	require.LessOrEqual(s.T(), ttlAfter, ttlBefore)
+	require.Greater(s.T(), ttlAfter, ttlBefore-5*time.Second)
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, session, failedID, time.Minute))
+	deleted, err = comparable.CompareAndDeleteSessionAccountID(s.ctx, groupID, session, failedID)
+	require.NoError(s.T(), err)
+	require.True(s.T(), deleted)
+	_, err = s.cache.GetSessionAccountID(s.ctx, groupID, session)
+	require.ErrorIs(s.T(), err, service.ErrStickySessionNotFound)
+}
+
 func (s *GatewayCacheSuite) TestSetAndGetSessionAccountID() {
 	sessionID := "s1"
 	accountID := int64(99)
@@ -88,6 +113,84 @@ func (s *GatewayCacheSuite) TestDeleteSessionAccountID() {
 
 	_, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
 	require.True(s.T(), errors.Is(err, service.ErrStickySessionNotFound), "expected ErrStickySessionNotFound after delete")
+}
+
+func (s *GatewayCacheSuite) TestCompareAndBindSessionAccountID_BindsWhenHoldingReplaceable() {
+	sessionID := "cas-replaceable"
+	groupID := int64(1)
+	replaceable := int64(9499)
+	accountID := int64(9500)
+
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, sessionID, replaceable, time.Minute), "SetSessionAccountID")
+	bound, err := s.cache.(service.GatewayStickySessionCompareCache).CompareAndBindSessionAccountID(s.ctx, groupID, sessionID, accountID, []int64{9400, replaceable}, time.Minute)
+
+	require.NoError(s.T(), err)
+	require.True(s.T(), bound, "a key holding a replaceable account must be rewritten")
+	sid, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), accountID, sid)
+}
+
+func (s *GatewayCacheSuite) TestCompareAndBindSessionAccountID_RefreshesBoundAccount() {
+	sessionID := "cas-refresh"
+	groupID := int64(1)
+	accountID := int64(9501)
+
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, sessionID, accountID, time.Minute), "SetSessionAccountID")
+	bound, err := s.cache.(service.GatewayStickySessionCompareCache).CompareAndBindSessionAccountID(s.ctx, groupID, sessionID, accountID, nil, 5*time.Minute)
+
+	require.NoError(s.T(), err)
+	require.True(s.T(), bound)
+	sid, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), accountID, sid)
+	ttl, err := s.rdb.TTL(s.ctx, buildSessionKey(groupID, sessionID)).Result()
+	require.NoError(s.T(), err)
+	s.AssertTTLWithin(ttl, 1*time.Second, 5*time.Minute)
+}
+
+func (s *GatewayCacheSuite) TestCompareAndBindSessionAccountID_LeavesThirdAccount() {
+	sessionID := "cas-third"
+	groupID := int64(1)
+	third := int64(9499)
+
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, sessionID, third, time.Minute), "SetSessionAccountID")
+	bound, err := s.cache.(service.GatewayStickySessionCompareCache).CompareAndBindSessionAccountID(s.ctx, groupID, sessionID, 9401, []int64{9400, 9402}, time.Minute)
+
+	require.NoError(s.T(), err)
+	require.False(s.T(), bound, "a key holding a third account must be left alone")
+	sid, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), third, sid)
+}
+
+func (s *GatewayCacheSuite) TestCompareAndBindSessionAccountID_LeavesThirdAccountWithoutReplaceables() {
+	sessionID := "cas-third-nil"
+	groupID := int64(1)
+	third := int64(9498)
+
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, sessionID, third, time.Minute), "SetSessionAccountID")
+	bound, err := s.cache.(service.GatewayStickySessionCompareCache).CompareAndBindSessionAccountID(s.ctx, groupID, sessionID, 9401, nil, time.Minute)
+
+	require.NoError(s.T(), err)
+	require.False(s.T(), bound, "a key holding any other account must be left alone")
+	sid, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), third, sid)
+}
+
+func (s *GatewayCacheSuite) TestCompareAndBindSessionAccountID_BindsMissingKey() {
+	sessionID := "cas-missing"
+	groupID := int64(1)
+	accountID := int64(9402)
+
+	bound, err := s.cache.(service.GatewayStickySessionCompareCache).CompareAndBindSessionAccountID(s.ctx, groupID, sessionID, accountID, []int64{9401}, time.Minute)
+
+	require.NoError(s.T(), err)
+	require.True(s.T(), bound, "a missing key must be written even when replaceables were passed")
+	sid, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), accountID, sid)
 }
 
 func (s *GatewayCacheSuite) TestGetSessionAccountID_CorruptedValue() {

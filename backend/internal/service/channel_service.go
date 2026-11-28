@@ -35,6 +35,7 @@ type ChannelRepository interface {
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context, params pagination.PaginationParams, status, search string) ([]Channel, *pagination.PaginationResult, error)
 	ListAll(ctx context.Context) ([]Channel, error)
+	ListResponseModelExposureEnabled(ctx context.Context, ids []int64) (map[int64]bool, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
 	ExistsByNameExcluding(ctx context.Context, name string, excludeID int64) (bool, error)
 
@@ -100,8 +101,6 @@ type channelCache struct {
 	channelByGroupID        map[int64]*Channel                                  // groupID → 渠道
 	groupPlatform           map[int64]string                                    // groupID → platform
 
-	// 冷路径（CRUD 操作）
-	byID     map[int64]*Channel
 	loadedAt time.Time
 }
 
@@ -146,10 +145,11 @@ func (r ChannelMappingResult) ToUsageFields(reqModel, upstreamModel string) Chan
 }
 
 const (
-	channelCacheTTL       = 10 * time.Minute
-	channelErrorTTL       = 5 * time.Second // DB 错误时的短缓存
-	channelCacheDBTimeout = 10 * time.Second
-	channelCacheNotifyTTL = 3 * time.Second
+	channelCacheTTL            = 10 * time.Minute
+	channelErrorTTL            = 5 * time.Second // DB 错误时的短缓存
+	channelCacheDBTimeout      = 10 * time.Second
+	channelCacheNotifyTTL      = 3 * time.Second
+	channelDisclosureDBTimeout = time.Second
 )
 
 // ChannelCachePubSub broadcasts channel cache invalidations between instances.
@@ -221,7 +221,6 @@ func newEmptyChannelCache() *channelCache {
 		wildcardMappingByGP:     make(map[channelGroupPlatformKey][]*wildcardMappingEntry),
 		channelByGroupID:        make(map[int64]*Channel),
 		groupPlatform:           make(map[int64]string),
-		byID:                    make(map[int64]*Channel),
 	}
 }
 
@@ -334,13 +333,11 @@ func (s *ChannelService) fetchChannelData(ctx context.Context) ([]Channel, map[i
 func populateChannelCache(channels []Channel, groupPlatforms map[int64]string) *channelCache {
 	cache := newEmptyChannelCache()
 	cache.groupPlatform = groupPlatforms
-	cache.byID = make(map[int64]*Channel, len(channels))
 	cache.loadedAt = time.Now()
 
 	for i := range channels {
 		channels[i].normalizeBillingModelSource()
 		ch := &channels[i]
-		cache.byID[ch.ID] = ch
 		for _, gid := range ch.GroupIDs {
 			cache.channelByGroupID[gid] = ch
 			platform := groupPlatforms[gid]
@@ -505,6 +502,22 @@ func (s *ChannelService) GetChannelForGroup(ctx context.Context, groupID int64) 
 	}
 
 	return ch.Clone(), nil
+}
+
+// ResponseModelExposedChannels reads the current disclosure permission for a
+// page of usage records. A missed cache invalidation must not grant access.
+func (s *ChannelService) ResponseModelExposedChannels(ctx context.Context, ids []int64) map[int64]bool {
+	if s == nil || s.repo == nil || len(ids) == 0 {
+		return nil
+	}
+	readCtx, cancel := context.WithTimeout(ctx, channelDisclosureDBTimeout)
+	defer cancel()
+	out, err := s.repo.ListResponseModelExposureEnabled(readCtx, ids)
+	if err != nil {
+		slog.WarnContext(ctx, "channel.response_model_exposure_read_failed", "channel_count", len(ids), "error", err)
+		return nil
+	}
+	return out
 }
 
 // GetGroupPlatform 获取分组的平台标识（从缓存）
