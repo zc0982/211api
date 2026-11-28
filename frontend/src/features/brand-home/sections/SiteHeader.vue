@@ -239,7 +239,15 @@ function closeMobileNav(event: MouseEvent | KeyboardEvent) {
     margin-right: 2px;
   }
 }
-/* Small phones: the hero's own「获取 API Key」sits right below, so the header keeps brand, 中 / EN and theme. */
+@media (420px < width <= 460px) {
+  .bh-header__actions {
+    gap: 4px;
+  }
+  .bh-header__account :deep(.bh-btn) {
+    padding-inline: 8px;
+  }
+}
+/* Small phones use the same CTA in the hero. */
 @media (max-width: 420px) {
   .bh-header__account {
     display: none;
