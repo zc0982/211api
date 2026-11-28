@@ -96,6 +96,13 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/admin/monitor/__tests__/MonitorTemplateManagerDialog.requests.spec.ts \
 	src/components/admin/usage/__tests__/UsageCleanupDialog.spec.ts \
 	src/components/admin/usage/__tests__/UsageTable.spec.ts \
+	src/components/admin/usage/__tests__/UsageStatsCards.spec.ts \
+	src/components/admin/account/__tests__/AccountStatsModal.spec.ts \
+	src/components/common/__tests__/HelpTooltip.spec.ts \
+	src/components/common/__tests__/ProxySelector.accountCount.spec.ts \
+	src/views/admin/__tests__/ChannelsView.exposeResponseModel.spec.ts \
+	src/views/admin/__tests__/RiskControlView.spec.ts \
+	src/views/admin/__tests__/UsageView.spec.ts \
 	src/components/admin/user/__tests__/BulkEditUserModal.spec.ts \
 	src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts \
 	src/components/common/__tests__/AnnouncementBell.spec.ts \

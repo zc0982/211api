@@ -154,6 +154,10 @@
           </template>
           <template #detail="{ row }">
             <dl class="console-mobile-fields" data-test="usage-mobile-fields">
+              <div v-if="row.response_model && row.response_model !== row.model">
+                <dt>{{ t('usage.responseModel') }}</dt>
+                <dd class="break-all font-mono">{{ row.response_model }}</dd>
+              </div>
               <div>
                 <dt>{{ t('usage.requestId') }}</dt>
                 <dd class="console-mobile-copy">
