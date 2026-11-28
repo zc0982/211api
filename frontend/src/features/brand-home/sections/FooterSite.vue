@@ -21,9 +21,9 @@
         <div class="bh-footer__col">
           <h2>{{ t('brandHome.footer.product') }}</h2>
           <RouterLink v-if="links.modelPlaza" :to="links.modelPlaza">{{ t('brandHome.footer.pricing') }}</RouterLink>
+          <a :href="PUBLIC_DOCS_URL" target="_blank" rel="noopener">{{ t('brandHome.nav.docs') }}</a>
           <RouterLink :to="links.keys">{{ t('brandHome.footer.keys') }}</RouterLink>
           <RouterLink v-if="links.console" :to="links.console">{{ t('brandHome.footer.console') }}</RouterLink>
-          <a v-if="links.docs" :href="links.docs" target="_blank" rel="noopener">{{ t('brandHome.nav.docs') }}</a>
         </div>
         <div class="bh-footer__col">
           <h2>{{ t('brandHome.footer.account') }}</h2>
@@ -44,7 +44,7 @@ import BrandLogo from '../components/BrandLogo.vue'
 import PixelStage from '../components/PixelStage.vue'
 import SiteScene from '../components/SiteScene.vue'
 import type { HomeLinks } from '../composables/homeLinks'
-import { FOOTER_STAGE_HEIGHT, SCENE_WIDTH } from '../config'
+import { FOOTER_STAGE_HEIGHT, PUBLIC_DOCS_URL, SCENE_WIDTH } from '../config'
 
 /**
  * 页脚 · 新教学楼工地（Figma 46:3761）：上半是像素工地场景（第 0 秒静态），

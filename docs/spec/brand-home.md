@@ -50,18 +50,18 @@
 
 ## 链接与登录态
 
-统一由 `composables/homeLinks.ts` 的 `resolveHomeLinks(settings, auth)` 计算，读 `appStore.cachedPublicSettings` 与 `authStore`：
+依赖后台设置或登录态的链接由 `composables/homeLinks.ts` 的 `resolveHomeLinks(settings, auth)` 计算，读 `appStore.cachedPublicSettings` 与 `authStore`：
 
 | 入口 | 规则 |
 |---|---|
 | 获取 API Key | 已登录 `/keys`；未登录且 `registration_enabled === false` → `/login`，否则 `/register` |
 | 控制台 / 登录 | 已登录显示控制台：管理员 `/admin/dashboard`，普通用户 `/dashboard`（同 `HomeView.vue` `dashboardPath`）；未登录显示「登录」→ `/login` |
 | 模型 / 模型价格 / 查看全部模型 | `model_plaza_enabled === true` 且（不要求登录或已登录）时显示 `/model-plaza`（同 `HomeView.vue` `showModelPlazaEntry`），否则隐藏 |
-| 文档 / 查看文档 | `doc_url` 经 `sanitizeUrl` 后非空才显示，外链 `rel="noopener"` |
+| 文档（桌面和手机主导航、页脚「产品」列） | 固定指向 `https://docs.211api.com/`，在新标签页打开，外链 `rel="noopener"` |
 | 联系我们 | `contact_info` 非空才显示；能校验为 http(s) 链接或邮箱时作为链接，否则点击后以纯文本展示，不用 `v-html` |
 | 查看调用明细 / 在调用明细中查看 / 在控制台中打开 | `/usage`，未登录交给路由守卫 |
 | 前往密钥管理、页脚「密钥」 | `/keys`，未登录交给路由守卫 |
-| 查看接入文档 | 同「文档」：`doc_url` 安全时显示 |
+| 首屏、快速接入和 FAQ 中的文档入口 | `doc_url` 经 `sanitizeUrl` 后非空才显示 |
 | 注册（页脚「账户」列） | 未登录且注册未关闭时显示 |
 | 状态、关于（导航「状态」、页脚「关于」列） | 没有公开页面，隐藏 |
 
@@ -153,7 +153,7 @@ FAQ 只上线第一条（迁移），其余 5 条（协议和 SDK、调用数据
 
 - 在导航右上（`components/LocaleToggle.vue`，参考 astrlink.com）：纯文字「中 / EN」，14px；当前语言白色、字重 600，另一个 `--bh-night-slate`，斜杠 `--bh-night-mist`。导航在两种主题下都压在夜空上，所以只用夜空色板。按钮带 `aria-pressed`、`lang` 和完整语言名 `aria-label`；切换只更新文案，不整页刷新。
 - 页脚不再放语言切换。
-- 窄屏（< 860px）导航只留品牌、「中 / EN」、动画暂停按钮、主题按钮和「获取 API Key」；≤ 420px 再收起「获取 API Key」（首屏文案里紧接着有同一个按钮）。
+- 窄屏（≤ 860px）使用展开菜单，保留品牌、「中 / EN」、动画暂停按钮、主题按钮和「获取 API Key」。大于 420px 且不超过 460px 时缩小右侧控件间距和按钮横向内边距；≤ 420px 时「获取 API Key」在首屏展示。登录和控制台入口在页脚「账户」列。
 
 ## 标志
 

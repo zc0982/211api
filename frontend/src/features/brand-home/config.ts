@@ -20,6 +20,8 @@ export const liveStats = false
 /** Fallback brand name when the admin has not set site_name. */
 export const DEFAULT_SITE_NAME = '211API'
 
+export const PUBLIC_DOCS_URL = 'https://docs.211api.com/'
+
 /** Model used in the quick-start samples (same model the hero traces). */
 export const SAMPLE_MODEL = 'claude-fable-5-2'
 

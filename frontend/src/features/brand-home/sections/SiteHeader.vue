@@ -4,23 +4,44 @@
       <a href="#bh-top" class="bh-header__brand" :aria-label="siteName" @click.prevent="emit('anchor', 'bh-top')">
         <BrandLogo :name="siteName" :src="siteLogo" />
       </a>
-      <nav v-if="navItems.length > 1" class="bh-header__nav" :aria-label="t('brandHome.a11y.primaryNav')">
-        <template v-for="item in navItems" :key="item.key">
-          <RouterLink v-if="item.to" :to="item.to" class="bh-header__link">{{ item.label }}</RouterLink>
-          <a
-            v-else
-            :href="item.href"
-            class="bh-header__link"
-            :class="{ 'is-current': item.key === 'home' }"
-            :aria-current="item.key === 'home' ? 'page' : undefined"
-            :target="item.external ? '_blank' : undefined"
-            :rel="item.external ? 'noopener' : undefined"
-            @click="onClick(item, $event)"
-          >
-            {{ item.label }}
-          </a>
-        </template>
-      </nav>
+      <component
+        :is="mobile ? 'details' : 'div'"
+        v-for="mobile in [false, true]"
+        :key="String(mobile)"
+        :class="mobile ? 'relative ml-3 hidden shrink-0 [@media(max-width:860px)]:block' : 'contents'"
+        @keydown.esc="mobile && closeMobileNav($event)"
+      >
+        <summary
+          v-if="mobile"
+          class="grid h-9 w-9 cursor-pointer list-none place-items-center rounded-full border border-white/20 text-[var(--bh-night-moon)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--bh-night-blue)] [&::-webkit-details-marker]:hidden"
+          :aria-label="t('brandHome.a11y.primaryNav')"
+        >
+          <Icon name="menu" size="sm" aria-hidden="true" />
+        </summary>
+        <nav
+          :class="mobile
+            ? 'absolute left-0 top-full mt-3.5 grid w-max min-w-24 justify-items-start gap-2 whitespace-nowrap rounded-xl border border-[color:var(--bh-night-line)] bg-[var(--bh-night-card)] px-4 py-3'
+            : 'bh-header__nav'"
+          :aria-label="t('brandHome.a11y.primaryNav')"
+          @click="mobile && closeMobileNav($event)"
+        >
+          <template v-for="item in navItems" :key="item.key">
+            <RouterLink v-if="item.to" :to="item.to" class="bh-header__link">{{ item.label }}</RouterLink>
+            <a
+              v-else
+              :href="item.href"
+              class="bh-header__link"
+              :class="{ 'is-current': item.key === 'home' }"
+              :aria-current="item.key === 'home' ? 'page' : undefined"
+              :target="item.external ? '_blank' : undefined"
+              :rel="item.external ? 'noopener' : undefined"
+              @click="onClick(item, $event)"
+            >
+              {{ item.label }}
+            </a>
+          </template>
+        </nav>
+      </component>
       <div class="bh-header__actions">
         <LocaleToggle class="bh-header__locale" :label="t('brandHome.a11y.language')" />
         <MotionToggle />
@@ -40,6 +61,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Icon from '@/components/icons/Icon.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import BrandButton from '../components/BrandButton.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
@@ -47,6 +69,7 @@ import LocaleToggle from '../components/LocaleToggle.vue'
 import MotionToggle from '../components/MotionToggle.vue'
 import type { HomeLinks } from '../composables/homeLinks'
 import type { ThemePreference } from '../composables/useBrandTheme'
+import { PUBLIC_DOCS_URL } from '../config'
 
 /**
  * v3 导航（Figma 46:3445）：直接压在夜空上，没有玻璃胶囊；当前项文字纯白，
@@ -76,11 +99,11 @@ onMounted(() => {
 })
 onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
-/** 「状态」没有公开页面，不渲染；「模型」「文档」按可见性显示。 */
+/** 桌面与手机共用主导航，模型入口按可见性显示。 */
 const navItems = computed<NavItem[]>(() => {
   const items: NavItem[] = [{ key: 'home', label: t('brandHome.nav.home'), href: '#bh-top', anchor: 'bh-top' }]
   if (props.links.modelPlaza) items.push({ key: 'models', label: t('brandHome.nav.models'), to: props.links.modelPlaza })
-  if (props.links.docs) items.push({ key: 'docs', label: t('brandHome.nav.docs'), href: props.links.docs, external: true })
+  items.push({ key: 'docs', label: t('brandHome.nav.docs'), href: PUBLIC_DOCS_URL, external: true })
   return items
 })
 
@@ -88,6 +111,14 @@ function onClick(item: NavItem, event: MouseEvent) {
   if (!item.anchor) return
   event.preventDefault()
   emit('anchor', item.anchor)
+}
+
+function closeMobileNav(event: MouseEvent | KeyboardEvent) {
+  if (event.type === 'click' && !(event.target as Element).closest('a')) return
+  const disclosure = (event.currentTarget as HTMLElement).closest('details')
+  if (!disclosure?.open) return
+  disclosure.querySelector('summary')?.focus({ preventScroll: true })
+  disclosure.open = false
 }
 </script>
 
@@ -208,8 +239,19 @@ function onClick(item: NavItem, event: MouseEvent) {
     margin-right: 2px;
   }
 }
-/* Small phones: the hero's own「获取 API Key」sits right below, so the header keeps brand, 中 / EN and theme. */
+@media (max-width: 460px) {
+  .bh-header__actions {
+    gap: 4px;
+  }
+  .bh-header__account :deep(.bh-btn) {
+    padding: 0 8px;
+  }
+}
+/* Small phones use the same CTA in the hero. */
 @media (max-width: 420px) {
+  .bh-header__actions {
+    gap: 10px;
+  }
   .bh-header__account {
     display: none;
   }
