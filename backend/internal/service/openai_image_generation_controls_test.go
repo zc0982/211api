@@ -801,7 +801,6 @@ func newOpenAIImageGenerationControlChannelService(groupID int64, ch *Channel) *
 	cache := newEmptyChannelCache()
 	if ch != nil {
 		cache.channelByGroupID[groupID] = ch
-		cache.byID[ch.ID] = ch
 	}
 	cache.loadedAt = time.Now()
 	svc.cache.Store(cache)

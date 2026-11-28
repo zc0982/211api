@@ -764,22 +764,14 @@ func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	return &u
 }
 
-// ApplyResponseModel fills ResponseModel with the final response model of l
-// (upstream_response_model → upstream_model → model). It is left empty when the
-// final model equals the client-facing requested model, so users only ever see
-// "requested model" and "final response model", never the mapping chain.
+// ApplyResponseModel fills ResponseModel only when the upstream actually
+// reported a different model from the client-facing requested model.
 func (u *UsageLog) ApplyResponseModel(l *service.UsageLog) {
 	if u == nil || l == nil {
 		return
 	}
 	final := strings.TrimSpace(derefString(l.UpstreamResponseModel))
-	if final == "" {
-		final = strings.TrimSpace(derefString(l.UpstreamModel))
-	}
-	if final == "" {
-		final = strings.TrimSpace(l.Model)
-	}
-	if final == "" || final == u.Model {
+	if final == "" || final == strings.TrimSpace(u.Model) {
 		u.ResponseModel = nil
 		return
 	}

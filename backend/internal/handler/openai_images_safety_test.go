@@ -97,7 +97,7 @@ func runOpenAIImagesWithUpstream(t *testing.T, status int, upstreamBody string) 
 
 func TestOpenAIGatewayHandlerImages_SafetySystemRejectionRecordedInRiskControl(t *testing.T) {
 	const msg = "Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID b553d2f5-3906-4f26-aa3a-e3bb7e24396c."
-	rec, repo := runOpenAIImagesWithUpstream(t, http.StatusBadRequest, `{"error":{"message":"`+msg+`"}}`)
+	rec, repo := runOpenAIImagesWithUpstream(t, http.StatusBadRequest, `{"error":{"code":"content_policy_violation","message":"`+msg+`"}}`)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	require.Contains(t, gjson.GetBytes(rec.Body.Bytes(), "error.message").String(), "safety system")
@@ -117,6 +117,7 @@ func TestOpenAIGatewayHandlerImages_SafetySystemRejectionRecordedInRiskControl(t
 	require.Equal(t, "gpt-image-1", log.Model)
 	require.Equal(t, service.PlatformOpenAI, log.Provider)
 	require.Equal(t, "draw a forbidden thing", log.InputExcerpt)
+	require.Contains(t, log.Error, "code=content_policy_violation")
 	require.Contains(t, log.Error, "safety system")
 	require.Contains(t, log.Error, "upstream_status=400")
 	require.False(t, log.AutoBanned)

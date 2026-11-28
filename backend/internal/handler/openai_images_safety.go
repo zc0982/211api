@@ -14,7 +14,8 @@ const imageSafetyRecordTimeout = 30 * time.Second
 // 写入风控中心。拒绝已经返回给用户，这里只做留证，不影响响应。
 func (h *OpenAIGatewayHandler) recordOpenAIImagesSafetyRefusal(c *gin.Context, apiKey *service.APIKey, account *service.Account, model string, prompt string, upErr *service.OpenAIImagesUpstreamError) {
 	cmSvc := h.contentModerationService
-	if cmSvc == nil || c == nil || !service.IsOpenAIImagesSafetyRefusal(upErr) {
+	code := service.OpenAIImagesSafetyRefusalCode(upErr)
+	if cmSvc == nil || c == nil || code == "" {
 		return
 	}
 	// 在 gin.Context 回收前把需要的值拍成标量。
@@ -34,7 +35,7 @@ func (h *OpenAIGatewayHandler) recordOpenAIImagesSafetyRefusal(c *gin.Context, a
 		Prompt:            prompt,
 		UpstreamStatus:    upErr.StatusCode,
 		UpstreamType:      upErr.ErrorType,
-		UpstreamCode:      upErr.Code,
+		UpstreamCode:      code,
 		UpstreamMessage:   upErr.Message,
 		UpstreamRequestID: upErr.UpstreamRequestID,
 	}

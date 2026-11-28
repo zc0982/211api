@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -20,12 +21,12 @@ func TestIsOpenAIImagesSafetyRefusal(t *testing.T) {
 		{
 			name: "issue 8992: 400 safety system message without type or code",
 			err:  openAIImagesUpstreamErrorFromHTTP(http.StatusBadRequest, nil, []byte(`{"error":{"message":"`+safetyMsg+`"}}`)),
-			want: true,
+			want: false,
 		},
 		{
 			name: "400 safety system message with numeric code 400",
 			err:  openAIImagesUpstreamErrorFromHTTP(http.StatusBadRequest, nil, []byte(`{"error":{"message":"`+safetyMsg+`","code":400}}`)),
-			want: true,
+			want: false,
 		},
 		{
 			name: "moderation_blocked code",
@@ -35,11 +36,11 @@ func TestIsOpenAIImagesSafetyRefusal(t *testing.T) {
 		{
 			name: "responses text fallback refusal",
 			err:  openAIImagesTextFallbackErrorForText("I can't help with that because it violates our content policy."),
-			want: true,
+			want: false,
 		},
 		{
 			name: "response.incomplete content_filter",
-			err:  &OpenAIImagesUpstreamError{StatusCode: http.StatusBadRequest, ErrorType: "image_generation_user_error", Code: "response_incomplete", Message: "Upstream image generation incomplete: content_filter"},
+			err:  openAIImagesIncompleteUpstreamError(gjson.Parse(`{"id":"resp_1","incomplete_details":{"reason":"content_filter"}}`)),
 			want: true,
 		},
 		{
@@ -93,6 +94,11 @@ func TestIsOpenAIImagesSafetyRefusal(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "response.incomplete free text that mentions moderation is not protocol evidence",
+			err:  openAIImagesIncompleteUpstreamError(gjson.Parse(`{"id":"resp_1","incomplete_details":{"reason":"Moderation guidelines"}}`)),
+			want: false,
+		},
+		{
 			name: "safety wording with param set is excluded on the message path",
 			err:  &OpenAIImagesUpstreamError{StatusCode: http.StatusBadRequest, Param: "size", Message: "content policy for size values"},
 			want: false,
@@ -105,7 +111,7 @@ func TestIsOpenAIImagesSafetyRefusal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, IsOpenAIImagesSafetyRefusal(tt.err))
+			require.Equal(t, tt.want, OpenAIImagesSafetyRefusalCode(tt.err) != "")
 		})
 	}
 }
@@ -159,8 +165,8 @@ func TestRecordImageSafetyEvent_WritesLogOnlyEvidence(t *testing.T) {
 	})
 	svc.RecordImageSafetyEvent(context.Background(), imageSafetyTestInput(nil))
 
+	require.Eventually(t, func() bool { return len(repo.snapshotLogs()) == 1 }, 3*time.Second, 10*time.Millisecond)
 	logs := repo.snapshotLogs()
-	require.Len(t, logs, 1)
 	log := logs[0]
 	require.Equal(t, ContentModerationActionImageSafety, log.Action)
 	require.Equal(t, ContentModerationModeRiskControlLogOnly, log.Mode, "image safety evidence must never feed the auto-ban count")
@@ -202,7 +208,10 @@ func TestRecordImageSafetyEvent_RespectsScope(t *testing.T) {
 				SettingKeyContentModerationConfig: tt.config,
 			})
 			svc.RecordImageSafetyEvent(context.Background(), imageSafetyTestInput(tt.groupID))
-			require.Len(t, repo.snapshotLogs(), tt.wantLogs)
+			require.Equal(t, int64(tt.wantLogs), svc.asyncEnqueued.Load())
+			if tt.wantLogs != 0 {
+				require.Eventually(t, func() bool { return len(repo.snapshotLogs()) == tt.wantLogs }, 3*time.Second, 10*time.Millisecond)
+			}
 		})
 	}
 }

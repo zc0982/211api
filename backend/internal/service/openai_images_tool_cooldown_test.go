@@ -91,7 +91,7 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *
 	svc := &OpenAIGatewayService{accountRepo: repo}
 	account := imagesCooldownAccount()
 
-	upstreamErr := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
+	upstreamErr := openAIImagesTextFallbackErrorForText("Here are the moderation guidelines for your request.")
 	require.NotNil(t, upstreamErr)
 	require.Equal(t, "image_generation_unavailable", upstreamErr.Code)
 
@@ -134,8 +134,8 @@ func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAcc
 
 // 标记必须打在文字兜底的两个入口上，且不影响违规拦截分支的判定。
 func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
-	t.Run("plain_text_reply_is_synthesized", func(t *testing.T) {
-		err := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
+	t.Run("generic_moderation_text_is_capability_failure", func(t *testing.T) {
+		err := openAIImagesTextFallbackErrorForText("Here are the moderation guidelines for your request.")
 		require.NotNil(t, err)
 		require.True(t, err.SynthesizedFromModelText)
 		require.Equal(t, "image_generation_unavailable", err.Code)
@@ -152,14 +152,13 @@ func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 		require.True(t, err.SynthesizedFromModelText)
 	})
 
-	t.Run("content_policy_branch_unchanged", func(t *testing.T) {
+	t.Run("explicit_text_refusal_keeps_client_400_without_provider_evidence", func(t *testing.T) {
 		err := openAIImagesTextFallbackErrorForText("Blocked by our content policy.")
 		require.NotNil(t, err)
 		require.Equal(t, "content_policy_violation", err.Code)
 		require.Equal(t, http.StatusBadRequest, err.StatusCode)
-		// 该分支本来就不走冷却（Code 不匹配），标记与否都不改变行为；
-		// 断言它没有被顺手打标，避免语义漂移。
-		require.False(t, err.SynthesizedFromModelText)
+		require.True(t, err.SynthesizedFromModelText)
+		require.Empty(t, OpenAIImagesSafetyRefusalCode(err))
 	})
 
 	t.Run("empty_text_yields_no_error", func(t *testing.T) {
@@ -170,7 +169,7 @@ func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 // 级联的前提条件：该错误确实是可重试的，所以会带着"已写冷却"的副作用换号。
 // 这条用例把前提钉死，避免以后有人把 502 改成非重试后误以为本修复多余。
 func TestOpenAIImagesTextFallback_RemainsRetryableAndThusCascades(t *testing.T) {
-	err := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
+	err := openAIImagesTextFallbackErrorForText("Here are the moderation guidelines for your request.")
 	require.NotNil(t, err)
 	require.True(t, IsOpenAIImagesRetryableUpstreamError(err),
 		"文字兜底判据是可重试的——正因如此，写账号冷却会沿号池级联")

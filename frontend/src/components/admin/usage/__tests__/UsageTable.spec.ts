@@ -496,13 +496,18 @@ describe('admin UsageTable tooltip', () => {
   })
 
   it.each([
-    ['shows', 'gpt-5.5-2026-01-01', true],
-    ['hides', null, false],
+    ['shows a distinct response', 'gpt-5.5-2026-01-01', true],
+    ['hides an absent response', undefined, false],
+    ['hides a matching response', 'gpt-5.5', false],
   ])('%s the actual response model for user rows', (_label, responseModel, visible) => {
     const row = {
       request_id: 'req-user-model-1',
       model: 'gpt-5.5',
       response_model: responseModel,
+      model_mapping_chain: 'gpt-5.5→internal-mapping',
+      upstream_model: 'internal-sent',
+      upstream_response_model: 'internal-provider',
+      upstream_model_mismatch: true,
       actual_cost: 0,
       total_cost: 0,
       rate_multiplier: 1,
@@ -520,6 +525,7 @@ describe('admin UsageTable tooltip', () => {
         loading: false,
         columns: [],
         showAccountBilling: false,
+        showModelAudit: false,
       },
       global: {
         stubs: {
@@ -533,7 +539,9 @@ describe('admin UsageTable tooltip', () => {
 
     const text = wrapper.text()
     expect(text).toContain('gpt-5.5')
-    expect(text.includes('↳gpt-5.5-2026-01-01') || text.includes('↳ gpt-5.5-2026-01-01')).toBe(visible)
+    expect(text.includes('gpt-5.5-2026-01-01')).toBe(visible)
+    expect(text).not.toContain('internal-')
+    expect(wrapper.find('[title="usage.responseModel"]').exists()).toBe(visible)
   })
 
   it('shows requested and forwarded reasoning effort separately when they differ', () => {

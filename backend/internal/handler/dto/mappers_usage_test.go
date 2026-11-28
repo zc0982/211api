@@ -355,21 +355,20 @@ func TestUsageLogApplyResponseModel(t *testing.T) {
 			want: strPtr("final-model-20260101"),
 		},
 		{
-			name: "falls back to upstream model",
+			name: "omits sent model when no response model was observed",
 			log: service.UsageLog{
 				Model:          "gpt-5",
 				RequestedModel: "gpt-5",
 				UpstreamModel:  strPtr("gpt-5-mini"),
 			},
-			want: strPtr("gpt-5-mini"),
 		},
 		{
-			name: "falls back to billing model when requested differs",
+			name: "omits billing model when response model is blank",
 			log: service.UsageLog{
-				Model:          "gpt-5-mini",
-				RequestedModel: "gpt-5",
+				Model:                 "gpt-5-mini",
+				RequestedModel:        "gpt-5",
+				UpstreamResponseModel: strPtr(" "),
 			},
-			want: strPtr("gpt-5-mini"),
 		},
 		{
 			name: "omitted when final equals requested",

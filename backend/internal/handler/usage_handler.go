@@ -72,7 +72,7 @@ func NewUsageHandler(
 
 // userUsageLogs 将使用记录转换为普通用户 DTO。对于所属渠道开启了
 // "向用户显示实际响应模型"的记录，额外填充 response_model。
-// 渠道开关一次性从渠道内存缓存中批量读取，不产生额外数据库查询。
+// 按页批量读取渠道当前授权，查询失败时只省略实际响应模型。
 func (h *UsageHandler) userUsageLogs(c *gin.Context, records []service.UsageLog) []dto.UsageLog {
 	var exposed map[int64]bool
 	if h.channelService != nil && len(records) > 0 {

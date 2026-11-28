@@ -59,7 +59,7 @@
 
         <template #cell-model="{ row }">
           <div class="space-y-0.5 text-xs">
-            <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
+            <div v-if="showModelAudit && row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
               <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
                    class="break-all"
                    :class="i === 0 ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'"
@@ -67,7 +67,7 @@
                 <span v-if="i > 0" class="mr-0.5">↳</span>{{ step }}
               </div>
             </div>
-            <div v-else-if="row.upstream_model && row.upstream_model !== row.model" class="space-y-0.5">
+            <div v-else-if="showModelAudit && row.upstream_model && row.upstream_model !== row.model" class="space-y-0.5">
               <div class="break-all font-medium text-gray-900 dark:text-white">
                 {{ row.model }}
               </div>
@@ -85,7 +85,7 @@
             </div>
             <span v-else class="font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
             <div
-              v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
+              v-if="showModelAudit && row.upstream_model_mismatch === true && row.upstream_response_model"
               class="break-all pl-3 text-[11px]"
               :class="isLikelyModelVariant(row) ? 'text-amber-600 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'"
               :title="modelAuditTitle(row)"
@@ -650,6 +650,7 @@ interface Props {
   defaultSortKey?: string
   defaultSortOrder?: 'asc' | 'desc'
   showAccountBilling?: boolean
+  showModelAudit?: boolean
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
@@ -663,6 +664,7 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortKey: '',
   defaultSortOrder: 'asc',
   showAccountBilling: true,
+  showModelAudit: true,
   showUpstreamEndpoint: true,
   flat: false,
   compact: false

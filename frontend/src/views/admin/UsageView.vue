@@ -579,7 +579,7 @@ const exportToExcel = async () => {
     let p = 1; let total = pagination.total; let exportedCount = 0
     const XLSX = await import('xlsx')
     const headers = [
-      t('usage.time'), t('admin.usage.user'), t('admin.usage.username'), t('usage.apiKeyFilter'),
+      t('usage.time'), t('admin.usage.user'), t('usage.apiKeyFilter'),
       t('admin.usage.account'), t('usage.requestedModel'), t('usage.sentUpstreamModel'), t('usage.upstreamResponseModel'), t('usage.upstreamModelMismatch'), t('usage.requestedReasoningEffort'), t('usage.reasoningEffort'), t('admin.usage.group'),
       t('usage.inboundEndpoint'), t('usage.upstreamEndpoint'),
       t('usage.type'),
@@ -589,7 +589,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
       t('usage.firstToken'), t('usage.duration'),
-      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress'), t('usage.cacheHitRate')
+      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress'), t('usage.cacheHitRate'), t('admin.usage.username')
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
@@ -601,7 +601,7 @@ const exportToExcel = async () => {
       const rows = (res.items || []).map((log: AdminUsageLog) => {
         const rate = log.cache_hit_rate
         return [
-          log.created_at, log.user?.email || '', log.user?.username?.trim() || '', log.api_key?.name || '', log.account?.name || '', log.model,
+          log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
           log.upstream_model || log.model, log.upstream_response_model || '', log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'), formatReasoningEffort(log.reasoning_effort), formatReasoningEffort(log.upstream_reasoning_effort || log.reasoning_effort), log.group?.name || '',
           log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
           log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
@@ -612,6 +612,7 @@ const exportToExcel = async () => {
           ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
           log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || '',
           rate == null ? null : { t: 'n', v: rate, z: '0.0%' },
+          log.user?.username?.trim() || '',
         ]
       })
       if (rows.length) {

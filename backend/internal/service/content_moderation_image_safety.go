@@ -12,72 +12,29 @@ import (
 // ContentModerationActionImageSafety 是上游图像安全系统拒绝生图时写入风控中心的 action。
 const ContentModerationActionImageSafety = "image_safety"
 
-// IsOpenAIImagesSafetyRefusal 判断一次终态图像上游错误是否为上游安全系统拒绝。
-//
-// 只认 400：上游安全拒绝（如 "Your request was rejected by the safety system"）
-// 与 Responses 生图兜底合成的 content_policy_violation 都是 400；其余状态码
-// 描述的是账号/上游故障而不是用户内容。
-//
-// 判定顺序：
-//  1. 明确的安全类 error.code 直接认定（包括 Azure 带 param=prompt 的
-//     content_filter）；response.incomplete 只有在 content_filter/moderation
-//     原因下才会是 400，同样认定。
-//  2. 只能看文案时更保守：带 error.param 的 400 是参数校验错误，排除；文案
-//     是"未知/不支持的参数"之类时排除；关键词表不含单独的 "moderation"——
-//     images 接口自身有 moderation 参数，兼容上游常回
-//     "Unrecognized request argument supplied: moderation" 且 param 为 null。
-//     误报会留存无辜用户的提示词，宁可漏记也不误记。
-func IsOpenAIImagesSafetyRefusal(err *OpenAIImagesUpstreamError) bool {
-	if err == nil || err.StatusCode != http.StatusBadRequest {
-		return false
+// OpenAIImagesSafetyRefusalCode returns provider-supplied evidence suitable for
+// risk retention. Client classification based on prose never grants permission
+// to retain request or provider content.
+func OpenAIImagesSafetyRefusalCode(err *OpenAIImagesUpstreamError) string {
+	if err == nil || err.StatusCode != http.StatusBadRequest || err.SynthesizedFromModelText {
+		return ""
 	}
-	code := strings.ToLower(strings.TrimSpace(err.Code))
-	if code == "response_incomplete" ||
-		code == "moderation_blocked" ||
-		code == "contentfilter" ||
-		strings.Contains(code, "content_filter") ||
-		strings.Contains(code, "content_policy") ||
-		strings.Contains(code, "policy_violation") ||
-		strings.Contains(code, "safety_violation") ||
-		strings.Contains(code, "responsibleaipolicyviolation") {
-		return true
+	if err.incompleteSafetyReason != "" {
+		return err.incompleteSafetyReason
 	}
-	if strings.TrimSpace(err.Param) != "" {
-		return false
-	}
-	return isImageSafetyRefusalMessage(err.Message)
+	return imageSafetyProviderCode(err.Code)
 }
 
-var imageSafetyParameterErrorMarkers = []string{
-	"unrecognized request argument",
-	"unknown parameter",
-	"unsupported parameter",
-	"unexpected parameter",
-	"invalid parameter",
-	"invalid value",
-	"unrecognized parameter",
-}
-
-var imageSafetyRefusalMarkers = []string{
-	"safety system", "safety policy", "safety violation",
-	"content policy", "content_policy", "content filter", "content_filter",
-	"content management policy", "moderation_blocked",
-	"安全系统", "安全策略", "安全政策", "内容政策", "内容审核", "违规内容", "不适合生成",
-}
-
-func isImageSafetyRefusalMessage(message string) bool {
-	lower := strings.ToLower(message)
-	for _, marker := range imageSafetyParameterErrorMarkers {
-		if strings.Contains(lower, marker) {
-			return false
-		}
+func imageSafetyProviderCode(code string) string {
+	code = strings.ToLower(strings.TrimSpace(code))
+	switch code {
+	case "moderation_blocked", "contentfilter", "content_filter", "content_policy",
+		"content_policy_violation", "policy_violation", "safety_violation", "responsibleaipolicyviolation",
+		"responsible_ai_policy_violation":
+		return code
+	default:
+		return ""
 	}
-	for _, marker := range imageSafetyRefusalMarkers {
-		if strings.Contains(lower, marker) {
-			return true
-		}
-	}
-	return false
 }
 
 // ImageSafetyRecordInput 是一次图像上游安全拒绝的风控记录入参。
@@ -155,9 +112,7 @@ func (s *ContentModerationService) RecordImageSafetyEvent(ctx context.Context, i
 		Error:           trimRunes(redactContentModerationSecrets(formatImageSafetyUpstreamDetail(in)), maxModerationExcerptRunes*4),
 		CreatedAt:       time.Now(),
 	}
-	if err := s.repo.CreateLog(ctx, log); err != nil {
-		slog.Warn("content_moderation.image_safety_create_log_failed", "user_id", in.UserID, "endpoint", in.Endpoint, "error", err)
-	}
+	s.enqueueRecord(ContentModerationCheckInput{UserID: in.UserID, Endpoint: in.Endpoint}, cfg, log, "", false, false)
 }
 
 func formatImageSafetyUpstreamDetail(in ImageSafetyRecordInput) string {

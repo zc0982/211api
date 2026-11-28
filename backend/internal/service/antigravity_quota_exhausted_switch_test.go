@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +87,50 @@ func TestAntigravityRetryLoop_QuotaExhausted_SwitchesWithoutSameAccountRetries(t
 	require.Len(t, events, 1)
 	require.Equal(t, "failover", events[0].Kind)
 	require.Equal(t, http.StatusTooManyRequests, events[0].UpstreamStatusCode)
-	require.Contains(t, events[0].Message, "exhausted your capacity")
+	require.Equal(t, "quota_exhausted", events[0].Reason)
+	require.Equal(t, "Upstream quota exhausted", events[0].Message)
+	require.Equal(t, "upstream_status=RESOURCE_EXHAUSTED upstream_code=QUOTA_EXHAUSTED", events[0].Detail)
+}
+
+type quotaSwitchStickyCache struct {
+	GatewayCache
+	calls int
+}
+
+func (c *quotaSwitchStickyCache) CompareAndDeleteSessionAccountID(_ context.Context, groupID int64, session string, id int64) (bool, error) {
+	if groupID != 51 || session != "quota-session" || id != 17 {
+		return false, fmt.Errorf("unexpected compare-and-delete (%d %q %d)", groupID, session, id)
+	}
+	c.calls++
+	return false, nil // Another request already rebound the key.
+}
+
+func TestHandleSmartRetry_QuotaExhausted_UsesScopedStickyDeleteAndStructuredOps(t *testing.T) {
+	cache := &quotaSwitchStickyCache{}
+	svc := &AntigravityGatewayService{cache: cache, settingService: &SettingService{cfg: &config.Config{
+		Gateway: config.GatewayConfig{LogUpstreamErrorBody: true},
+	}}}
+	c := newBare429TestContext()
+	const private = "synthetic-user@example.invalid private supplier prose"
+	body := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"` + private + `","details":[{"reason":"QUOTA_EXHAUSTED","metadata":{"private":"` + private + `"}}]}}`)
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"X-Request-Id": {"synthetic-provider-id"}}}
+	params := antigravityRetryLoopParams{
+		ctx: context.Background(), c: c, account: bare429Account(17), groupID: 51, sessionHash: "quota-session",
+		handleError: func(context.Context, string, *Account, int, http.Header, []byte, string, int64, string, bool) *handleModelRateLimitResult {
+			return nil
+		},
+	}
+	got := svc.handleSmartRetry(params, resp, body, "https://ag-1.test", 0, []string{"https://ag-1.test"})
+	require.NotNil(t, got.switchError)
+	require.Equal(t, 1, cache.calls)
+	raw, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events := raw.([]*OpsUpstreamErrorEvent)
+	require.Len(t, events, 1)
+	require.Equal(t, "synthetic-provider-id", events[0].UpstreamRequestID)
+	require.Equal(t, "upstream_status=RESOURCE_EXHAUSTED upstream_code=QUOTA_EXHAUSTED", events[0].Detail)
+	require.NotContains(t, events[0].Message, private)
+	require.Empty(t, events[0].UpstreamResponseBody)
 }
 
 // 只有 message 的 QUOTA_EXHAUSTED 同时是裸 429：立即切换，但仍遵守"一个请求最多冷却一个账号"。

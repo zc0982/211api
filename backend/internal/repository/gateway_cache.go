@@ -132,7 +132,7 @@ redis.call('PEXPIRE', KEYS[1], ARGV[2])
 return 1
 `)
 
-var compareAndDeleteOpenAIResponsesSessionWindowScript = redis.NewScript(`
+var compareAndDeleteGatewayValueScript = redis.NewScript(`
 local current = redis.call('GET', KEYS[1])
 if current == false or current ~= ARGV[1] then
   return 0
@@ -140,6 +140,15 @@ end
 redis.call('DEL', KEYS[1])
 return 1
 `)
+
+func (c *gatewayCache) CompareAndDeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64) (bool, error) {
+	if c == nil || c.rdb == nil {
+		return false, errors.New("gateway cache unavailable")
+	}
+	n, err := compareAndDeleteGatewayValueScript.Run(ctx, c.rdb,
+		[]string{buildSessionKey(groupID, sessionHash)}, strconv.FormatInt(accountID, 10)).Int()
+	return n == 1, err
+}
 
 func (c *gatewayCache) ClaimOpenAIResponsesSessionWindow(ctx context.Context, groupID int64, sessionHash string, owner []byte, ttl time.Duration) ([]byte, error) {
 	if c == nil || c.rdb == nil {
@@ -197,7 +206,7 @@ func (c *gatewayCache) CompareAndDeleteOpenAIResponsesSessionWindow(ctx context.
 	if len(expected) == 0 || strings.TrimSpace(sessionHash) == "" {
 		return false, errors.New("invalid OpenAI Responses session-window delete")
 	}
-	n, err := compareAndDeleteOpenAIResponsesSessionWindowScript.Run(
+	n, err := compareAndDeleteGatewayValueScript.Run(
 		ctx,
 		c.rdb,
 		[]string{buildOpenAIResponsesSessionWindowKey(groupID, sessionHash)},
@@ -208,6 +217,7 @@ func (c *gatewayCache) CompareAndDeleteOpenAIResponsesSessionWindow(ctx context.
 
 var _ service.OpenAIWSSessionPreemptionCache = (*gatewayCache)(nil)
 var _ service.GatewayStickySessionCompareCache = (*gatewayCache)(nil)
+var _ service.GatewayStickySessionCompareDeleteCache = (*gatewayCache)(nil)
 
 const (
 	grokVideoPendingBillingPrefix = "grok_video_pending:"

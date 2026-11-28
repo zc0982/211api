@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // antigravityRetryLoopParams 重试循环的参数
@@ -148,11 +149,12 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "failover",
-			Message:            sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(respBody))),
-			Detail:             s.getUpstreamErrorDetail(respBody),
+			Reason:             "quota_exhausted",
+			Message:            "Upstream quota exhausted",
+			Detail:             antigravityQuotaExhaustedOpsDetail(respBody),
 		})
 		s.applyAntigravity429Cooldown(p, resp, respBody)
-		s.clearStickySession(p.ctx, p.groupID, p.sessionHash)
+		s.clearStickySessionIfAccount(p.ctx, p.groupID, p.sessionHash, p.account.ID)
 		return &smartRetryResult{
 			action: smartRetryActionBreakWithResp,
 			switchError: &AntigravityAccountSwitchError{
@@ -942,6 +944,27 @@ func (s *AntigravityGatewayService) applyAntigravity429Cooldown(p antigravityRet
 		return
 	}
 	p.handleError(p.ctx, p.prefix, p.account, resp.StatusCode, resp.Header, respBody, p.requestedModel, p.groupID, p.sessionHash, p.isStickySession)
+}
+
+func antigravityQuotaExhaustedOpsDetail(body []byte) string {
+	var parts []string
+	if gjson.GetBytes(body, "error.status").String() == "RESOURCE_EXHAUSTED" {
+		parts = append(parts, "upstream_status=RESOURCE_EXHAUSTED")
+	}
+	if gjson.GetBytes(body, `error.details.#(reason=="QUOTA_EXHAUSTED").reason`).String() == "QUOTA_EXHAUSTED" {
+		parts = append(parts, "upstream_code=QUOTA_EXHAUSTED")
+	}
+	return strings.Join(parts, " ")
+}
+
+func (s *AntigravityGatewayService) clearStickySessionIfAccount(ctx context.Context, groupID int64, sessionHash string, accountID int64) {
+	cache, ok := s.cache.(GatewayStickySessionCompareDeleteCache)
+	if !ok || strings.TrimSpace(sessionHash) == "" {
+		return
+	}
+	if _, err := cache.CompareAndDeleteSessionAccountID(ctx, groupID, sessionHash, accountID); err != nil {
+		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] sticky_session_compare_clear_failed group_id=%d session=%s err=%v", groupID, shortSessionHash(sessionHash), err)
+	}
 }
 
 func (s *AntigravityGatewayService) clearStickySession(ctx context.Context, groupID int64, sessionHash string) {

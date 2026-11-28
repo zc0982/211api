@@ -788,6 +788,7 @@ describe('admin UsageView model audit export', () => {
 				id: 1,
 				created_at: '2026-08-04T00:00:00Z',
 				user: { id: 7, email: 'alice@test.com', username: 'Alice' },
+				api_key: { name: 'key-A' },
 				model: 'gpt-5.6-sol',
 				upstream_model: 'gpt-5.5',
 				upstream_response_model: 'gpt-5.4',
@@ -834,8 +835,9 @@ describe('admin UsageView model audit export', () => {
 		)
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
-		expect(headers.slice(1, 3)).toEqual(['User', 'Username'])
-		expect(headers.slice(5, 9)).toEqual([
+		expect(headers[1]).toBe('User')
+		expect(headers[2]).toBe('usage.apiKeyFilter') // C
+		expect(headers.slice(4, 8)).toEqual([
 			'Requested model',
 			'Sent upstream model',
 			'Upstream response model',
@@ -843,9 +845,14 @@ describe('admin UsageView model audit export', () => {
 		])
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row).toHaveLength(headers.length)
-		expect(row[headers.indexOf('Cache hit rate')]).toEqual({ t: 'n', v: 0.25, z: '0.0%' })
-		expect(row.slice(1, 3)).toEqual(['alice@test.com', 'Alice'])
-		expect(row.slice(5, 9)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(row[1]).toBe('alice@test.com')
+		expect(row[2]).toBe('key-A')
+		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(headers[33]).toBe('Cache hit rate') // AH
+		expect(row[33]).toEqual({ t: 'n', v: 0.25, z: '0.0%' })
+		expect(headers).toHaveLength(35)
+		expect(headers[34]).toBe('Username')
+		expect(row[34]).toBe('Alice')
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 })

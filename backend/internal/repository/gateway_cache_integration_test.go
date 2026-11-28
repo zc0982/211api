@@ -27,6 +27,31 @@ func (s *GatewayCacheSuite) TestGetSessionAccountID_Missing() {
 	require.True(s.T(), errors.Is(err, service.ErrStickySessionNotFound), "expected ErrStickySessionNotFound for missing session")
 }
 
+func (s *GatewayCacheSuite) TestCompareAndDeleteSessionAccountIDPreservesHealthyBinding() {
+	const groupID, failedID, healthyID = int64(91), int64(13), int64(72)
+	const session = "quota-exhausted"
+	comparable := s.cache.(service.GatewayStickySessionCompareDeleteCache)
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, session, healthyID, time.Minute))
+	ttlBefore, err := s.rdb.PTTL(s.ctx, buildSessionKey(groupID, session)).Result()
+	require.NoError(s.T(), err)
+	deleted, err := comparable.CompareAndDeleteSessionAccountID(s.ctx, groupID, session, failedID)
+	require.NoError(s.T(), err)
+	require.False(s.T(), deleted)
+	got, err := s.cache.GetSessionAccountID(s.ctx, groupID, session)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), healthyID, got)
+	ttlAfter, err := s.rdb.PTTL(s.ctx, buildSessionKey(groupID, session)).Result()
+	require.NoError(s.T(), err)
+	require.LessOrEqual(s.T(), ttlAfter, ttlBefore)
+	require.Greater(s.T(), ttlAfter, ttlBefore-5*time.Second)
+	require.NoError(s.T(), s.cache.SetSessionAccountID(s.ctx, groupID, session, failedID, time.Minute))
+	deleted, err = comparable.CompareAndDeleteSessionAccountID(s.ctx, groupID, session, failedID)
+	require.NoError(s.T(), err)
+	require.True(s.T(), deleted)
+	_, err = s.cache.GetSessionAccountID(s.ctx, groupID, session)
+	require.ErrorIs(s.T(), err, service.ErrStickySessionNotFound)
+}
+
 func (s *GatewayCacheSuite) TestSetAndGetSessionAccountID() {
 	sessionID := "s1"
 	accountID := int64(99)

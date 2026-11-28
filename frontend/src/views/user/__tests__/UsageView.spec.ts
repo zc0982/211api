@@ -764,8 +764,12 @@ describe('UsageView subscription feature flag', () => {
     const width = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
     query.mockResolvedValue({
-      items: [{ ...usageLog, response_model: 'gpt-5.5' }, { ...usageLog, id: 2, request_id: 'req-2' }],
-      total: 2,
+      items: [
+        { ...usageLog, response_model: 'gpt-5.5', upstream_model: 'internal-sent' },
+        { ...usageLog, id: 2, request_id: 'req-2', upstream_response_model: 'internal-provider' },
+        { ...usageLog, id: 3, request_id: 'req-3', response_model: usageLog.model },
+      ],
+      total: 3,
       pages: 1,
     })
     const wrapper = mountUsageView()
@@ -773,10 +777,12 @@ describe('UsageView subscription feature flag', () => {
       await flushPromises()
       expect(wrapper.findComponent(UsageTable).exists()).toBe(false)
       const fields = wrapper.findAll('[data-test="usage-mobile-fields"]')
-      expect(fields).toHaveLength(2)
+      expect(fields).toHaveLength(3)
       expect(fields[0].text()).toContain('req-user-export')
       expect(fields[0].text()).toContain('gpt-5.5')
       expect(fields[1].text()).not.toContain('usage.responseModel')
+      expect(fields[2].text()).not.toContain('usage.responseModel')
+      expect(wrapper.text()).not.toContain('internal-')
       expect(fields[0].text()).toContain('4,057 / 101')
       expect(fields[0].text()).toContain('$0.092883')
       expect(wrapper.get('.console-mobile-record-body > summary').text()).toContain('12ms / 345ms')

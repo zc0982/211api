@@ -576,6 +576,10 @@ type GatewayStickySessionCompareCache interface {
 	CompareAndBindSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, replaceableAccountIDs []int64, ttl time.Duration) (bool, error)
 }
 
+type GatewayStickySessionCompareDeleteCache interface {
+	CompareAndDeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64) (bool, error)
+}
+
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil
 func derefGroupID(groupID *int64) int64 {
 	if groupID == nil {
