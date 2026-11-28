@@ -226,10 +226,21 @@ describe('BrandHome', () => {
     wrapper.unmount()
   })
 
-  it('hides docs links when doc_url is not a safe URL', () => {
+  it('hides settings-driven docs links when doc_url is not a safe URL', () => {
     const wrapper = mountHome({ doc_url: 'javascript:alert(1)' })
     expect(wrapper.findAll('a[href^="javascript"]').length).toBe(0)
     expect(wrapper.find('.bh-hero__ctas').text()).not.toContain('brandHome.hero.ctaDocs')
+    wrapper.unmount()
+  })
+
+  it.each(['', 'https://docs.example.com/'])('keeps the public docs links fixed with doc_url=%s', (docUrl) => {
+    const wrapper = mountHome({ doc_url: docUrl })
+    for (const selector of ['.bh-header__nav', '.bh-header details nav', '.bh-footer__col']) {
+      const link = wrapper.get(`${selector} a[target="_blank"]`)
+      expect(link.text()).toBe('brandHome.nav.docs')
+      expect(link.attributes('href')).toBe('https://docs.211api.com/')
+      expect(link.attributes('rel')).toBe('noopener')
+    }
     wrapper.unmount()
   })
 
