@@ -20,7 +20,7 @@
         </summary>
         <nav
           :class="mobile
-            ? 'absolute left-0 top-full mt-3.5 grid gap-2 rounded-xl border border-[color:var(--bh-night-line)] bg-[var(--bh-night-card)] px-4 py-3'
+            ? 'absolute left-0 top-full mt-3.5 grid w-max min-w-24 justify-items-start gap-2 whitespace-nowrap rounded-xl border border-[color:var(--bh-night-line)] bg-[var(--bh-night-card)] px-4 py-3'
             : 'bh-header__nav'"
           :aria-label="t('brandHome.a11y.primaryNav')"
           @click="mobile && closeMobileNav($event)"
