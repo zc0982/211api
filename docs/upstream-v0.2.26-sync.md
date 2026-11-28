@@ -2,7 +2,7 @@
 
 ## 发布基线
 
-- Fork `origin/main` 为 `34133e668f112412e9625be40c01e4bb9a1f3eaf`，Git 共同祖先为 `348997267d756eab5729bb6b78a275a15d18796a`，双方独有提交数为 435 / 153。
+- 首次同步的 fork `origin/main` 为 `34133e668f112412e9625be40c01e4bb9a1f3eaf`，Git 共同祖先为 `348997267d756eab5729bb6b78a275a15d18796a`，双方独有提交数为 435 / 153。保留首次同步合并提交 `64e7fb9650620165188fb41b802a349e1259b25d` 的两个父提交。
 - 正式标签 `v0.2.26` 指向源码 `9494105c7e350937a61bd78b3f913a5a10867f58`（annotated tag 对象 `bb3690b32171c0f6003b55e00ddb66a8026bbcdb`）。按本次指定的发布目标，普通合并其唯一后续版本提交 `f53641e53c8da5efd959595c1eac696bdc0a3a57`。该提交相对源码标签仅把 `backend/cmd/server/VERSION` 更新到 `0.2.26`。
 
 ## 冲突处理与重叠检查
@@ -37,21 +37,23 @@
 
 ## PR #116 首轮审查修订
 
+PR #115 进入 fork main 后，通过普通合并纳入 `9453e452181277695402f999ca43aa694e17fe70`。该合并的上游基线仍为 `f53641e53c8da5efd959595c1eac696bdc0a3a57`。迁移目录和 runner 与最新 fork main 逐字节一致。
+
 1. 用量 DTO 仅接收实际上游 `upstream_response_model`。空白值、与请求模型相同的值和未获许可的值一律省略。列表沿用当前用户筛选，详情校验所有权后才读取开关。用户桌面表关闭管理端审计列的模型渲染分支，手机明细同样只使用公开的 `response_model`。DTO、列表、详情和两种视图均有回归。
 2. 每页以去重后的渠道 ID 执行一次 PostgreSQL 查询，JSONB 值只有严格布尔 `true` 才允许披露。读取限时一秒，错误时继续返回普通用量数据。披露查询独立于渠道内存快照及 Redis Pub/Sub。两实例集成测试让订阅端保留旧缓存，仍验证撤权立即影响后续读、重新开启可见、字符串 `"true"` 不生效及数据库读错时不披露。
 3. Responses 生图回退将普通 moderation 文案归类为缺少图像结果。明确拒绝文案可继续返回客户端兼容的 400 和错误码，Ops 只保存来源、分类和允许的协议枚举。风控留证只接收明确的供应商错误码或结构化过滤原因，继续使用现有脱敏规则、范围开关和日志队列，不增加自动封禁或邮件动作。
 4. 管理员 XLSX 的 C、E、AH 仍为 API Key、请求模型及数值百分比的缓存命中率，用户名追加在 AI。回归校验列位置、表头、单元格类型和值，用户 CSV 沿用原布局。
 5. Antigravity 明确配额耗尽换号事件只记录结构化供应商状态及代码、HTTP 状态、上游请求 ID 与固定分类。开启上游响应详情记录的合成回归确认此分支仍省略原始消息及 body。
-6. 同一换号分支复用 Redis 单键比较删除脚本，只比较当前会话键的账号值。Redis 集成回归覆盖失败账号匹配时删除，以及健康账号已接管时保留值与剩余 TTL。其他故障分支沿用原行为。
+6. 同一换号分支复用 Redis 单键比较删除脚本，只比较当前会话键的账号值。即使供应商同时返回模型限流，冷却仍执行，会话清理由原子比较独立负责。混合响应通过真实冷却回调覆盖，Redis 集成回归覆盖失败账号匹配时删除，以及健康账号已接管时保留值与剩余 TTL。其他故障分支沿用原行为。
 
-### 隔离数据库启动验证
+## 首次同步的隔离数据库启动验证
 
 - 使用 PostgreSQL 18.4 和 Redis 8.4.6，通过旧版实际启动入口初始化 v0.2.25。创建合成管理员、API Key、两个渠道和两笔用量，随后在相同数据目录、数据库与 Redis 上启动 v0.2.26，再切回 v0.2.25。另在空数据库和独立 Redis DB 中用 v0.2.26 从零安装。
 - 四种启动场景的 `/health` 正常，公开设置回读各自版本。升级前后和全新安装的 `schema_migrations` 共 306 项完整文件名和 checksum 一致。旧登录会话和 API Key 在升级后可读，切回旧版后仍能查询用量记录。
 - 在新版默认配置下，两笔用量的列表和单条响应均省略实际响应模型。开启一个合成渠道的开关后，只有该渠道的历史记录新增最终模型，两个出口都保留原请求模型与 25% 缓存命中率。
 - 使用嵌入发行构建和真实 Chromium，在 390 × 844 的深色视口核对星链首页、星狐 Logo 和用户用量卡片。允许显示的模型位于横坐标 249–357 px，页面宽度保持 390 px。关闭开关的记录保持隐藏，两个记录均无中间映射模型。
 
-## 本地验证
+## 首次同步的本地验证
 
 - `GOFLAGS=-p=2 make -C backend test-unit` 的 60 个测试包全部通过。首次高并发运行中，基线已有的 `TestServerTimingConnectorRecordsDriverCallsWithoutRowLifetime` 发生一次时序断言失败。该测试及实现与基线一致，独立基线运行 20 次通过，候选全量复跑通过。
 - 修复并行测试的 Gin 全局写入后，相关 Responses 和 SSE 保活测试在 `-race -count=15` 下通过。`GOFLAGS=-p=2 make -C backend test-race-service` 完整复跑通过，用时 339.192 秒。
@@ -59,3 +61,11 @@
 - `make -C backend test-security` 使用 Go 1.27.4 工具链路径直接启动 govulncheck 1.10.0，漏洞库更新时间为 `2026-11-24 15:56:00 UTC`，项目代码可达漏洞为 0。安全扫描入口、Go 依赖和前端锁文件与基线一致。执行 `pnpm --dir frontend audit --prod --audit-level=high --json`，随后用 `tools/check_pnpm_audit_exceptions.py` 核验现有的 2 项 high 例外，例外检查通过。
 - Node 24.19.0 和 pnpm 9.15.9 下，`pnpm --dir frontend install --frozen-lockfile`、`make test-frontend` 中的 lint 和 typecheck 步骤、`pnpm --dir frontend build` 通过。两 worker 下复跑 `pnpm --dir frontend test:run --maxWorkers=2 --minWorkers=1` 和 `make test-frontend-critical`，分别通过 422 个文件的 3,595 项测试及 154 个文件的 1,994 项测试。首次高并发运行曾有超时和断言失败。
 - 运行 `.github/workflows/backend-ci.yml` 列出的部署脚本检查及 Compose simple mode 环境测试，全部通过。Python 3.12 下，`python -m unittest discover -s .github/release-tools -p test_release_matrix.py` 的 10 项测试及 `bash -n .github/release-tools/release-images.sh` 通过。后端 `go test -tags embed ./internal/web` 和 `go build -tags embed` 通过，产物版本回读为 `0.2.26`。
+
+## 首轮审查修订复验
+
+- Go 1.27.4。受影响的 `internal/handler/dto`、`internal/handler`、`internal/service`、`internal/repository` 已用 `go test -p=2 -tags=unit` 验证。全套 `CI=true go test -p=2 -v -tags=integration` 的四个集成包通过。需要外部抓包服务的可选 TLS 用例跳过。以真实 PostgreSQL 和 Redis 单独复跑 `TestChannelResponseModelRevocationWithoutPubSub` 与 `TestGatewayCacheSuite/TestCompareAndDeleteSessionAccountIDPreservesHealthyBinding`，均通过。
+- 使用 `go test -p=2 -tags=unit -race` 复验 DTO、用量入口、图像安全分流、配额换号和缓存相关用例，全部通过。混合配额与模型限流的合成记录确认旧的删除路径不会触发，实际模型冷却仍会写入。`golangci-lint run --timeout=30m`（2.14.0）报告 0 个问题。
+- Node 24.19.0 和 pnpm 9.15.9。`pnpm --dir frontend install --frozen-lockfile` 成功。定向 Vitest 通过 77 项，包含用户桌面表和手机卡片、管理员 XLSX 及渠道开关。纳入 PR #115 后以两 worker 执行 `make test-frontend`，lint、类型检查和 154 个文件的 1,997 项测试全部通过，包含首页导航。`pnpm --dir frontend build` 和 `go test -p=2 -tags embed ./internal/web` 通过。
+- 版本完整性和集成包声明检查通过。复跑 `make -C backend test-security`，govulncheck 1.10.0 报告项目代码可达漏洞 0，另有 1 项导入包和 7 项依赖模块的不可达发现。`pnpm --dir frontend audit --prod --audit-level=high --json` 配合 `tools/check_pnpm_audit_exceptions.py` 校验现有 2 项 high 例外，门禁通过。
+- 以 `CGO_ENABLED=0 go build -p=2 -tags embed ./cmd/server` 生成发行二进制，在本机两个共享隔离 PostgreSQL、Redis 的实例验证列表与详情。覆盖允许显示、开关关闭、未观测及与请求模型相同四笔合成记录。通过 SQL 修改开关以绕开通知，两实例下一次读取均即时撤权，重新开启后只恢复同一笔记录。两实例均读到相同的 306 项迁移账册。真实 Chromium 在 1366 × 880 桌面表与 390 × 844 手机卡片均只展示一条获准的实际模型。手机字段横坐标 242–357 px，页面宽度保持 390 px。

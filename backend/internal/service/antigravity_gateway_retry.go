@@ -153,7 +153,10 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 			Message:            "Upstream quota exhausted",
 			Detail:             antigravityQuotaExhaustedOpsDetail(respBody),
 		})
-		s.applyAntigravity429Cooldown(p, resp, respBody)
+		cooldown := p
+		// A mixed quota and model-limit response can also reach legacy sticky cleanup.
+		cooldown.sessionHash = ""
+		s.applyAntigravity429Cooldown(cooldown, resp, respBody)
 		s.clearStickySessionIfAccount(p.ctx, p.groupID, p.sessionHash, p.account.ID)
 		return &smartRetryResult{
 			action: smartRetryActionBreakWithResp,

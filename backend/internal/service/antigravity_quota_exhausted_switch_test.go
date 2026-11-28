@@ -94,7 +94,13 @@ func TestAntigravityRetryLoop_QuotaExhausted_SwitchesWithoutSameAccountRetries(t
 
 type quotaSwitchStickyCache struct {
 	GatewayCache
-	calls int
+	calls         int
+	legacyDeletes int
+}
+
+func (c *quotaSwitchStickyCache) DeleteSessionAccountID(context.Context, int64, string) error {
+	c.legacyDeletes++
+	return nil
 }
 
 func (c *quotaSwitchStickyCache) CompareAndDeleteSessionAccountID(_ context.Context, groupID int64, session string, id int64) (bool, error) {
@@ -107,21 +113,26 @@ func (c *quotaSwitchStickyCache) CompareAndDeleteSessionAccountID(_ context.Cont
 
 func TestHandleSmartRetry_QuotaExhausted_UsesScopedStickyDeleteAndStructuredOps(t *testing.T) {
 	cache := &quotaSwitchStickyCache{}
-	svc := &AntigravityGatewayService{cache: cache, settingService: &SettingService{cfg: &config.Config{
+	repo := &stubAntigravityAccountRepo{}
+	svc := &AntigravityGatewayService{cache: cache, accountRepo: repo, settingService: &SettingService{cfg: &config.Config{
 		Gateway: config.GatewayConfig{LogUpstreamErrorBody: true},
 	}}}
 	c := newBare429TestContext()
 	const private = "synthetic-user@example.invalid private supplier prose"
-	body := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"` + private + `","details":[{"reason":"QUOTA_EXHAUSTED","metadata":{"private":"` + private + `"}}]}}`)
+	body := []byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"` + private + `","details":[
+		{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"QUOTA_EXHAUSTED","metadata":{"private":"` + private + `"}},
+		{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED","metadata":{"model":"gemini-4-argon-high"}},
+		{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"30s"}
+	]}}`)
 	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"X-Request-Id": {"synthetic-provider-id"}}}
 	params := antigravityRetryLoopParams{
 		ctx: context.Background(), c: c, account: bare429Account(17), groupID: 51, sessionHash: "quota-session",
-		handleError: func(context.Context, string, *Account, int, http.Header, []byte, string, int64, string, bool) *handleModelRateLimitResult {
-			return nil
-		},
+		isStickySession: true, requestedModel: "gemini-4-argon-high", handleError: svc.handleUpstreamError,
 	}
 	got := svc.handleSmartRetry(params, resp, body, "https://ag-1.test", 0, []string{"https://ag-1.test"})
 	require.NotNil(t, got.switchError)
+	require.NotEmpty(t, repo.modelRateLimitCalls, "the mixed response still cools the model")
+	require.Zero(t, cache.legacyDeletes)
 	require.Equal(t, 1, cache.calls)
 	raw, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
